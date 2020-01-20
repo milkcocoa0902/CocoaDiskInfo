@@ -14,6 +14,7 @@ namespace DiskInfo{
 					SMART(const std::string _device);
 					uint64_t Temperature();
 					uint64_t PowerOnTime();
+					uint64_t PowerOnCount();
 			private:
 					SkDisk *disk_;
 

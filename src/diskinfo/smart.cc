@@ -44,4 +44,11 @@ namespace DiskInfo{
 						return (tmp - 273150) / 1000;  /* convert milli kelvin to celsius */
 				}
 		}
+
+		uint64_t SMART::PowerOnCount(){
+				uint64_t tmp;
+				if (sk_disk_smart_get_power_cycle(disk_, &tmp) == 0) {
+						return tmp;
+				}
+		}
 }
