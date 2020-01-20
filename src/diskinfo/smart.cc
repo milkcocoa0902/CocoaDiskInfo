@@ -8,9 +8,9 @@
 
 
 namespace DiskInfo{
-		SMART::SMART(const char* _device){
+		SMART::SMART(const std::string _device){
 				SkBool smart_available = 0;
-				if (sk_disk_open(_device, &disk_) < 0) {
+				if (sk_disk_open(_device.c_str(), &disk_) < 0) {
 						fprintf(stderr, "Failed to open disk %s: %s(%d)\n", _device, strerror(errno), errno);
 						 throw std::runtime_error("error1!");
 				}

@@ -11,7 +11,7 @@ extern "C"{
 namespace DiskInfo{
 		class SMART{
 			public:
-					SMART(const char* _device);
+					SMART(const std::string _device);
 					uint64_t Temperature();
 					uint64_t PowerOnTime();
 			private:
