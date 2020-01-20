@@ -10,6 +10,9 @@ set(CMAKE_DISABLE_SOURCE_CHANGES  ON)
 
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR})
 
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(Gtkmm3 gtkmm-3.0)
+include_directories(${Gtkmm3_INCLUDE_DIRS})
 
 include_directories(src)
 add_subdirectory(src)
