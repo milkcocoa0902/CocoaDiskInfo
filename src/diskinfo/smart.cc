@@ -37,4 +37,11 @@ namespace DiskInfo{
 						return tmp / 1000 / 3600;
 				}
 		}
+
+		uint64_t SMART::Temperature(){
+				uint64_t tmp;
+				if (sk_disk_smart_get_temperature(disk_, &tmp) == 0) {
+						return (tmp - 273150) / 1000;  /* convert milli kelvin to celsius */
+				}
+		}
 }
