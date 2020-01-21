@@ -1,22 +1,15 @@
 #include "diskinfo/smart/atasmart.h"
+#include "diskinfo/gui/mainWindow.h"
+#include <vector>
+#include <gtkmm.h>
 
-#include <string>
-#include <iostream>
+auto main(int argc, char** argv) -> int {
+  DiskInfo::SMART::ATASMART smt("/dev/sda");
+  auto app = Gtk::Application::create(argc, argv, "org.gtkmm.example");
+  std::vector<DiskInfo::SMART::ATASMART> a;
+  a.push_back(smt);
+  DiskInfo::GUI::MainWindow mw(a);
 
-#include <boost/format.hpp>
-
-#include <stdio.h>
-
-int main() {
-  DiskInfo::SMART::ATASMART smt("/dev/sda1");
-  std::cout << "PowerOnTime : " << smt.powerOnTime() << std::endl;
-  std::cout << "PowerOnCount : " << smt.powerOnCount() << std::endl;
-  std::cout << "Temperature : " << smt.temperature() << std::endl;
-
-  auto attribute = smt.attr();
-  for (auto attr : attribute) {
-    printf("name : %s\n\tid : %d\n\tcurrnet : %d\n\tworst : %d\n\tthreshold : %d\n\traw : %X\n",
-           attr.name().c_str(), attr.id(), attr.current(), attr.worst(), attr.threshold(),
-           attr.raw());
-  }
+  mw.show();
+  app->run(mw);
 }

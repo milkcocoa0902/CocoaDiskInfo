@@ -118,5 +118,17 @@ uint64_t ATASMART::capacity() const {
 const std::vector<Attribute> ATASMART::attr() const {
   return attr_;
 }
+
+std::string ATASMART::model() const {
+  return model_;
+}
+
+std::string ATASMART::serial() const {
+  return serial_;
+}
+
+std::string ATASMART::firmware() const {
+  return firmware_;
+}
 } // namespace SMART
 } // namespace DiskInfo
