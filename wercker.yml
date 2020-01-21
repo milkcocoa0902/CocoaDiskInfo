@@ -19,15 +19,15 @@ build:
             url:  $SLACK_WEBHOOK_URL
             notify_on: failed
 
-      #static-validations:
-      #  steps:
+static-validations:
+    steps:
       #    - script:
       #      name: encoding
       #      code: ./tools/validate/encoding.sh
 
-      #    - script:
-      #      name: include guard
-      #      code: ./tools/validate/include_guard.sh
+      - script:
+        name: include guard
+        code: ./tools/validate/include_guard.sh
 
       #    - script:
       #      name: format
