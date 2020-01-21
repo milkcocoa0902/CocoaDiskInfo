@@ -5,6 +5,7 @@
 #include "device.h"
 #include "diskinfo/smart/atasmart.h"
 #include <vector>
+#include <array>
 
 namespace DiskInfo {
 namespace GUI {
@@ -16,7 +17,7 @@ public:
 
 private:
   Gtk::Notebook note_;
-  DiskInfo::GUI::Device device_;
+  std::array<DiskInfo::GUI::Device, 32> device_;
 };
 } // namespace GUI
 } // namespace DiskInfo
