@@ -5,18 +5,19 @@
 #include <gtkmm/widget.h>
 #include "diskinfo/smart/atasmart.h"
 
-namespace DiskInfo{
-namespace GUI{
-class Device{
-		SMART::ATASMART smart_;
-		Gtk::Label label;
-		Gtk::Box page_;
-		public:
-		Device() = default;
-		Device(DiskInfo::SMART::ATASMART _smart);
-		Gtk::Box& Build();
+namespace DiskInfo {
+namespace GUI {
+class Device {
+  SMART::ATASMART smart_;
+  Gtk::Label label;
+  Gtk::Box page_;
+
+public:
+  Device() = default;
+  Device(DiskInfo::SMART::ATASMART _smart);
+  Gtk::Box& Build();
 };
-}
-}
+} // namespace GUI
+} // namespace DiskInfo
 
 #endif

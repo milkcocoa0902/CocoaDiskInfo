@@ -6,19 +6,19 @@
 #include "diskinfo/smart/atasmart.h"
 #include <vector>
 
-namespace DiskInfo{
-namespace GUI{
-class MainWindow : public Gtk::Window{
-		public:
-				MainWindow() = default;
-				MainWindow(const MainWindow&) = default;
-MainWindow(std::vector<DiskInfo::SMART::ATASMART> _device);
+namespace DiskInfo {
+namespace GUI {
+class MainWindow : public Gtk::Window {
+public:
+  MainWindow()                  = default;
+  MainWindow(const MainWindow&) = default;
+  MainWindow(std::vector<DiskInfo::SMART::ATASMART> _device);
 
-		private:
-Gtk::Notebook note_;
-DiskInfo::GUI::Device device_;
+private:
+  Gtk::Notebook note_;
+  DiskInfo::GUI::Device device_;
 };
-}
-}
+} // namespace GUI
+} // namespace DiskInfo
 
 #endif
