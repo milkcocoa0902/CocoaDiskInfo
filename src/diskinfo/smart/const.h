@@ -1,5 +1,5 @@
-#ifndef COCOA_DISK_INFO_SMART_CONSTANT_H_
-#define COCOA_DISK_INFO_SMART_CONSTANT_H_
+#ifndef COCOA_DISK_INFO_SMART_CONST_H_
+#define COCOA_DISK_INFO_SMART_CONST_H_
 
 namespace Diskinfo {
 namespace SMART {
