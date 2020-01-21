@@ -27,8 +27,8 @@ static-validations:
 
       - script:
         name: include guard
-        code: ./tools/validate/include_guard.sh
+        code: ./tools/validate/includeGuard.sh
 
-      #    - script:
-      #      name: format
-      #      code: ./tools/validate/format.sh
+      - script:
+        name: format
+        code: ./tools/validate/format.sh
