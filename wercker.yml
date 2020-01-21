@@ -1,0 +1,34 @@
+box: koron0902/ubuntu
+
+build:
+  steps:
+    - script:
+      name: set environment
+      code: |
+          mkdir -p build && cd $_
+          cmake .. -G Ninja
+
+    - script:
+      name: build
+      code: |
+        cd build
+        ninja
+
+  after-steps:
+          - slack-notifier:
+            url:  $SLACK_WEBHOOK_URL
+            notify_on: failed
+
+      #static-validations:
+      #  steps:
+      #    - script:
+      #      name: encoding
+      #      code: ./tools/validate/encoding.sh
+
+      #    - script:
+      #      name: include guard
+      #      code: ./tools/validate/include_guard.sh
+
+      #    - script:
+      #      name: format
+      #      code: ./tools/validate/format.sh
