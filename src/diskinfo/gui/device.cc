@@ -24,18 +24,24 @@ Gtk::HBox& Device::Build() {
 void Device::CreateInfo() {
   info_.set_label("Device Info");
 
-  devModel_       = labeldText("model", smart_.model());
-  devSerial_      = labeldText("Serial", smart_.serial());
-  devPowerOn_     = labeldText("PowerOnHour", std::to_string(smart_.powerOnTime()));
-  devTemperature_ = labeldText("Temperature", std::to_string(smart_.temperature()));
+  devModel_        = labeldText("Model", smart_.model());
+  devSerial_       = labeldText("Serial", smart_.serial());
+  devPowerOnTime_  = labeldText("PowerOnHour[h]", std::to_string(smart_.powerOnTime()));
+  devPowerOnCount_ = labeldText("PowerOnCount", std::to_string(smart_.powerOnCount()));
+  devTemperature_  = labeldText("Temperature[Celsius]", std::to_string(smart_.temperature()));
+  devCapacity_ =
+      labeldText("Capacity[GiB]",
+                 std::to_string(static_cast<double>(smart_.capacity()) / 1024 / 1024 / 1024));
 
   infoBox_.set_border_width(4);
   infoBox_.pack_start(devModel_.Build(), Gtk::PACK_SHRINK, 4);
   infoBox_.pack_start(devSerial_.Build(), Gtk::PACK_SHRINK, 4);
+  infoBox_.pack_start(devCapacity_.Build(), Gtk::PACK_SHRINK, 4);
   info_.add(infoBox_);
 
   stateBox_.set_border_width(4);
-  stateBox_.pack_start(devPowerOn_.Build(), Gtk::PACK_SHRINK, 4);
+  stateBox_.pack_start(devPowerOnCount_.Build(), Gtk::PACK_SHRINK, 4);
+  stateBox_.pack_start(devPowerOnTime_.Build(), Gtk::PACK_SHRINK, 4);
   stateBox_.pack_start(devTemperature_.Build(), Gtk::PACK_SHRINK, 4);
   state_.add(stateBox_);
 }
@@ -50,7 +56,6 @@ void Device::CreateTree() {
   tree_.append_column("worst", model_.worst());
   tree_.append_column("threshold", model_.threshold());
   tree_.append_column("raw", model_.raw());
-  tree_.get_column(6)->set_alignment(1);
 
   for (auto attr : smart_.attr()) {
     std::stringstream ss;

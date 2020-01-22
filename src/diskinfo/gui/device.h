@@ -81,7 +81,8 @@ class Device {
   Gtk::TreeView tree_;
   Glib::RefPtr<Gtk::TreeStore> treeStore_;
   Gtk::Frame info_, state_;
-  labeldText devModel_, devSerial_, devPowerOn_, devTemperature_;
+  labeldText devModel_, devSerial_, devPowerOnTime_, devPowerOnCount_, devCapacity_,
+      devTemperature_;
   Gtk::HBox page_;
   Gtk::VBox infoBox_, stateBox_, dev_;
 
