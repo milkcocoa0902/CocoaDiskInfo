@@ -1,18 +1,41 @@
 #include "device.h"
 #include <utility>
-#include <iostream>
+#include <string>
+
 namespace DiskInfo {
 namespace GUI {
 Device::Device(DiskInfo::SMART::ATASMART _smart) {
   smart_ = _smart;
-  label  = Gtk::Label(smart_.model());
 }
 
-Gtk::Box& Device::Build() {
-  page_.pack_start(label, Gtk::PACK_SHRINK, 4);
+Gtk::HBox& Device::Build() {
+  CreateInfo();
+  dev_.pack_start(info_, Gtk::PACK_SHRINK, 4);
+  dev_.pack_start(state_, Gtk::PACK_SHRINK, 4);
   CreateTree();
+
+  page_.pack_start(dev_, Gtk::PACK_EXPAND_WIDGET, 10);
   page_.pack_start(tree_, Gtk::PACK_EXPAND_WIDGET, 10);
   return page_;
+}
+
+void Device::CreateInfo() {
+  info_.set_label("Device Info");
+
+  devModel_       = labeldText("model", smart_.model());
+  devSerial_      = labeldText("Serial", smart_.serial());
+  devPowerOn_     = labeldText("PowerOnHour", std::to_string(smart_.powerOnTime()));
+  devTemperature_ = labeldText("Temperature", std::to_string(smart_.temperature()));
+
+  infoBox_.set_border_width(4);
+  infoBox_.pack_start(devModel_.Build(), Gtk::PACK_SHRINK, 4);
+  infoBox_.pack_start(devSerial_.Build(), Gtk::PACK_SHRINK, 4);
+  info_.add(infoBox_);
+
+  stateBox_.set_border_width(4);
+  stateBox_.pack_start(devPowerOn_.Build(), Gtk::PACK_SHRINK, 4);
+  stateBox_.pack_start(devTemperature_.Build(), Gtk::PACK_SHRINK, 4);
+  state_.add(stateBox_);
 }
 
 void Device::CreateTree() {

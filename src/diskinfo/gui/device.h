@@ -54,17 +54,43 @@ class Device {
     Gtk::TreeModelColumn<uint64_t> raw_;
   };
 
+  class labeldText {
+  public:
+    labeldText() = default;
+    labeldText(const std::string _label, const std::string _text) {
+      label_   = Gtk::Label(_label);
+      textBuf_ = text_.get_buffer();
+      textBuf_->set_text(_text);
+      text_.set_editable(false);
+    }
+
+    Gtk::HBox& Build() {
+      box_.pack_start(label_, Gtk::PACK_SHRINK, 4);
+      box_.pack_start(text_, Gtk::PACK_SHRINK, 4);
+      return box_;
+    }
+
+  private:
+    Gtk::Label label_;
+    Gtk::TextView text_;
+    Glib::RefPtr<Gtk::TextBuffer> textBuf_;
+    Gtk::HBox box_;
+  };
+
   treeModel model_;
   Gtk::TreeView tree_;
   Glib::RefPtr<Gtk::TreeStore> treeStore_;
-  Gtk::Label label;
-  Gtk::Box page_;
+  Gtk::Frame info_, state_;
+  labeldText devModel_, devSerial_, devPowerOn_, devTemperature_;
+  Gtk::HBox page_;
+  Gtk::VBox infoBox_, stateBox_, dev_;
 
 public:
   Device() = default;
   Device(DiskInfo::SMART::ATASMART _smart);
-  Gtk::Box& Build();
+  Gtk::HBox& Build();
   void CreateTree();
+  void CreateInfo();
 };
 } // namespace GUI
 } // namespace DiskInfo
