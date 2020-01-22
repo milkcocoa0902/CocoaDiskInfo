@@ -40,7 +40,7 @@ class Device {
     Gtk::TreeModelColumn<uint64_t> threshold() const {
       return threshold_;
     };
-    Gtk::TreeModelColumn<uint64_t> raw() const {
+    Gtk::TreeModelColumn<Glib::ustring> raw() const {
       return raw_;
     };
 
@@ -51,7 +51,7 @@ class Device {
     Gtk::TreeModelColumn<uint64_t> current_;
     Gtk::TreeModelColumn<uint64_t> worst_;
     Gtk::TreeModelColumn<uint64_t> threshold_;
-    Gtk::TreeModelColumn<uint64_t> raw_;
+    Gtk::TreeModelColumn<Glib::ustring> raw_;
   };
 
   class labeldText {

@@ -1,6 +1,8 @@
 #include "device.h"
 #include <utility>
 #include <string>
+#include <sstream>
+#include <iomanip>
 
 namespace DiskInfo {
 namespace GUI {
@@ -48,8 +50,11 @@ void Device::CreateTree() {
   tree_.append_column("worst", model_.worst());
   tree_.append_column("threshold", model_.threshold());
   tree_.append_column("raw", model_.raw());
+  tree_.get_column(6)->set_alignment(1);
 
   for (auto attr : smart_.attr()) {
+    std::stringstream ss;
+    ss << std::setw(8) << std::setfill('0') << std::hex;
     auto row                = *(treeStore_->append());
     row[model_.state()]     = "";
     row[model_.id()]        = attr.id();
@@ -57,7 +62,8 @@ void Device::CreateTree() {
     row[model_.current()]   = attr.current();
     row[model_.worst()]     = attr.worst();
     row[model_.threshold()] = attr.threshold();
-    row[model_.raw()]       = attr.raw();
+    ss << attr.raw();
+    row[model_.raw()] = "0x" + ss.str();
   }
 
   tree_.expand_all();
