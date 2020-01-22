@@ -8,7 +8,6 @@
 #include <array>
 #include <memory>
 
-
 namespace DiskInfo {
 namespace GUI {
 class MainWindow : public Gtk::Window {

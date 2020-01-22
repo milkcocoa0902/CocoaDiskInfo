@@ -8,8 +8,8 @@ MainWindow::MainWindow(std::vector<DiskInfo::SMART::ATASMART> _device) {
   set_title("CocoaDiskInfo");
 
   for (auto dev : _device) {
-			auto ptr = std::make_unique<DiskInfo::GUI::Device>(dev);
-			device_.push_back(std::move(ptr));
+    auto ptr = std::make_unique<DiskInfo::GUI::Device>(dev);
+    device_.push_back(std::move(ptr));
     note_.append_page(device_.back()->Build());
   }
 
