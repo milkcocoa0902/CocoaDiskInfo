@@ -10,7 +10,7 @@ MainWindow::MainWindow(std::vector<DiskInfo::SMART::ATASMART> _device) {
   for (auto dev : _device) {
     auto ptr = std::make_unique<DiskInfo::GUI::Device>(dev);
     device_.push_back(std::move(ptr));
-    note_.append_page(device_.back()->Build());
+    note_.append_page(device_.back()->Build(), dev.device());
   }
 
   add(note_);
