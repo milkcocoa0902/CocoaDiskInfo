@@ -12,7 +12,7 @@ namespace SMART {
 ATASMART::ATASMART(const std::string _device) {
   SkDisk* disk;
   SkBool smart_available = 0;
-	device_ = _device;
+  device_                = _device;
 
   if (sk_disk_open(device_.c_str(), &disk) < 0) {
     fprintf(stderr, "Failed to open disk %s: %s(%d)\n", device_, strerror(errno), errno);
@@ -133,8 +133,8 @@ std::string ATASMART::firmware() const {
   return firmware_;
 }
 
-std::string ATASMART::device() const{
-	return device_;
+std::string ATASMART::device() const {
+  return device_;
 }
 } // namespace SMART
 } // namespace DiskInfo

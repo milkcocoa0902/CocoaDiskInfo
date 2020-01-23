@@ -4,6 +4,7 @@
 #include <gtkmm.h>
 #include "device.h"
 #include "diskinfo/smart/atasmart.h"
+#include "diskinfo/util/device.h"
 #include <vector>
 #include <array>
 #include <memory>
@@ -12,9 +13,8 @@ namespace DiskInfo {
 namespace GUI {
 class MainWindow : public Gtk::Window {
 public:
-  MainWindow()                  = default;
+  MainWindow();
   MainWindow(const MainWindow&) = default;
-  MainWindow(std::vector<DiskInfo::SMART::ATASMART> _device);
 
 private:
   Gtk::Notebook note_;

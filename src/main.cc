@@ -4,11 +4,11 @@
 #include <gtkmm.h>
 
 auto main(int argc, char** argv) -> int {
-  DiskInfo::SMART::ATASMART smt("/dev/sda");
+  DiskInfo::SMART::ATASMART sm1("/dev/sda");
+  DiskInfo::SMART::ATASMART sm2("/dev/sdb");
+  DiskInfo::SMART::ATASMART sm3("/dev/sdc");
   auto app = Gtk::Application::create(argc, argv, "org.gtkmm.example");
-  std::vector<DiskInfo::SMART::ATASMART> a;
-  a.push_back(smt);
-  DiskInfo::GUI::MainWindow mw(a);
+  DiskInfo::GUI::MainWindow mw;
 
   mw.show();
   app->run(mw);
