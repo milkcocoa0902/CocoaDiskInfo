@@ -26,9 +26,6 @@ void Device::CreateInfo() {
 
   devModel_        = labeldText("Model", smart_.model());
   devSerial_       = labeldText("Serial", smart_.serial());
-  devPowerOnTime_  = labeldText("PowerOnHour[h]", std::to_string(smart_.powerOnTime()));
-  devPowerOnCount_ = labeldText("PowerOnCount", std::to_string(smart_.powerOnCount()));
-  devTemperature_  = labeldText("Temperature[Celsius]", std::to_string(smart_.temperature()));
   devCapacity_ =
       labeldText("Capacity[GiB]",
                  std::to_string(static_cast<double>(smart_.capacity()) / 1024 / 1024 / 1024));
@@ -39,6 +36,10 @@ void Device::CreateInfo() {
   infoBox_.pack_start(devCapacity_.Build(), Gtk::PACK_SHRINK, 4);
   info_.add(infoBox_);
 
+	state_.set_label("Device Status");
+  devPowerOnTime_  = labeldText("PowerOnHour[h]", std::to_string(smart_.powerOnTime()));
+  devPowerOnCount_ = labeldText("PowerOnCount", std::to_string(smart_.powerOnCount()));
+  devTemperature_  = labeldText("Temperature[Celsius]", std::to_string(smart_.temperature()));
   stateBox_.set_border_width(4);
   stateBox_.pack_start(devPowerOnCount_.Build(), Gtk::PACK_SHRINK, 4);
   stateBox_.pack_start(devPowerOnTime_.Build(), Gtk::PACK_SHRINK, 4);
