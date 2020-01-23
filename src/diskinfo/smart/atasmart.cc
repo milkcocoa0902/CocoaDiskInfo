@@ -12,19 +12,21 @@ namespace SMART {
 ATASMART::ATASMART(const std::string _device) {
   SkDisk* disk;
   SkBool smart_available = 0;
-  if (sk_disk_open(_device.c_str(), &disk) < 0) {
-    fprintf(stderr, "Failed to open disk %s: %s(%d)\n", _device, strerror(errno), errno);
+  device_                = _device;
+
+  if (sk_disk_open(device_.c_str(), &disk) < 0) {
+    fprintf(stderr, "Failed to open disk %s: %s(%d)\n", device_, strerror(errno), errno);
     throw std::runtime_error("error1!");
   }
 
   if (sk_disk_smart_is_available(disk, &smart_available) < 0) {
-    fprintf(stderr, "Failed to query whether SMART is available %s: %s(%d)\n", _device,
+    fprintf(stderr, "Failed to query whether SMART is available %s: %s(%d)\n", device_,
             strerror(errno), errno);
     throw std::runtime_error("error2!");
   }
 
   if (!smart_available) {
-    fprintf(stderr, "%s is not support SMART\n", _device);
+    fprintf(stderr, "%s is not support SMART\n", device_);
     throw std::runtime_error("error3!");
   }
 
@@ -117,6 +119,22 @@ uint64_t ATASMART::capacity() const {
 
 const std::vector<Attribute> ATASMART::attr() const {
   return attr_;
+}
+
+std::string ATASMART::model() const {
+  return model_;
+}
+
+std::string ATASMART::serial() const {
+  return serial_;
+}
+
+std::string ATASMART::firmware() const {
+  return firmware_;
+}
+
+std::string ATASMART::device() const {
+  return device_;
 }
 } // namespace SMART
 } // namespace DiskInfo

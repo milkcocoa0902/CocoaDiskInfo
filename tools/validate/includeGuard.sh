@@ -1,6 +1,6 @@
 #!/bin/bash
 
-. "$(dirname "$0")/../isToplevel.sh"
+. "$(dirname "$0")/../isTopLevel.sh"
 
 RETVAL=0
 

@@ -19,7 +19,9 @@ namespace DiskInfo {
 namespace SMART {
 class ATASMART {
 public:
+  ATASMART() = default;
   ATASMART(const std::string _device);
+  ATASMART(const ATASMART&) = default;
   uint64_t temperature() const;
   uint64_t powerOnTime() const;
   uint64_t powerOnCount() const;
@@ -28,6 +30,7 @@ public:
   std::string serial() const;
   std::string firmware() const;
   const std::vector<Attribute> attr() const;
+  std::string device() const;
 
 private:
   std::pair<bool, uint64_t> temperature_;
@@ -38,6 +41,7 @@ private:
   std::string model_;
   std::string serial_;
   std::string firmware_;
+  std::string device_;
 };
 } // namespace SMART
 } // namespace DiskInfo
