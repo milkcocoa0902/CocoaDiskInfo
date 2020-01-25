@@ -15,24 +15,29 @@ ATASMART::ATASMART(const std::string _device) {
   device_                = _device;
 
   if (sk_disk_open(device_.c_str(), &disk) < 0) {
-    fprintf(stderr, "Failed to open disk %s: %s(%d)\n", device_, strerror(errno), errno);
-    throw std::runtime_error("error1!");
+    char error[255];
+    sprintf(error, "Failed to open disk %s: %s(%d)\n", device_.c_str(), strerror(errno), errno);
+    throw std::runtime_error(error);
   }
 
   if (sk_disk_smart_is_available(disk, &smart_available) < 0) {
-    fprintf(stderr, "Failed to query whether SMART is available %s: %s(%d)\n", device_,
+    char error[255];
+    sprintf(error, "Failed to query whether SMART is available %s: %s(%d)\n", device_.c_str(),
             strerror(errno), errno);
-    throw std::runtime_error("error2!");
+    throw std::runtime_error(error);
   }
 
   if (!smart_available) {
-    fprintf(stderr, "%s is not support SMART\n", device_);
-    throw std::runtime_error("error3!");
+    char error[255];
+    sprintf(error, "%s is not support SMART\n", device_.c_str());
+    throw std::runtime_error(error);
   }
 
   if (sk_disk_smart_read_data(disk) < 0) {
-    fprintf(stderr, "Failed to read SMART data %s: %s(%d)\n", _device, strerror(errno), errno);
-    throw std::runtime_error("error4!");
+    char error[255];
+    sprintf(error, "Failed to read SMART data %s: %s(%d)\n", device_.c_str(), strerror(errno),
+            errno);
+    throw std::runtime_error(error);
   }
 
   const SkIdentifyParsedData* data;
@@ -72,7 +77,7 @@ ATASMART::ATASMART(const std::string _device) {
 
   sk_disk_smart_parse_attributes(
       disk,
-      [](SkDisk* _skdisk, SkSmartAttributeParsedData const* _data, void* _userdata) {
+      [](SkDisk* _, SkSmartAttributeParsedData const* _data, void* _userdata) {
         auto attribute = reinterpret_cast<std::vector<Attribute>*>(_userdata);
         Attribute attr;
         attr.id(_data->id);
