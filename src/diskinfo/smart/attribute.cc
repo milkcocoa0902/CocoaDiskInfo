@@ -3,9 +3,7 @@
 namespace DiskInfo {
 namespace SMART {
 Attribute::Attribute() {
-  stateStr.addKeys({{STATE::GOOD, "GOOD"}, {STATE::WARN, "WARN"}, {STATE::BAD, "BAD"}});
-
-  state_     = stateStr(STATE::GOOD);
+  health_.state(Health::STATE::GOOD);
   id_        = 0;
   name_      = "";
   current_   = 0;
@@ -14,8 +12,8 @@ Attribute::Attribute() {
   raw_       = 0;
 }
 
-void Attribute::state(const STATE _state) {
-  state_ = stateStr(_state);
+void Attribute::health(const Health::STATE _state) {
+  health_.state(_state);
 }
 
 void Attribute::id(const uint8_t _id) {
@@ -42,8 +40,8 @@ void Attribute::raw(const uint64_t _raw) {
   raw_ = _raw;
 }
 
-std::string Attribute::state(void) const {
-  return state_;
+std::string Attribute::health(void) const {
+  return health_.state();
 }
 
 uint8_t Attribute::id(void) const {
