@@ -10,6 +10,7 @@
 
 #include "const.h"
 #include "attribute.h"
+#include "health.h"
 
 extern "C" {
 #include <atasmart.h>
@@ -42,6 +43,7 @@ private:
   std::string serial_;
   std::string firmware_;
   std::string device_;
+  Health tempeHealth_;
 };
 } // namespace SMART
 } // namespace DiskInfo

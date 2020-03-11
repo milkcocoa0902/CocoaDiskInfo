@@ -62,7 +62,7 @@ void Device::CreateTree() {
     std::stringstream ss;
     ss << std::setw(8) << std::setfill('0') << std::hex;
     auto row                = *(treeStore_->append());
-    row[model_.state()]     = "";
+    row[model_.state()]     = attr.health();
     row[model_.id()]        = attr.id();
     row[model_.name()]      = attr.name();
     row[model_.current()]   = attr.current();
