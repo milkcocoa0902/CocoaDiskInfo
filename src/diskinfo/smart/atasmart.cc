@@ -71,6 +71,13 @@ ATASMART::ATASMART(const std::string _device) {
   if (!sk_disk_smart_get_temperature(disk, &value)) {
     std::get<0>(temperature_) = true;
     std::get<1>(temperature_) = static_cast<double>(value - 273150llu) / 1000.0;
+
+    if (temperature() < 50)
+      tempeHealth_.state(Health::STATE::GOOD);
+    else if (temperature() < 55)
+      tempeHealth_.state(Health::STATE::WARN);
+    else
+      tempeHealth_.state(Health::STATE::BAD);
   } else {
     std::get<0>(temperature_) = false;
   }
@@ -88,6 +95,14 @@ ATASMART::ATASMART(const std::string _device) {
         for (auto i = 0; i < 6; ++i) {
           attr.raw(attr.raw() + (_data->raw[i] << (8 * i)));
         }
+
+        if ((attr.threshold() != 0) && (attr.current() < attr.threshold()))
+          attr.health(Health::STATE::BAD);
+        else if (((attr.id() == 0x05) || (attr.id() == 0xC5) || (attr.id() == 0xC6)) &&
+                 (attr.raw() != 0))
+          attr.health(Health::STATE::WARN);
+        else
+          attr.health(Health::STATE::GOOD);
         attribute->push_back(attr);
       },
       &attr_);

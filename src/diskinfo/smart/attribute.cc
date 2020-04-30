@@ -3,12 +3,17 @@
 namespace DiskInfo {
 namespace SMART {
 Attribute::Attribute() {
+  health_.state(Health::STATE::GOOD);
   id_        = 0;
   name_      = "";
   current_   = 0;
   worst_     = 0;
   threshold_ = 0;
   raw_       = 0;
+}
+
+void Attribute::health(const Health::STATE _state) {
+  health_.state(_state);
 }
 
 void Attribute::id(const uint8_t _id) {
@@ -33,6 +38,10 @@ void Attribute::threshold(const uint8_t _threshold) {
 
 void Attribute::raw(const uint64_t _raw) {
   raw_ = _raw;
+}
+
+std::string Attribute::health(void) const {
+  return health_.state();
 }
 
 uint8_t Attribute::id(void) const {
