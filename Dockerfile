@@ -3,7 +3,7 @@ RUN apt-get update && \
 		apt-get install clang\
 										cmake\
 										git\
-										Ninja\
+										Ninja-build\
 										libatasmart-dev\
 										libboost1.65-all-dev\
 										libgtkmm-3.0-dev\
