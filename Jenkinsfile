@@ -17,7 +17,8 @@ pipeline {
 
     stage('Static Validation') {
       steps {
-        sh 'tools/isTopLevel.sh'
+        sh 'tools/validate/format.sh'
+        sh 'tools/validate/includeGuard.sh'
       }
     }
 
