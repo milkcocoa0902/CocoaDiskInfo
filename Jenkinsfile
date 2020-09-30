@@ -20,10 +20,10 @@ pipeline {
       }
     }
 
-    stage('Upload Artifact') {
-      steps {
-      }
-    }
+//    stage('Upload Artifact') {
+//      steps {
+//      }
+//    }
 
     stage('clear workspace') {
       steps {
