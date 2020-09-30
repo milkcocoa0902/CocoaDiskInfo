@@ -14,6 +14,12 @@ pipeline {
       }
     }
 
+    stage('Static Validation') {
+      steps {
+        sh 'tools/isTopLevel.sh'
+      }
+    }
+
     stage('Upload Artifact') {
       steps {
       }
