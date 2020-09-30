@@ -21,10 +21,6 @@ build:
 
 static-validations:
     steps:
-      #    - script:
-      #      name: encoding
-      #      code: ./tools/validate/encoding.sh
-
       - script:
         name: include guard
         code: ./tools/validate/includeGuard.sh
