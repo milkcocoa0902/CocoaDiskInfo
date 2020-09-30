@@ -7,7 +7,8 @@ pipeline {
     stage('Build') {
       steps {
         sh '''
-					mkdir -p build && cd $_
+					mkdir -p build 
+					cd build
 					cmake .. -G Ninja
 					ninja
         '''
