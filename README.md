@@ -5,7 +5,7 @@ GUI based S.M.A.R.T viewer
 
 ![Thubnail](img/thumbnail.png)
 
-# Instration
+# Installation
 ```
 # apt install git cmake clang Ninja libgtkmm-3.0-dev libatasmart-dev libboost1.65-all-dev pkg-config
 $ git clone https://github.com/koron0902/CocoaDiskInfo.git
