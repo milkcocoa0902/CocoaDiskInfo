@@ -91,13 +91,13 @@ ATASMART::ATASMART(const std::string _device) {
           attr.raw(attr.raw() + (_data->raw[i] << (8 * i)));
         }
 
-        if ((attr.threshold() != 0) && (attr.current() < attr.threshold()))
-          attr.health(Health::STATE::BAD);
-        else if (((attr.id() == 0x05) || (attr.id() == 0xC5) || (attr.id() == 0xC6)) &&
-                 (attr.raw() != 0))
+        if (_data->warn == true)
           attr.health(Health::STATE::WARN);
-        else
+        else if ((_data->good_now == true) || (_data->good_now_valid == true))
           attr.health(Health::STATE::GOOD);
+        else
+          attr.health(Health::STATE::BAD);
+
         attribute->push_back(attr);
       },
       &attr_);
