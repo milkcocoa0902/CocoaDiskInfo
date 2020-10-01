@@ -1,7 +1,0 @@
-package: CocoaDiskInfo
-Maintainer: Keita Sekiguchi <koron0902@gmail.com>
-Architecture: amd64
-Version: 2020.9.30
-Pre-Depends: libgtkmm-3.0-dev, libatasmart-dev, libboost1.65-all-dev
-Description: S.M.A.R.T. Viewer
- GUI based S.M.A.R.T. Viewer

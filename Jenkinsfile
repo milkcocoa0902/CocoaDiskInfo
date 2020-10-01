@@ -22,10 +22,24 @@ pipeline {
       }
     }
 
-//    stage('Upload Artifact') {
-//      steps {
-//      }
-//    }
+		stage('generate install package'){
+			steps{
+			sh'''
+				cd build
+				mkdir -p package
+				mkdir -p package/usr
+				mkdir -p package/usr/bin
+				cp CocoaDiskInfo package/usr/bin
+				cp ../env/DEBIAN .
+				fakeroot dpkg-deb --build package .
+			'''
+		}
+
+    stage('Upload Artifact') {
+      steps {
+				archiveArtifacts allowEmptyArchive: true, artifacts: '*.deb'
+      }
+    }
 
     stage('clear workspace') {
       steps {
