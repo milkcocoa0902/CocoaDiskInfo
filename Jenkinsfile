@@ -39,7 +39,7 @@ pipeline {
 
     stage('Upload Artifact') {
       steps {
-				archiveArtifacts allowEmptyArchive: true, artifacts: '*.deb'
+				archiveArtifacts allowEmptyArchive: true, artifacts: 'build/cocoadiskinfo_*.deb'
       }
     }
 
