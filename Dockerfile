@@ -3,6 +3,7 @@ RUN apt-get update && \
  apt-get install -y clang\
  clang-format\
  cmake\
+ fakeroot\
  git\
  ninja-build\
  libatasmart-dev\
