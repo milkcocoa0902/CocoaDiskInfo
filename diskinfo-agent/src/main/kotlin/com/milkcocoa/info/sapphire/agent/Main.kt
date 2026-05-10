@@ -17,7 +17,13 @@ import com.milkcocoa.info.colotok.core.logger.ColotokLoggerContext
 import com.milkcocoa.info.colotok.core.provider.builtin.console.ConsoleProvider
 import com.milkcocoa.info.sapphire.agent.smartctl.cmd.SmartCtlCommand
 import com.milkcocoa.info.sapphire.agent.smartctl.converter.toDiskSnapshot
-import com.milkcocoa.info.sapphire.agent.smartctl.model.translate
+import com.milkcocoa.info.sapphire.core.snapshot.DiskSnapshot
+import io.ktor.server.cio.CIO
+import io.ktor.server.engine.embeddedServer
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.cbor.Cbor
 import kotlinx.serialization.encodeToByteArray
@@ -26,6 +32,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import sun.net.util.IPAddressUtil.scan
 import kotlin.io.path.absolutePathString
+import kotlin.time.Duration.Companion.seconds
 
 class SapphireAgent: CliktCommand(){
     enum class OutputMode {
@@ -56,8 +63,26 @@ class SapphireAgent: CliktCommand(){
     val output by option().enum<OutputMode>(ignoreCase = true, key = {it.name}).default(OutputMode.DEFAULT).help("Output format")
 
     override fun run() {
-        if(agent) return
+        if(agent) {
+            runSapphireAgent()
+        }else{
+            runSapphireOneshot()
+        }
+    }
 
+
+    private fun runSapphireAgent(){
+        embeddedServer(factory = CIO, port = 14631){
+            launch {
+                while (true){
+                    runSapphireOneshot()
+                    delay(60.seconds)
+                }
+            }
+        }.start(wait = true)
+    }
+
+    private fun runSapphireOneshot(){
         when(device){
             is TargetDevice.Explicit -> {
                 runBlocking {
@@ -65,25 +90,44 @@ class SapphireAgent: CliktCommand(){
                         device = (device as TargetDevice.Explicit).device,
                     ).execute()
 
-                    val snapshot = deviceInfo.translate()
+                    val snapshot = deviceInfo.output
                     val diskSnapshot = snapshot.toDiskSnapshot()
-
-                    when(output) {
-                        OutputMode.DEFAULT -> println(diskSnapshot)
-                        OutputMode.JSON -> {
-                            val json = Json { prettyPrint = true }
-                            println(json.encodeToString(diskSnapshot))
-                        }
-                        OutputMode.TEXT -> println(diskSnapshot.toString())
-                        OutputMode.CBOR -> {
-                            val cbor = Cbor { }
-                            println(cbor.encodeToHexString(diskSnapshot))
-                        }
-                    }
+                    diskSnapshot.print()
                 }
             }
             is TargetDevice.Scan -> {
+                runBlocking {
+                    val scanResult = SmartCtlCommand.DescribeDevices.execute()
+                    val diskSnapshots = scanResult.output.devices.map {
+                        async {
+                            runCatching {
+                                val deviceInfo = SmartCtlCommand.DeviceInfo(
+                                    device = it.name,
+                                ).execute()
+                                val snapshot = deviceInfo.output
+                                val diskSnapshot = snapshot.toDiskSnapshot()
 
+                                return@runCatching diskSnapshot
+                            }.getOrNull()
+                        }
+                    }.awaitAll().filterNotNull()
+                    diskSnapshots.forEach { it.print() }
+                }
+            }
+        }
+    }
+
+    private fun DiskSnapshot.print(){
+        when(output) {
+            OutputMode.DEFAULT -> println(this)
+            OutputMode.JSON -> {
+                val json = Json { prettyPrint = true }
+                println(json.encodeToString(this))
+            }
+            OutputMode.TEXT -> println(this.toString())
+            OutputMode.CBOR -> {
+                val cbor = Cbor { }
+                println(cbor.encodeToHexString(this))
             }
         }
 

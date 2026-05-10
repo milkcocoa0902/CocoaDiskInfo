@@ -14,9 +14,9 @@ fun AtaSmartctlSnapshot.toDiskSnapshot(): DiskSnapshot {
         temperatureCelsius = this.temperature.current,
         powerOnHours = this.powerOnTime.hours.toLong(),
         powerCycleCount = this.powerCycleCount.toLong(),
-        percentageUsed = this.ataSmartAttributes?.table?.find { it.id == AtaSmartAttributeId.of(231) || it.id == AtaSmartAttributeId.of(202) }?.value, // SSW or SSD life remaining
-        totalBytesWritten = null, // ATA standard doesn't have this in a generic way
-        totalBytesRead = null,
+        percentageUsed = this.ataSmartAttributes?.table?.find { it.id == AtaSmartAttributeId.of(231, null) || it.id == AtaSmartAttributeId.PercentLifetimeRemain }?.value, // SSW or SSD life remaining
+        totalBytesWritten = this.ataSmartAttributes?.table?.find { it.id == AtaSmartAttributeId.TotalLbasWritten }?.raw?.value, // total written in sectors
+        totalBytesRead = this.ataSmartAttributes?.table?.find { it.id == AtaSmartAttributeId.TotalLbasRead }?.raw?.value,
         criticalWarningCount = this.ataSmartAttributes?.table?.filter { it.id in listOf(AtaSmartAttributeId.ReallocatedSectorCt, AtaSmartAttributeId.CurrentPendingSector, AtaSmartAttributeId.OfflineUncorrectable) }?.sumOf { it.raw.value }?.toInt() ?: 0
     )
 
@@ -35,7 +35,7 @@ fun AtaSmartctlSnapshot.toDiskSnapshot(): DiskSnapshot {
             attributes = this.ataSmartAttributes?.table?.map {
                 AtaAttribute(
                     id = it.id,
-                    name = it.id.toString(),
+                    name = it.id.name,
                     value = it.value,
                     worst = it.worst,
                     threshold = it.thresh,

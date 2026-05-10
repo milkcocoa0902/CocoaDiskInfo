@@ -1,21 +1,18 @@
 package com.milkcocoa.info.sapphire.agent.smartctl.model
 
+import com.milkcocoa.info.sapphire.agent.smartctl.cmd.SmartCtlCommandResponse
 import com.milkcocoa.info.sapphire.agent.smartctl.model.common.*
-import com.milkcocoa.info.sapphire.agent.smartctl.cmd.SmartCtlCommandResult
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonContentPolymorphicSerializer
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
-private val json = Json { ignoreUnknownKeys = true }
-fun SmartCtlCommandResult.translate() = json.decodeFromString<SmartctlSnapshot>(this.output)
 
 @Serializable(with = SmartctlSnapshot.SmartctlSnapshotSerializer::class)
-sealed interface SmartctlSnapshot {
+sealed interface SmartctlSnapshot: SmartCtlCommandResponse {
     @SerialName("json_format_version")
     val jsonFormatVersion: List<Int>
 

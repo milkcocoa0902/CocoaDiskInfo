@@ -41,7 +41,7 @@ sealed interface AtaSmartAttributeId {
     @Serializable
     data object ReallocatedSectorCt: AtaSmartAttributeId {
         override val id: Int = 5
-        override val name: String = "Reallocated_Sector_Ct"
+        override val name: String = "Reallocated_Sector_Ct" // or Reallocate_NAND_Blk_Cnt
     }
 
     @Serializable
@@ -107,7 +107,7 @@ sealed interface AtaSmartAttributeId {
     @Serializable
     data object CurrentPendingSector: AtaSmartAttributeId {
         override val id: Int = 197
-        override val name: String = "Current_Pending_Sector"
+        override val name: String = "Current_Pending_Sector" // or Current_Pending_ECC_Cnt
     }
 
     @Serializable
@@ -158,11 +158,125 @@ sealed interface AtaSmartAttributeId {
         override val name: String = "Head_Flying_Hours"
     }
 
-
-    data object Unknown: AtaSmartAttributeId {
-        override val id: Int = -1
-        override val name: String = "Unknown"
+    @Serializable
+    data object ProgramFailCount: AtaSmartAttributeId {
+        override val id: Int = 171
+        override val name: String = "Program_Fail_Count"
     }
+
+    @Serializable
+    data object EraseFailCount: AtaSmartAttributeId {
+        override val id: Int = 172
+        override val name: String = "Erase_Fail_Count"
+    }
+
+    @Serializable
+    data object AveBlockEraseCount: AtaSmartAttributeId {
+        override val id: Int = 173
+        override val name: String = "Ave_Block-Erase_Count"
+    }
+
+    @Serializable
+    data object UnexpectPowerLossCt: AtaSmartAttributeId {
+        override val id: Int = 174
+        override val name: String = "Unexpect_Power_Loss_Ct"
+    }
+
+    @Serializable
+    data object UnusedReserveNandBlk: AtaSmartAttributeId {
+        override val id: Int = 180
+        override val name: String = "Unused_Reserve_NAND_Blk"
+    }
+
+    @Serializable
+    data object RuntimeBadBlock: AtaSmartAttributeId {
+        override val id: Int = 183
+        override val name: String = "Runtime_Bad_Block" // or SATA_Interfac_Downshift
+    }
+
+    @Serializable
+    data object EndToEndError: AtaSmartAttributeId {
+        override val id: Int = 184
+        override val name: String = "End-to-End_Error" // or Error_Correction_Count
+    }
+
+    @Serializable
+    data object ReportedUncorrect: AtaSmartAttributeId {
+        override val id: Int = 187
+        override val name: String = "Reported_Uncorrect"
+    }
+
+    @Serializable
+    data object CommandTimeout: AtaSmartAttributeId {
+        override val id: Int = 188
+        override val name: String = "Command_Timeout"
+    }
+
+    @Serializable
+    data object HighFlyWrites: AtaSmartAttributeId {
+        override val id: Int = 189
+        override val name: String = "High_Fly_Writes"
+    }
+
+    @Serializable
+    data object AirflowTemperatureCel: AtaSmartAttributeId {
+        override val id: Int = 190
+        override val name: String = "Airflow_Temperature_Cel"
+    }
+
+    @Serializable
+    data object HardwareEccRecovered: AtaSmartAttributeId {
+        override val id: Int = 195
+        override val name: String = "Hardware_ECC_Recovered"
+    }
+
+    @Serializable
+    data object PercentLifetimeRemain: AtaSmartAttributeId {
+        override val id: Int = 202
+        override val name: String = "Percent_Lifetime_Remain"
+    }
+
+    @Serializable
+    data object WriteErrorRate: AtaSmartAttributeId {
+        override val id: Int = 206
+        override val name: String = "Write_Error_Rate"
+    }
+
+    @Serializable
+    data object SuccessRainRecovCnt: AtaSmartAttributeId {
+        override val id: Int = 210
+        override val name: String = "Success_RAIN_Recov_Cnt"
+    }
+
+    @Serializable
+    data object TotalLbasWritten: AtaSmartAttributeId {
+        override val id: Int = 241
+        override val name: String = "Total_LBAs_Written"
+    }
+
+    @Serializable
+    data object TotalLbasRead: AtaSmartAttributeId {
+        override val id: Int = 242
+        override val name: String = "Total_LBAs_Read"
+    }
+
+    @Serializable
+    data object HostProgramPageCount: AtaSmartAttributeId {
+        override val id: Int = 247
+        override val name: String = "Host_Program_Page_Count"
+    }
+
+    @Serializable
+    data object FtlProgramPageCount: AtaSmartAttributeId {
+        override val id: Int = 248
+        override val name: String = "FTL_Program_Page_Count"
+    }
+
+
+    data class Dynamic(
+        override val id: Int,
+        override val name: String
+    ): AtaSmartAttributeId
 
 
     object Serializer: KSerializer<AtaSmartAttributeId>{
@@ -181,33 +295,65 @@ sealed interface AtaSmartAttributeId {
     }
 
     companion object {
-        fun of(id: Int) = when(id) {
-            1 -> RawReadErrorRate
-            2 -> ThroughputPerformance
-            3 -> SpinUpTime
-            4 -> StartStopCount
-            5 -> ReallocatedSectorCt
-            7 -> SeekErrorRate
-            8 -> SeekTimePerformance
-            9 -> PowerOnHours
-            10 -> SpinRetryCount
-            12 -> PowerCycleCount
-            191 -> GSenseErrorRate
-            192 -> PowerOffRetractCount
-            193 -> LoadCycleCount
-            194 -> TemperatureCelsius
-            196 -> ReallocatedEventCount
-            197 -> CurrentPendingSector
-            198 -> OfflineUncorrectable
-            199 -> UdmaCrcErrorCount
-            220 -> DiskShift
-            222 -> LoadedHours
-            223 -> LoadRetryCount
-            224 -> LoadFriction
-            226 -> LoadInTime
-            240 -> HeadFlyingHours
-            else -> Unknown
+        fun of(id: Int, name: String? = null): AtaSmartAttributeId {
+            val standard = when(id) {
+                1 -> RawReadErrorRate
+                2 -> ThroughputPerformance
+                3 -> SpinUpTime
+                4 -> StartStopCount
+                5 -> ReallocatedSectorCt
+                7 -> SeekErrorRate
+                8 -> SeekTimePerformance
+                9 -> PowerOnHours
+                10 -> SpinRetryCount
+                12 -> PowerCycleCount
+                191 -> GSenseErrorRate
+                192 -> PowerOffRetractCount
+                193 -> LoadCycleCount
+                194 -> TemperatureCelsius
+                196 -> ReallocatedEventCount
+                197 -> CurrentPendingSector
+                198 -> OfflineUncorrectable
+                199 -> UdmaCrcErrorCount
+                220 -> DiskShift
+                222 -> LoadedHours
+                223 -> LoadRetryCount
+                224 -> LoadFriction
+                226 -> LoadInTime
+                240 -> HeadFlyingHours
+                171 -> ProgramFailCount
+                172 -> EraseFailCount
+                173 -> AveBlockEraseCount
+                174 -> UnexpectPowerLossCt
+                180 -> UnusedReserveNandBlk
+                183 -> RuntimeBadBlock
+                184 -> EndToEndError
+                187 -> ReportedUncorrect
+                188 -> CommandTimeout
+                189 -> HighFlyWrites
+                190 -> AirflowTemperatureCel
+                195 -> HardwareEccRecovered
+                202 -> PercentLifetimeRemain
+                206 -> WriteErrorRate
+                210 -> SuccessRainRecovCnt
+                241 -> TotalLbasWritten
+                242 -> TotalLbasRead
+                247 -> HostProgramPageCount
+                248 -> FtlProgramPageCount
+                else -> null
+            }
+
+            if (standard != null) {
+                if (name != null && standard.name != name) {
+                    return Dynamic(id, name)
+                }
+                return standard
+            }
+            return Dynamic(id, name ?: "Unknown")
         }
+
+        @Deprecated("Use of(id, name) instead", ReplaceWith("of(id, null)"))
+        fun of(id: Int): AtaSmartAttributeId = of(id, null)
     }
 }
 

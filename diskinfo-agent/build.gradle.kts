@@ -18,6 +18,9 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-cbor:1.10.0")
     implementation("com.github.ajalt.clikt:clikt:5.1.0")
+
+    implementation("io.ktor:ktor-server-core:3.4.3")
+    implementation("io.ktor:ktor-server-cio:3.4.3")
 }
 
 tasks.test {
