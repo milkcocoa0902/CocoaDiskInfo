@@ -1,9 +1,9 @@
-package com.milkcocoa.info.saphaire.core.nvme
+package com.milkcocoa.info.sapphire.core.nvme
 
-import com.milkcocoa.info.saphaire.core.snapshot.AttributeEvaluation
-import com.milkcocoa.info.saphaire.core.snapshot.AttributeStatus
-import com.milkcocoa.info.saphaire.core.snapshot.HealthRule
-import com.milkcocoa.info.saphaire.core.snapshot.MetricsSnapshot
+import com.milkcocoa.info.sapphire.core.snapshot.AttributeEvaluation
+import com.milkcocoa.info.sapphire.core.snapshot.AttributeStatus
+import com.milkcocoa.info.sapphire.core.snapshot.HealthRule
+import com.milkcocoa.info.sapphire.core.snapshot.MetricsSnapshot
 
 class NvmeHealthRule : HealthRule<MetricsSnapshot.NvmeMetricsSnapshot> {
     override fun evaluate(snapshot: MetricsSnapshot.NvmeMetricsSnapshot): List<AttributeEvaluation> {

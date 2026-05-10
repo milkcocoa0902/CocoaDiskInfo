@@ -16,11 +16,16 @@ dependencies {
     implementation("io.github.milkcocoa0902:colotok:0.4.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-cbor:1.10.0")
     implementation("com.github.ajalt.clikt:clikt:5.1.0")
 }
 
 tasks.test {
     useJUnitPlatform()
+}
+
+kotlin {
+    jvmToolchain(21)
 }
 
 application {

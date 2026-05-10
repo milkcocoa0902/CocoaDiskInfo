@@ -1,4 +1,4 @@
-package com.milkcocoa.info.saphaire.core.snapshot
+package com.milkcocoa.info.sapphire.core.snapshot
 
 enum class DiskHealth {
     GOOD,

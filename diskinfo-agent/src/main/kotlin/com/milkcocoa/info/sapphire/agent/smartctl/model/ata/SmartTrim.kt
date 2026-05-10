@@ -8,4 +8,8 @@ import kotlinx.serialization.Serializable
 data class SmartTrim(
     @SerialName("supported")
     val supported: Boolean,
+    @SerialName("deterministic")
+    val deterministic: Boolean? = null,
+    @SerialName("zeroed")
+    val zeroed: Boolean? = null,
 )

@@ -1,5 +1,6 @@
 package com.milkcocoa.info.sapphire.agent.smartctl.model.ata
 
+import com.milkcocoa.info.sapphire.core.ata.AtaSmartAttributeId
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 

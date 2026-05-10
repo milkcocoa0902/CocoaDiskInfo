@@ -11,7 +11,3 @@ version = "1.0-SNAPSHOT"
 
 dependencies {
 }
-//
-//kotlin {
-//    jvmToolchain(25)
-//}

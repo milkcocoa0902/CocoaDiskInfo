@@ -41,7 +41,7 @@ data class AtaSmartctlSnapshot(
     @SerialName("serial_number")
     override val serialNumber: String,
     @SerialName("wwn")
-    val wwn: SmartWwn,
+    val wwn: SmartWwn? = null,
     @SerialName("firmware_version")
     override val firmwareVersion: String,
     @SerialName("user_capacity")
@@ -53,29 +53,29 @@ data class AtaSmartctlSnapshot(
     @SerialName("rotation_rate")
     val rotationRate: Int,
     @SerialName("form_factor")
-    val formFactor: SmartFormFactor,
+    val formFactor: SmartFormFactor? = null,
     @SerialName("trim")
-    val trim: SmartTrim,
+    val trim: SmartTrim? = null,
     @SerialName("zoned_device")
     val zonedDevice: SmartZonedDevice? = null,
     @SerialName("in_smartctl_database")
-    val inSmartctlDatabase: Boolean,
+    val inSmartctlDatabase: Boolean? = null,
     @SerialName("ata_version")
-    val ataVersion: SmartAtaVersion,
+    val ataVersion: SmartAtaVersion? = null,
     @SerialName("sata_version")
-    val sataVersion: SmartSataVersion,
+    val sataVersion: SmartSataVersion? = null,
     @SerialName("interface_speed")
-    val interfaceSpeed: SmartInterfaceSpeed,
+    val interfaceSpeed: SmartInterfaceSpeed? = null,
     @SerialName("smart_support")
     override val smartSupport: SmartSupport,
     @SerialName("smart_status")
     override val smartStatus: SmartStatus,
     @SerialName("ata_smart_data")
-    val ataSmartData: AtaSmartData,
+    val ataSmartData: AtaSmartData? = null,
     @SerialName("ata_sct_capabilities")
-    val ataSctCapabilities: AtaSctCapabilities,
+    val ataSctCapabilities: AtaSctCapabilities? = null,
     @SerialName("ata_smart_attributes")
-    val ataSmartAttributes: AtaSmartAttributes,
+    val ataSmartAttributes: AtaSmartAttributes? = null,
 
     @SerialName("power_on_time")
     override val powerOnTime: SmartPowerOnTime,
@@ -84,10 +84,10 @@ data class AtaSmartctlSnapshot(
     @SerialName("temperature")
     override val temperature: SmartTemperature,
     @SerialName("ata_smart_error_log")
-    val ataSmartErrorLog: AtaSmartErrorLog,
+    val ataSmartErrorLog: AtaSmartErrorLog? = null,
     @SerialName("ata_smart_self_test_log")
-    val ataSmartSelfTestLog: AtaSmartSelfTestLog,
+    val ataSmartSelfTestLog: AtaSmartSelfTestLog? = null,
     @SerialName("ata_smart_selective_self_test_log")
-    val ataSmartSelectiveSelfTestLog: AtaSmartSelectiveSelfTestLog,
+    val ataSmartSelectiveSelfTestLog: AtaSmartSelectiveSelfTestLog? = null,
 
     ): SmartctlSnapshot

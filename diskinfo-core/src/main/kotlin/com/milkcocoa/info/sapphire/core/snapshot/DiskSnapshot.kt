@@ -1,7 +1,7 @@
-package com.milkcocoa.info.saphaire.core.snapshot
+package com.milkcocoa.info.sapphire.core.snapshot
 
-import com.milkcocoa.info.saphaire.core.ata.AtaHealthRule
-import com.milkcocoa.info.saphaire.core.nvme.NvmeHealthRule
+import com.milkcocoa.info.sapphire.core.ata.AtaHealthRule
+import com.milkcocoa.info.sapphire.core.nvme.NvmeHealthRule
 import kotlinx.serialization.Serializable
 import kotlin.time.Instant
 

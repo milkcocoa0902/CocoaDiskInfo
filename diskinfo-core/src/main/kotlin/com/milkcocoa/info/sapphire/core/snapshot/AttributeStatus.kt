@@ -1,4 +1,4 @@
-package com.milkcocoa.info.saphaire.core.snapshot
+package com.milkcocoa.info.sapphire.core.snapshot
 
 import kotlinx.serialization.Serializable
 

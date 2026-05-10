@@ -1,4 +1,4 @@
-package com.milkcocoa.info.sapphire.agent.smartctl.model.ata
+package com.milkcocoa.info.sapphire.core.ata
 
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
