@@ -2,7 +2,12 @@ package com.milkcocoa.info.saphire.agent.smartctl.snapshot
 
 import com.milkcocoa.info.saphaire.core.snapshot.DiskSnapshot
 import com.milkcocoa.info.saphire.agent.smartctl.cmd.SmartCtlCommandResult
+import com.milkcocoa.info.saphire.agent.smartctl.snapshot.ata.AtaSctCapabilities
 import com.milkcocoa.info.saphire.agent.smartctl.snapshot.ata.AtaSmartAttributes
+import com.milkcocoa.info.saphire.agent.smartctl.snapshot.ata.AtaSmartData
+import com.milkcocoa.info.saphire.agent.smartctl.snapshot.ata.AtaSmartErrorLog
+import com.milkcocoa.info.saphire.agent.smartctl.snapshot.ata.AtaSmartSelectiveSelfTestLog
+import com.milkcocoa.info.saphire.agent.smartctl.snapshot.ata.AtaSmartSelfTestLog
 import com.milkcocoa.info.saphire.agent.smartctl.snapshot.ata.SmartAtaVersion
 import com.milkcocoa.info.saphire.agent.smartctl.snapshot.ata.SmartFormFactor
 import com.milkcocoa.info.saphire.agent.smartctl.snapshot.ata.SmartInterfaceSpeed
@@ -18,7 +23,12 @@ import com.milkcocoa.info.saphire.agent.smartctl.snapshot.common.SmartSupport
 import com.milkcocoa.info.saphire.agent.smartctl.snapshot.common.SmartTemperature
 import com.milkcocoa.info.saphire.agent.smartctl.snapshot.common.SmartUserCapacity
 import com.milkcocoa.info.saphire.agent.smartctl.snapshot.common.Smartctl
+import com.milkcocoa.info.saphire.agent.smartctl.snapshot.nvme.NvmeErrorInformationLog
+import com.milkcocoa.info.saphire.agent.smartctl.snapshot.nvme.NvmeNamespace
+import com.milkcocoa.info.saphire.agent.smartctl.snapshot.nvme.NvmePciVendor
+import com.milkcocoa.info.saphire.agent.smartctl.snapshot.nvme.NvmeSelfTestLog
 import com.milkcocoa.info.saphire.agent.smartctl.snapshot.nvme.NvmeSmartHealthInformationLog
+import com.milkcocoa.info.saphire.agent.smartctl.snapshot.nvme.NvmeVersion
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -104,8 +114,10 @@ sealed interface SmartctlSnapshot{
         override val smartSupport: SmartSupport,
         @SerialName("smart_status")
         override val smartStatus: SmartStatus,
-        // ata_smart_data
-        // ata_sct_capabilities
+        @SerialName("ata_smart_data")
+        val ataSmartData: AtaSmartData,
+        @SerialName("ata_sct_capabilities")
+        val ataSctCapabilities: AtaSctCapabilities,
         @SerialName("ata_smart_attributes")
         val ataSmartAttributes: AtaSmartAttributes,
 
@@ -115,9 +127,12 @@ sealed interface SmartctlSnapshot{
         override val powerCycleCount: Int,
         @SerialName("temperature")
         override val temperature: SmartTemperature,
-        // ata_smart_error_log
-        // ata_smart_self_test_log
-        // ata_smart_selective_self_test_log
+        @SerialName("ata_smart_error_log")
+        val ataSmartErrorLog: AtaSmartErrorLog,
+        @SerialName("ata_smart_self_test_log")
+        val ataSmartSelfTestLog: AtaSmartSelfTestLog,
+        @SerialName("ata_smart_selective_self_test_log")
+        val ataSmartSelectiveSelfTestLog: AtaSmartSelectiveSelfTestLog,
 
     ): SmartctlSnapshot
 
@@ -138,12 +153,18 @@ sealed interface SmartctlSnapshot{
         override val serialNumber: String,
         @SerialName("firmware_version")
         override val firmwareVersion: String,
-        // nvme_pci_vendor
-        // nvme_ieee_oui_identifier
-        // nvme_controller_id
-        // nvme_version
-        // nvme_number_of_namespaces
-        // nvme_namespaces
+        @SerialName("nvme_pci_vendor")
+        val nvmePciVendor: NvmePciVendor,
+        @SerialName("nvme_ieee_oui_identifier")
+        val nvmeIeeeOuiIdentifier: Int,
+        @SerialName("nvme_controller_id")
+        val nvmeControllerId: Int,
+        @SerialName("nvme_version")
+        val nvmeVersion: NvmeVersion,
+        @SerialName("nvme_number_of_namespaces")
+        val nvmeNumberOfNamespaces: Int,
+        @SerialName("nvme_namespaces")
+        val nvmeNamespaces: List<NvmeNamespace>,
         @SerialName("user_capacity")
         override val userCapacity: SmartUserCapacity,
 
@@ -166,8 +187,10 @@ sealed interface SmartctlSnapshot{
 
         @SerialName("nvme_smart_health_information_log")
         val nvmeSmartHealthInformationLog: NvmeSmartHealthInformationLog,
-        // nvme_error_information_log
-        // nvme_self_test_log
+        @SerialName("nvme_error_information_log")
+        val nvmeErrorInformationLog: NvmeErrorInformationLog,
+        @SerialName("nvme_self_test_log")
+        val nvmeSelfTestLog: NvmeSelfTestLog,
     ): SmartctlSnapshot
 
 
