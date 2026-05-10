@@ -4,64 +4,46 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="0c1f083e-435f-4542-aba8-3c1b556f9d30" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/cmd/SmartCtlCommand.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/CommonAttributes.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/SmartctlSnapshot.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/ata/AtaSmartAttributeId.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/ata/AtaSmartAttributes.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/ata/SmartAtaVersion.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/ata/SmartFormFactor.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/ata/SmartInterfaceSpeed.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/ata/SmartSataVersion.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/ata/SmartTrim.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/ata/SmartWwn.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/ata/SmartZonedDevice.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/common/SmartDevice.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/common/SmartLocalTime.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/common/SmartPowerOnTime.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/common/SmartStatus.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/common/SmartSupport.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/common/SmartTemperature.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/common/Smartctl.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/nvme/NvmeSmartHealthInformationLog.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/diskinfo-core/src/main/kotlin/com/milkcocoa/info/saphaire/core/snapshot/AttributeEvaluation.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/diskinfo-core/src/main/kotlin/com/milkcocoa/info/saphaire/core/snapshot/AttributeStatus.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/diskinfo-core/src/main/kotlin/com/milkcocoa/info/saphaire/core/snapshot/DiskHealth.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/diskinfo-core/src/main/kotlin/com/milkcocoa/info/saphaire/core/snapshot/DiskSnapshot.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/diskinfo-core/src/main/kotlin/com/milkcocoa/info/saphaire/core/snapshot/HealthRule.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/diskinfo-core/src/main/kotlin/com/milkcocoa/info/saphaire/core/snapshot/MetricsSnapshot.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/diskinfo-core/src/main/kotlin/com/milkcocoa/info/saphaire/core/snapshot/Protocol.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.clang-format" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/CMakeLists.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Dockerfile" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Jenkinsfile" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/env/DEBIAN" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/img/thumbnail.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/CMakeLists.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/diskinfo/CMakeLists.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/diskinfo/gui/device.cc" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/diskinfo/gui/device.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/diskinfo/gui/mainWindow.cc" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/diskinfo/gui/mainWindow.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/diskinfo/smart/atasmart.cc" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/diskinfo/smart/atasmart.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/diskinfo/smart/attribute.cc" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/diskinfo/smart/attribute.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/diskinfo/smart/const.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/diskinfo/smart/health.cc" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/diskinfo/smart/health.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/diskinfo/util/device.cc" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/diskinfo/util/device.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/diskinfo/util/enum2str.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main.cc" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/tools/formatAll.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/tools/isTopLevel.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/tools/validate/format.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/tools/validate/includeGuard.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/wercker.yml" beforeDir="false" />
+    <list default="true" id="0c1f083e-435f-4542-aba8-3c1b556f9d30" name="Changes" comment="&quot;Add detailed ATA and NVMe S.M.A.R.T. data models and integrate into `SmartctlSnapshot` structure.&quot;">
+      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/sapphire/agent/smartctl/model/AtaSmartctlSnapshot.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/sapphire/agent/smartctl/model/NvmeSmartctlSnapshot.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/diskinfo-agent/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/diskinfo-agent/build.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/Main.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/cmd/SmartCtlCommand.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/CommonAttributes.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/SmartctlSnapshot.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/ata/AtaSctCapabilities.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/ata/AtaSmartAttribute.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/ata/AtaSmartAttributeFlag.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/ata/AtaSmartAttributeId.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/ata/AtaSmartAttributes.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/ata/AtaSmartData.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/ata/AtaSmartErrorLog.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/ata/AtaSmartRawValue.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/ata/AtaSmartSelectiveSelfTestLog.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/ata/AtaSmartSelfTestLog.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/ata/SmartAtaVersion.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/ata/SmartFormFactor.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/ata/SmartInterfaceSpeed.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/ata/SmartSataVersion.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/ata/SmartTrim.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/ata/SmartWwn.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/ata/SmartZonedDevice.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/common/SmartDevice.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/common/SmartLocalTime.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/common/SmartPowerOnTime.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/common/SmartStatus.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/common/SmartSupport.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/common/SmartTemperature.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/common/SmartUserCapacity.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/common/Smartctl.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/nvme/NvmeErrorInformationLog.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/nvme/NvmeNamespace.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/nvme/NvmePciVendor.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/nvme/NvmeSelfTestLog.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/nvme/NvmeSmartHealthInformationLog.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/nvme/NvmeVersion.kt" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -207,11 +189,11 @@
       <recent name="com.milkcocoa.info.saphire.agent.smartctl.snapshot.common" />
     </key>
     <key name="K2MoveDeclarationsDialog.RECENT_PACKAGE_KEY">
+      <recent name="com.milkcocoa.info.sapphire.agent.smartctl.model" />
       <recent name="com.milkcocoa.info.saphire.agent.smartctl.translate.ata" />
       <recent name="com.milkcocoa.info.saphire.agent.smartctl.translate" />
       <recent name="com.milkcocoa.info.saphaire.core.snapshot" />
       <recent name="com.milkcocoa.info.saphaire.core.ata" />
-      <recent name="com.milkcocoa.info.saphaire.core.nvme" />
     </key>
   </component>
   <component name="RunManager" selected="Gradle.CocoaDiskInfo [:diskinfo-agent:installDist]">
@@ -327,8 +309,25 @@
       <workItem from="1778157250534" duration="1337000" />
       <workItem from="1778158595867" duration="418000" />
       <workItem from="1778159020187" duration="8619000" />
-      <workItem from="1778257059090" duration="14493000" />
+      <workItem from="1778257059090" duration="16847000" />
     </task>
+    <task id="LOCAL-00001" summary="&quot;Remove legacy `CocoaDiskInfo` implementation and initialize Kotlin-based S.M.A.R.T handling structure.&quot;">
+      <option name="closed" value="true" />
+      <created>1778382149740</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1778382149740</updated>
+    </task>
+    <task id="LOCAL-00002" summary="&quot;Add detailed ATA and NVMe S.M.A.R.T. data models and integrate into `SmartctlSnapshot` structure.&quot;">
+      <option name="closed" value="true" />
+      <created>1778382825069</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1778382825069</updated>
+    </task>
+    <option name="localTasksCounter" value="3" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -344,5 +343,11 @@
         </entry>
       </map>
     </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="Remove legacy C++ implementation, transitioning to Kotlin-based SMART utilities." />
+    <MESSAGE value="&quot;Remove legacy `CocoaDiskInfo` implementation and initialize Kotlin-based S.M.A.R.T handling structure.&quot;" />
+    <MESSAGE value="&quot;Add detailed ATA and NVMe S.M.A.R.T. data models and integrate into `SmartctlSnapshot` structure.&quot;" />
+    <option name="LAST_COMMIT_MESSAGE" value="&quot;Add detailed ATA and NVMe S.M.A.R.T. data models and integrate into `SmartctlSnapshot` structure.&quot;" />
   </component>
 </project>

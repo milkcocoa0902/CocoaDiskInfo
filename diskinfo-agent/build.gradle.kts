@@ -24,5 +24,5 @@ tasks.test {
 }
 
 application {
-    mainClass.set("com.milkcocoa.info.saphire.agent.MainKt")
+    mainClass.set("com.milkcocoa.info.sapphire.agent.MainKt")
 }
