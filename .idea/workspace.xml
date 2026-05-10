@@ -1,0 +1,348 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="0c1f083e-435f-4542-aba8-3c1b556f9d30" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/cmd/SmartCtlCommand.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/CommonAttributes.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/SmartctlSnapshot.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/ata/AtaSmartAttributeId.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/ata/AtaSmartAttributes.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/ata/SmartAtaVersion.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/ata/SmartFormFactor.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/ata/SmartInterfaceSpeed.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/ata/SmartSataVersion.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/ata/SmartTrim.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/ata/SmartWwn.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/ata/SmartZonedDevice.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/common/SmartDevice.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/common/SmartLocalTime.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/common/SmartPowerOnTime.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/common/SmartStatus.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/common/SmartSupport.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/common/SmartTemperature.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/common/Smartctl.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/diskinfo-agent/src/main/kotlin/com/milkcocoa/info/saphire/agent/smartctl/snapshot/nvme/NvmeSmartHealthInformationLog.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/diskinfo-core/src/main/kotlin/com/milkcocoa/info/saphaire/core/snapshot/AttributeEvaluation.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/diskinfo-core/src/main/kotlin/com/milkcocoa/info/saphaire/core/snapshot/AttributeStatus.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/diskinfo-core/src/main/kotlin/com/milkcocoa/info/saphaire/core/snapshot/DiskHealth.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/diskinfo-core/src/main/kotlin/com/milkcocoa/info/saphaire/core/snapshot/DiskSnapshot.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/diskinfo-core/src/main/kotlin/com/milkcocoa/info/saphaire/core/snapshot/HealthRule.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/diskinfo-core/src/main/kotlin/com/milkcocoa/info/saphaire/core/snapshot/MetricsSnapshot.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/diskinfo-core/src/main/kotlin/com/milkcocoa/info/saphaire/core/snapshot/Protocol.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.clang-format" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/CMakeLists.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Dockerfile" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Jenkinsfile" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/env/DEBIAN" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/img/thumbnail.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/CMakeLists.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/diskinfo/CMakeLists.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/diskinfo/gui/device.cc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/diskinfo/gui/device.h" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/diskinfo/gui/mainWindow.cc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/diskinfo/gui/mainWindow.h" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/diskinfo/smart/atasmart.cc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/diskinfo/smart/atasmart.h" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/diskinfo/smart/attribute.cc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/diskinfo/smart/attribute.h" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/diskinfo/smart/const.h" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/diskinfo/smart/health.cc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/diskinfo/smart/health.h" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/diskinfo/util/device.cc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/diskinfo/util/device.h" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/diskinfo/util/enum2str.h" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main.cc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tools/formatAll.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tools/isTopLevel.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tools/validate/format.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tools/validate/includeGuard.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/wercker.yml" beforeDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="EmbeddingIndexingInfo">
+    <option name="cachedIndexableFilesCount" value="34" />
+    <option name="fileBasedEmbeddingIndicesEnabled" value="true" />
+  </component>
+  <component name="ExternalProjectsData">
+    <projectState path="$PROJECT_DIR$">
+      <ProjectState />
+    </projectState>
+  </component>
+  <component name="ExternalProjectsManager">
+    <system id="GRADLE">
+      <state>
+        <task path="$PROJECT_DIR$/diskinfo-core">
+          <activation />
+        </task>
+        <task path="$PROJECT_DIR$">
+          <activation />
+        </task>
+        <projects_view>
+          <tree_state>
+            <expand>
+              <path>
+                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
+                <item name="CocoaDiskInfo" type="f1a62948:ProjectNode" />
+              </path>
+              <path>
+                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
+                <item name="CocoaDiskInfo" type="f1a62948:ProjectNode" />
+                <item name="diskinfo-agent" type="2d1252cf:ModuleNode" />
+              </path>
+              <path>
+                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
+                <item name="CocoaDiskInfo" type="f1a62948:ProjectNode" />
+                <item name="diskinfo-agent" type="2d1252cf:ModuleNode" />
+                <item name="Tasks" type="e4a08cd1:TasksNode" />
+              </path>
+              <path>
+                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
+                <item name="CocoaDiskInfo" type="f1a62948:ProjectNode" />
+                <item name="diskinfo-agent" type="2d1252cf:ModuleNode" />
+                <item name="Tasks" type="e4a08cd1:TasksNode" />
+                <item name="build" type="c8890929:TasksNode$1" />
+              </path>
+              <path>
+                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
+                <item name="CocoaDiskInfo" type="f1a62948:ProjectNode" />
+                <item name="diskinfo-agent" type="2d1252cf:ModuleNode" />
+                <item name="Tasks" type="e4a08cd1:TasksNode" />
+                <item name="distribution" type="c8890929:TasksNode$1" />
+              </path>
+              <path>
+                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
+                <item name="CocoaDiskInfo" type="f1a62948:ProjectNode" />
+                <item name="diskinfo-agent" type="2d1252cf:ModuleNode" />
+                <item name="Tasks" type="e4a08cd1:TasksNode" />
+                <item name="other" type="c8890929:TasksNode$1" />
+              </path>
+            </expand>
+            <select />
+          </tree_state>
+        </projects_view>
+      </state>
+    </system>
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Kotlin Interface" />
+        <option value="Kotlin Class" />
+        <option value="Kotlin Data Class" />
+      </list>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_BRANCH_BY_REPOSITORY">
+      <map>
+        <entry key="$PROJECT_DIR$" value="develop" />
+      </map>
+    </option>
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="McpProjectServerCommands">
+    <commands />
+    <urls />
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 1,
+  &quot;fromUser&quot;: false
+}</component>
+  <component name="ProjectId" id="3DOdrawgOL9sf5qAMNNHCE7RQZ4" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Gradle.Build CocoaDiskInfo.executor": "Run",
+    "Gradle.CocoaDiskInfo [:diskinfo-agent:com.milkcocoa.info.saphire.agent.MainKt.main()].executor": "Run",
+    "Gradle.CocoaDiskInfo [:diskinfo-agent:installDist].executor": "Run",
+    "Gradle.CocoaDiskInfo:diskinfo-core [jar].executor": "Run",
+    "Gradle.diskinfo-core [clean].executor": "Run",
+    "JUnit.Whole project.executor": "Run",
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.MCP Project settings loaded": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.cidr.known.project.marker": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.readMode.enableVisualFormatting": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "cidr.known.project.marker": "true",
+    "codeWithMe.voiceChat.enabledByDefault": "false",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
+    "git-widget-placeholder": "feature/rebuild__into__kotlin",
+    "junie.onboarding.icon.badge.shown": "true",
+    "kotlin-language-version-configured": "true",
+    "last_opened_file_path": "/mnt/Cocoa/portfolio/CocoaDiskInfo",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "project.structure.last.edited": "Project",
+    "project.structure.proportion": "0.17",
+    "project.structure.side.proportion": "0.32903782",
+    "settings.editor.selected.configurable": "preferences.language.Kotlin",
+    "to.speed.mode.migration.done": "true",
+    "vue.rearranger.settings.migration": "true"
+  }
+}]]></component>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$" />
+    </key>
+    <key name="CopyKotlinDeclarationDialog.RECENTS_KEY">
+      <recent name="com.milkcocoa.info.saphire.agent.smartctl.snapshot.ata" />
+      <recent name="com.milkcocoa.info.saphire.agent.smartctl.snapshot.common" />
+    </key>
+    <key name="K2MoveDeclarationsDialog.RECENT_PACKAGE_KEY">
+      <recent name="com.milkcocoa.info.saphire.agent.smartctl.translate.ata" />
+      <recent name="com.milkcocoa.info.saphire.agent.smartctl.translate" />
+      <recent name="com.milkcocoa.info.saphaire.core.snapshot" />
+      <recent name="com.milkcocoa.info.saphaire.core.ata" />
+      <recent name="com.milkcocoa.info.saphaire.core.nvme" />
+    </key>
+  </component>
+  <component name="RunManager" selected="Gradle.CocoaDiskInfo [:diskinfo-agent:installDist]">
+    <configuration name="CocoaDiskInfo [:diskinfo-agent:installDist]" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
+      <ExternalSystemSettings>
+        <option name="executionName" />
+        <option name="externalProjectPath" value="$PROJECT_DIR$" />
+        <option name="externalSystemIdString" value="GRADLE" />
+        <option name="scriptParameters" />
+        <option name="taskDescriptions">
+          <list />
+        </option>
+        <option name="taskNames">
+          <list>
+            <option value=":diskinfo-agent:installDist" />
+          </list>
+        </option>
+        <option name="vmOptions" />
+      </ExternalSystemSettings>
+      <ExternalSystemDebugServerProcess>true</ExternalSystemDebugServerProcess>
+      <ExternalSystemReattachDebugProcess>true</ExternalSystemReattachDebugProcess>
+      <ExternalSystemDebugDisabled>false</ExternalSystemDebugDisabled>
+      <DebugAllEnabled>false</DebugAllEnabled>
+      <RunAsTest>false</RunAsTest>
+      <GradleProfilingDisabled>false</GradleProfilingDisabled>
+      <GradleCoverageDisabled>false</GradleCoverageDisabled>
+      <method v="2" />
+    </configuration>
+    <configuration name="CocoaDiskInfo:diskinfo-core [jar]" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
+      <ExternalSystemSettings>
+        <option name="executionName" />
+        <option name="externalProjectPath" value="$PROJECT_DIR$/diskinfo-core" />
+        <option name="externalSystemIdString" value="GRADLE" />
+        <option name="scriptParameters" />
+        <option name="taskDescriptions">
+          <list />
+        </option>
+        <option name="taskNames">
+          <list>
+            <option value="jar" />
+          </list>
+        </option>
+        <option name="vmOptions" />
+      </ExternalSystemSettings>
+      <ExternalSystemDebugServerProcess>true</ExternalSystemDebugServerProcess>
+      <ExternalSystemReattachDebugProcess>true</ExternalSystemReattachDebugProcess>
+      <ExternalSystemDebugDisabled>false</ExternalSystemDebugDisabled>
+      <DebugAllEnabled>false</DebugAllEnabled>
+      <RunAsTest>false</RunAsTest>
+      <GradleProfilingDisabled>false</GradleProfilingDisabled>
+      <GradleCoverageDisabled>false</GradleCoverageDisabled>
+      <method v="2" />
+    </configuration>
+    <configuration name="diskinfo-core [clean]" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
+      <ExternalSystemSettings>
+        <option name="executionName" />
+        <option name="externalProjectPath" value="$PROJECT_DIR$/diskinfo-core" />
+        <option name="externalSystemIdString" value="GRADLE" />
+        <option name="scriptParameters" />
+        <option name="taskDescriptions">
+          <list />
+        </option>
+        <option name="taskNames">
+          <list>
+            <option value="clean" />
+          </list>
+        </option>
+        <option name="vmOptions" />
+      </ExternalSystemSettings>
+      <ExternalSystemDebugServerProcess>true</ExternalSystemDebugServerProcess>
+      <ExternalSystemReattachDebugProcess>true</ExternalSystemReattachDebugProcess>
+      <ExternalSystemDebugDisabled>false</ExternalSystemDebugDisabled>
+      <DebugAllEnabled>false</DebugAllEnabled>
+      <RunAsTest>false</RunAsTest>
+      <GradleProfilingDisabled>false</GradleProfilingDisabled>
+      <GradleCoverageDisabled>false</GradleCoverageDisabled>
+      <method v="2" />
+    </configuration>
+    <configuration name="Whole project" type="JUnit" factoryName="JUnit" temporary="true" nameIsGenerated="true">
+      <option name="PACKAGE_NAME" value="" />
+      <option name="TEST_OBJECT" value="package" />
+      <option name="TEST_SEARCH_SCOPE">
+        <value defaultName="wholeProject" />
+      </option>
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="MainKt" type="JetRunConfigurationType" temporary="true" nameIsGenerated="true">
+      <option name="MAIN_CLASS_NAME" value="com.milkcocoa.info.saphire.agent.MainKt" />
+      <module name="CocoaDiskInfo.diskinfo-agent.main" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Gradle.CocoaDiskInfo [:diskinfo-agent:installDist]" />
+        <item itemvalue="JUnit.Whole project" />
+        <item itemvalue="Gradle.CocoaDiskInfo:diskinfo-core [jar]" />
+        <item itemvalue="Kotlin.MainKt" />
+        <item itemvalue="Gradle.diskinfo-core [clean]" />
+      </list>
+    </recent_temporary>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="0c1f083e-435f-4542-aba8-3c1b556f9d30" name="Changes" comment="" />
+      <created>1778157249422</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1778157249422</updated>
+      <workItem from="1778157250534" duration="1337000" />
+      <workItem from="1778158595867" duration="418000" />
+      <workItem from="1778159020187" duration="8619000" />
+      <workItem from="1778257059090" duration="14493000" />
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+</project>

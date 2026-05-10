@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CompilerConfiguration">
+    <bytecodeTargetLevel>
+      <module name="CocoaDiskInfo.app" target="25" />
+      <module name="CocoaDiskInfo.app.main" target="25" />
+      <module name="CocoaDiskInfo.app.test" target="25" />
+      <module name="CocoaDiskInfo.list" target="25" />
+      <module name="CocoaDiskInfo.list.main" target="25" />
+      <module name="CocoaDiskInfo.list.test" target="25" />
+      <module name="CocoaDiskInfo.utilities" target="25" />
+      <module name="CocoaDiskInfo.utilities.main" target="25" />
+      <module name="CocoaDiskInfo.utilities.test" target="25" />
+      <module name="diskinfo-core.main" target="25" />
+      <module name="diskinfo-core.test" target="25" />
+    </bytecodeTargetLevel>
+  </component>
+</project>
