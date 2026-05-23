@@ -33,9 +33,9 @@ object ColotokProviderFactory {
     private fun createConsoleProvider(outputMode: SapphireAgent.OutputMode) = ConsoleProvider {
         level = LogLevel.INFO
         formatter = when (outputMode) {
+            SapphireAgent.OutputMode.DEFAULT,
             SapphireAgent.OutputMode.JSON -> DetailStructureFormatter
             SapphireAgent.OutputMode.TEXT,
-            SapphireAgent.OutputMode.DEFAULT,
             SapphireAgent.OutputMode.CBOR -> DetailTextFormatter
         }
     }

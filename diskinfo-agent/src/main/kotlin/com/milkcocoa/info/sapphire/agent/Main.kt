@@ -14,28 +14,10 @@ import com.github.ajalt.clikt.parameters.types.enum
 import com.github.ajalt.clikt.parameters.types.path
 import com.milkcocoa.info.colotok.core.logger.Colotok
 import com.milkcocoa.info.colotok.core.logger.ColotokLoggerContext
-import com.milkcocoa.info.sapphire.agent.datastore.DiskSnapshotTable
-import com.milkcocoa.info.sapphire.agent.smartctl.cmd.SmartCtlCommand
-import com.milkcocoa.info.sapphire.agent.smartctl.converter.toDiskSnapshot
-import com.milkcocoa.info.sapphire.core.snapshot.DiskSnapshot
-import io.ktor.server.cio.CIO
-import io.ktor.server.engine.embeddedServer
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import com.milkcocoa.info.sapphire.agent.exec.SapphireExecutor
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withContext
-import kotlinx.serialization.cbor.Cbor
-import kotlinx.serialization.encodeToHexString
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.v1.jdbc.Database
-import org.jetbrains.exposed.v1.jdbc.SchemaUtils
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.io.path.absolutePathString
-import kotlin.time.Duration.Companion.seconds
 
 class SapphireAgent : CliktCommand() {
     enum class OutputMode {
@@ -97,16 +79,18 @@ class SapphireAgent : CliktCommand() {
             )
             ?.also { ColotokLoggerContext.setDefault(it) }
 
-        when (executionMode) {
-            is ExecutionMode.Agent -> runSapphireAgent()
-            is ExecutionMode.Oneshot -> {
-                runBlocking {
-                    runSapphireOneshot()
-                    Colotok.forceShutdown()
-                }
-            }
+        val executor = when (executionMode) {
+            is ExecutionMode.Agent -> SapphireExecutor.Agent(device!!)
+            is ExecutionMode.Oneshot -> SapphireExecutor.Oneshot(device!!)
+            is ExecutionMode.Migration -> SapphireExecutor.Migrate()
+        }
 
-            is ExecutionMode.Migration -> runSapphireMigration()
+        runBlocking {
+            try {
+                executor.execute()
+            } finally {
+                Colotok.forceShutdown()
+            }
         }
     }
 
@@ -134,75 +118,6 @@ class SapphireAgent : CliktCommand() {
                 if (device != null || output != null || persist) {
                     throw UsageError("Migration mode does not allow --scan, --device, --output, or --persist.")
                 }
-            }
-        }
-    }
-
-    private fun runSapphireMigration() {
-        Database.connect("jdbc:sqlite:./sapphire.db", "org.sqlite.JDBC")
-        transaction {
-            SchemaUtils.create(DiskSnapshotTable)
-        }
-        println("Migration completed.")
-    }
-
-    private fun runSapphireAgent() {
-        embeddedServer(factory = CIO, port = 14631) {
-            launch {
-                while (true) {
-                    runSapphireOneshot()
-                    delay(60.seconds)
-                }
-            }
-        }.start(wait = true)
-    }
-
-    private suspend fun runSapphireOneshot() {
-        when (device) {
-            is TargetDevice.Explicit -> {
-                val deviceInfo = SmartCtlCommand.DeviceInfo(
-                    device = (device as TargetDevice.Explicit).device,
-                ).execute()
-
-                val snapshot = deviceInfo.output
-                val diskSnapshot = snapshot.toDiskSnapshot()
-                Colotok.info(diskSnapshot)
-            }
-
-            is TargetDevice.Scan -> {
-                val scanResult = SmartCtlCommand.DescribeDevices.execute()
-                val diskSnapshots = scanResult.output.devices.map {
-                    withContext(Dispatchers.Default) {
-                        async {
-                            runCatching {
-                                val deviceInfo = SmartCtlCommand.DeviceInfo(
-                                    device = it.name,
-                                ).execute()
-                                val snapshot = deviceInfo.output
-                                snapshot.toDiskSnapshot()
-                            }.getOrNull()
-                        }
-                    }
-                }.awaitAll().filterNotNull()
-                diskSnapshots.forEach { Colotok.info(it) }
-            }
-
-            else -> Unit
-        }
-    }
-
-    private fun DiskSnapshot.print() {
-        when (output) {
-            null, OutputMode.DEFAULT -> Colotok.info(this)
-            OutputMode.JSON -> {
-                val json = Json { prettyPrint = true }
-                println(json.encodeToString(this))
-            }
-
-            OutputMode.TEXT -> println(this.toString())
-            OutputMode.CBOR -> {
-                val cbor = Cbor {}
-                println(cbor.encodeToHexString(this))
             }
         }
     }

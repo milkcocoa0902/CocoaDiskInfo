@@ -47,7 +47,6 @@ class DataStoreColotokProvider: Provider(DataStoreColotokProviderConfig()) {
             is LogRecord.StructuredText<*> -> {
                 // handle structured text
                 val snapshot = (record.msg as DiskSnapshot)
-                println(snapshot)
                 runCatching {
                     val id = transaction{
                         DiskSnapshotTable.insertAndGetId {
@@ -89,10 +88,7 @@ class DataStoreColotokProvider: Provider(DataStoreColotokProviderConfig()) {
                             it[DiskSnapshotTable.snapshotJson] = snapshot
                         }
                     }
-
-                    println(id)
                 }.getOrElse{
-                    println(it)
                 }
 
             }
