@@ -31,6 +31,7 @@ fun NvmeSmartctlSnapshot.toDiskSnapshot(): DiskSnapshot {
         metricsSnapshot = MetricsSnapshot.NvmeMetricsSnapshot(
             universal = universal,
             percentageUsed = this.nvmeSmartHealthInformationLog.percentageUsed,
+            availableSpare = this.nvmeSmartHealthInformationLog.availableSpare,
             mediaErrors = this.nvmeSmartHealthInformationLog.mediaErrors.toLong(),
             dataUnitsWritten = this.nvmeSmartHealthInformationLog.dataUnitsWritten,
             dataUnitsRead = this.nvmeSmartHealthInformationLog.dataUnitsRead

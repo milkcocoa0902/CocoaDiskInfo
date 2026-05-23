@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.kotlinJvm)
     application
     kotlin("plugin.serialization") version "2.3.21"
+    id("com.gradleup.shadow")
 }
 
 group = "com.milkcocoa.info.saphire"
@@ -13,7 +14,8 @@ repositories {
 
 dependencies {
     implementation(project(":diskinfo-core"))
-    implementation("io.github.milkcocoa0902:colotok:0.4.0")
+    implementation("io.github.milkcocoa0902:colotok:0.4.2")
+    implementation("io.github.milkcocoa0902:colotok-coroutines:0.4.2")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-cbor:1.10.0")
@@ -21,6 +23,12 @@ dependencies {
 
     implementation("io.ktor:ktor-server-core:3.4.3")
     implementation("io.ktor:ktor-server-cio:3.4.3")
+
+    implementation("org.jetbrains.exposed:exposed-core:1.2.0")
+    implementation("org.jetbrains.exposed:exposed-jdbc:1.2.0")
+    implementation("org.jetbrains.exposed:exposed-json:1.2.0")
+    implementation("org.jetbrains.exposed:exposed-kotlin-datetime:1.2.0")
+    implementation("org.xerial:sqlite-jdbc:3.45.3.0")
 }
 
 tasks.test {
@@ -33,4 +41,11 @@ kotlin {
 
 application {
     mainClass.set("com.milkcocoa.info.sapphire.agent.MainKt")
+}
+
+tasks.shadowJar {
+    archiveClassifier.set("all")
+    manifest {
+        attributes["Main-Class"] = "com.milkcocoa.info.sapphire.agent.MainKt"
+    }
 }

@@ -11,6 +11,7 @@ repositories {
 }
 
 dependencies {
+    implementation("io.github.milkcocoa0902:colotok:0.4.2")
     testImplementation(kotlin("test"))
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")

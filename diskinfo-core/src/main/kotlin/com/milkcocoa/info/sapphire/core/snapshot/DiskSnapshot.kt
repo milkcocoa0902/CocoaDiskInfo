@@ -1,5 +1,6 @@
 package com.milkcocoa.info.sapphire.core.snapshot
 
+import com.milkcocoa.info.colotok.core.formatter.details.LogStructure
 import com.milkcocoa.info.sapphire.core.ata.AtaHealthRule
 import com.milkcocoa.info.sapphire.core.nvme.NvmeHealthRule
 import kotlinx.serialization.Serializable
@@ -17,11 +18,27 @@ data class DiskSnapshot(
     val powerOnHours: Long?,
     val health: DiskHealth,
     val metricsSnapshot: MetricsSnapshot
-){
+): LogStructure {
     val evaluations by lazy {
         when (metricsSnapshot) {
             is MetricsSnapshot.AtaMetricsSnapshot -> AtaHealthRule().evaluate(metricsSnapshot)
             is MetricsSnapshot.NvmeMetricsSnapshot -> NvmeHealthRule().evaluate(metricsSnapshot)
+        }
+    }
+
+    override fun stringify(): String {
+        return buildString {
+            appendLine("#meta")
+            appendLine("timestamp: ${timestamp}")
+            appendLine("deviceKey: '$deviceKey'")
+            appendLine("path: '$path'")
+            appendLine("model: '$model'")
+            appendLine("serial: '$serial'")
+            appendLine("capacityBytes: $capacityBytes")
+            appendLine("temperatureCelsius: $temperatureCelsius")
+            appendLine("powerOnHours: $powerOnHours")
+            appendLine("health: ${health.name}")
+            appendLine("metricsSnapshot: ${metricsSnapshot.stringify()}")
         }
     }
 }
