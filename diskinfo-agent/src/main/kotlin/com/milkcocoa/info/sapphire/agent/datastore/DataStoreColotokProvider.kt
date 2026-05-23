@@ -16,6 +16,8 @@ import java.time.Instant
 import java.time.OffsetDateTime
 import java.time.ZoneId
 import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.insertAndGetId
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.ExperimentalUuidApi
 
 val LogLevel.SmartMetrics by lazy {
@@ -45,37 +47,54 @@ class DataStoreColotokProvider: Provider(DataStoreColotokProviderConfig()) {
             is LogRecord.StructuredText<*> -> {
                 // handle structured text
                 val snapshot = (record.msg as DiskSnapshot)
-
-                DiskSnapshotTable.insert {
-                    // ClientDefaultにより設定される
+                println(snapshot)
+                runCatching {
+                    val id = transaction{
+                        DiskSnapshotTable.insertAndGetId {
+                            // ClientDefaultにより設定される
 //                    it[DiskSnapshotTable.nodeId]
-                    it[DiskSnapshotTable.collectTimeStamp] = OffsetDateTime.ofInstant(Instant.ofEpochMilli(snapshot.timestamp.toEpochMilliseconds()), ZoneId.systemDefault())
-                    it[DiskSnapshotTable.deviceSerialName] = snapshot.serial
-                    it[DiskSnapshotTable.connectionProtocol] = snapshot.metricsSnapshot.protocol.name
-                    it[DiskSnapshotTable.deviceModel] = snapshot.model
-                    it[DiskSnapshotTable.devicePath] = snapshot.path
-                    it[DiskSnapshotTable.temperatureCelsius] = snapshot.temperatureCelsius?.toBigDecimal()
-                    it[DiskSnapshotTable.powerOnCycles] = snapshot.metricsSnapshot.universal.powerCycleCount
-                    it[DiskSnapshotTable.powerOnHours] = snapshot.powerOnHours
+                            it[DiskSnapshotTable.collectTimeStamp] = OffsetDateTime.ofInstant(
+                                Instant.ofEpochMilli(snapshot.timestamp.toEpochMilliseconds()),
+                                ZoneId.systemDefault()
+                            )
+                            it[DiskSnapshotTable.deviceSerialName] = snapshot.serial
+                            it[DiskSnapshotTable.connectionProtocol] = snapshot.metricsSnapshot.protocol.name
+                            it[DiskSnapshotTable.deviceModel] = snapshot.model
+                            it[DiskSnapshotTable.devicePath] = snapshot.path
+                            it[DiskSnapshotTable.temperatureCelsius] = snapshot.temperatureCelsius?.toBigDecimal()
+                            it[DiskSnapshotTable.powerOnCycles] = snapshot.metricsSnapshot.universal.powerCycleCount
+                            it[DiskSnapshotTable.powerOnHours] = snapshot.powerOnHours
 
-                    when(val met = snapshot.metricsSnapshot){
-                        is MetricsSnapshot.AtaMetricsSnapshot -> {
-                            it[DiskSnapshotTable.ataReallocatedSectorCount] = met.attributes.find { it.id == AtaSmartAttributeId.ReallocatedSectorCt }?.value
-                            it[DiskSnapshotTable.ataCurrentPendingSectorCount] = met.attributes.find { it.id == AtaSmartAttributeId.CurrentPendingSector }?.value
-                            it[DiskSnapshotTable.ataOfflineUncorrectableCount] = met.attributes.find { it.id == AtaSmartAttributeId.OfflineUncorrectable }?.value
-                            it[DiskSnapshotTable.ataUdmaCrcErrorCount] = met.attributes.find { it.id == AtaSmartAttributeId.UdmaCrcErrorCount }?.value
-                        }
-                        is MetricsSnapshot.NvmeMetricsSnapshot -> {
-                            it[DiskSnapshotTable.nvmePercentageUsed] = met.percentageUsed
-                            it[DiskSnapshotTable.nvmeAvailableSpare] = met.availableSpare
-                            it[DiskSnapshotTable.nvmeMediaErrorCount] = met.mediaErrors
-                            it[DiskSnapshotTable.nvmeDataUnitsWritten] = met.dataUnitsWritten
-                            it[DiskSnapshotTable.nvmeDataUnitsRead] = met.dataUnitsRead
+                            when (val met = snapshot.metricsSnapshot) {
+                                is MetricsSnapshot.AtaMetricsSnapshot -> {
+                                    it[DiskSnapshotTable.ataReallocatedSectorCount] =
+                                        met.attributes.find { it.id == AtaSmartAttributeId.ReallocatedSectorCt }?.value
+                                    it[DiskSnapshotTable.ataCurrentPendingSectorCount] =
+                                        met.attributes.find { it.id == AtaSmartAttributeId.CurrentPendingSector }?.value
+                                    it[DiskSnapshotTable.ataOfflineUncorrectableCount] =
+                                        met.attributes.find { it.id == AtaSmartAttributeId.OfflineUncorrectable }?.value
+                                    it[DiskSnapshotTable.ataUdmaCrcErrorCount] =
+                                        met.attributes.find { it.id == AtaSmartAttributeId.UdmaCrcErrorCount }?.value
+                                }
+
+                                is MetricsSnapshot.NvmeMetricsSnapshot -> {
+                                    it[DiskSnapshotTable.nvmePercentageUsed] = met.percentageUsed
+                                    it[DiskSnapshotTable.nvmeAvailableSpare] = met.availableSpare
+                                    it[DiskSnapshotTable.nvmeMediaErrorCount] = met.mediaErrors
+                                    it[DiskSnapshotTable.nvmeDataUnitsWritten] = met.dataUnitsWritten
+                                    it[DiskSnapshotTable.nvmeDataUnitsRead] = met.dataUnitsRead
+                                }
+                            }
+
+                            it[DiskSnapshotTable.snapshotJson] = snapshot
                         }
                     }
 
-                    it[DiskSnapshotTable.snapshotJson] = snapshot
+                    println(id)
+                }.getOrElse{
+                    println(it)
                 }
+
             }
         }
     }

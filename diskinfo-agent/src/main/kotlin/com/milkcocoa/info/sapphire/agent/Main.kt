@@ -79,6 +79,9 @@ class SapphireAgent : CliktCommand() {
 
     override fun run() {
         validateArguments()
+        if (shouldUseDatabase()) {
+            Database.connect("jdbc:sqlite:./sapphire.db", "org.sqlite.JDBC")
+        }
 
         val effectiveOutput = when (executionMode) {
             is ExecutionMode.Agent -> OutputMode.DEFAULT
@@ -104,6 +107,14 @@ class SapphireAgent : CliktCommand() {
             }
 
             is ExecutionMode.Migration -> runSapphireMigration()
+        }
+    }
+
+    private fun shouldUseDatabase(): Boolean {
+        return when (executionMode) {
+            is ExecutionMode.Agent -> true
+            is ExecutionMode.Oneshot -> persist
+            is ExecutionMode.Migration -> false
         }
     }
 
