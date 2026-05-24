@@ -40,6 +40,7 @@ object DiskSnapshotTable: UuidTable(
     }
 
     val collectTimeStamp = timestampWithTimeZone("collect_time")
+    val deviceKey = varchar("device_key", 255).nullable()
     val deviceSerialName = varchar("device_serial_name", 255).nullable()
     val connectionProtocol = varchar("connection_protocol", 255)
     val deviceModel = varchar("device_model", 255).nullable()
@@ -59,6 +60,10 @@ object DiskSnapshotTable: UuidTable(
     val nvmeMediaErrorCount = long("nvme_media_error_count").nullable()
     val nvmeDataUnitsWritten = long("nvme_data_units_written").nullable()
     val nvmeDataUnitsRead = long("nvme_data_units_read").nullable()
+
+    init {
+        index(false, deviceKey, collectTimeStamp)
+    }
 
     val snapshotJson = jsonb<DiskSnapshot>(
         "snapshot_json",

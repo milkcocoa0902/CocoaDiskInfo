@@ -16,10 +16,14 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.Database
-import org.jetbrains.exposed.v1.jdbc.SchemaUtils
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.update
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.migration.jdbc.MigrationUtils
 import kotlin.time.Duration.Companion.seconds
+import kotlin.uuid.ExperimentalUuidApi
 
 sealed interface SapphireExecutor {
     suspend fun execute()
@@ -82,12 +86,26 @@ sealed interface SapphireExecutor {
     }
 
     class Migrate : SapphireExecutor {
+        @OptIn(ExperimentalUuidApi::class)
         override suspend fun execute() {
             Database.connect("jdbc:sqlite:./sapphire.db", "org.sqlite.JDBC")
             transaction {
-                SchemaUtils.create(DiskSnapshotTable)
+                MigrationUtils
+                    .statementsRequiredForDatabaseMigration(DiskSnapshotTable, withLogs = true)
+                    .forEach { exec(it) }
             }
-            println("Migration completed.")
+            val backfilledRows = transaction {
+                DiskSnapshotTable
+                    .selectAll()
+                    .filter { it[DiskSnapshotTable.deviceKey] == null }
+                    .sumOf { row ->
+                        val snapshot = row[DiskSnapshotTable.snapshotJson]
+                        DiskSnapshotTable.update({ DiskSnapshotTable.id eq row[DiskSnapshotTable.id] }) {
+                            it[deviceKey] = snapshot.deviceKey
+                        }
+                    }
+            }
+            println("Migration completed. Backfilled device_key for $backfilledRows rows.")
         }
     }
 }

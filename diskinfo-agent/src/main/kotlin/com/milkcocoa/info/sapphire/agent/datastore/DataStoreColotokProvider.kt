@@ -15,7 +15,6 @@ import com.milkcocoa.info.sapphire.core.snapshot.MetricsSnapshot
 import java.time.Instant
 import java.time.OffsetDateTime
 import java.time.ZoneId
-import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.insertAndGetId
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.ExperimentalUuidApi
@@ -56,6 +55,7 @@ class DataStoreColotokProvider: Provider(DataStoreColotokProviderConfig()) {
                                 Instant.ofEpochMilli(snapshot.timestamp.toEpochMilliseconds()),
                                 ZoneId.systemDefault()
                             )
+                            it[DiskSnapshotTable.deviceKey] = snapshot.deviceKey
                             it[DiskSnapshotTable.deviceSerialName] = snapshot.serial
                             it[DiskSnapshotTable.connectionProtocol] = snapshot.metricsSnapshot.protocol.name
                             it[DiskSnapshotTable.deviceModel] = snapshot.model
