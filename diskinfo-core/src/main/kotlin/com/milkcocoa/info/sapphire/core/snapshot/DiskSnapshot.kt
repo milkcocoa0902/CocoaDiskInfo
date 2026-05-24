@@ -4,6 +4,7 @@ import com.milkcocoa.info.colotok.core.formatter.details.LogStructure
 import com.milkcocoa.info.sapphire.core.ata.AtaHealthRule
 import com.milkcocoa.info.sapphire.core.nvme.NvmeHealthRule
 import com.milkcocoa.info.sapphire.core.ata.AtaSmartAttributeId
+import com.milkcocoa.info.sapphire.core.api.ResponsePayload
 import kotlinx.serialization.Serializable
 import kotlin.time.Instant
 
@@ -19,7 +20,7 @@ data class DiskSnapshot(
     val powerOnHours: Long?,
     val health: DiskHealth,
     val metricsSnapshot: MetricsSnapshot
-) : LogStructure {
+) : LogStructure, ResponsePayload {
     val evaluations by lazy {
         when (metricsSnapshot) {
             is MetricsSnapshot.AtaMetricsSnapshot -> AtaHealthRule().evaluate(metricsSnapshot)

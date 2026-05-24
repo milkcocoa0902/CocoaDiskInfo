@@ -4,6 +4,7 @@ import com.milkcocoa.info.colotok.core.logger.Colotok
 import com.milkcocoa.info.sapphire.agent.SapphireAgent
 import com.milkcocoa.info.sapphire.agent.SapphireAgent.TargetDevice
 import com.milkcocoa.info.sapphire.agent.datastore.DiskSnapshotTable
+import com.milkcocoa.info.sapphire.agent.server.installSapphireAgentApi
 import com.milkcocoa.info.sapphire.agent.smartctl.cmd.SmartCtlCommand
 import com.milkcocoa.info.sapphire.agent.smartctl.converter.toDiskSnapshot
 import io.ktor.server.cio.CIO
@@ -68,6 +69,8 @@ sealed interface SapphireExecutor {
                 factory = CIO,
                 port = 14631,
             ) {
+                installSapphireAgentApi()
+
                 launch {
                     while (isActive) {
                         oneshot.execute()
