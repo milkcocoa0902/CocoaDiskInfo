@@ -5,42 +5,20 @@ import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.v1.core.dao.id.UuidTable
 import org.jetbrains.exposed.v1.datetime.timestampWithTimeZone
 import org.jetbrains.exposed.v1.json.jsonb
-import java.util.UUID
 import kotlin.uuid.ExperimentalUuidApi
-import kotlin.uuid.Uuid
 
 private val j = Json { ignoreUnknownKeys = true }
 
+@OptIn(ExperimentalUuidApi::class)
 object DiskSnapshotTable: UuidTable(
     name = "disk_snapshot",
     columnName = "snapshot_id"
 ) {
-    @OptIn(ExperimentalUuidApi::class)
-    val nodeId = uuid("node_id").clientDefault {
-        val hostname = java.net.InetAddress.getLocalHost().hostName
-        val namespace = UUID.nameUUIDFromBytes("com.milkcocoa.info.sapphire.node".toByteArray())
-        
-        val md = java.security.MessageDigest.getInstance("SHA-1")
-        md.update(namespace.mostSignificantBits.toBytes())
-        md.update(namespace.leastSignificantBits.toBytes())
-        md.update(hostname.toByteArray())
-        val bytes = md.digest()
-        
-        bytes[6] = (bytes[6].toInt() and 0x0f or 0x50).toByte()
-        bytes[8] = (bytes[8].toInt() and 0x3f or 0x80).toByte()
-        
-        val buffer = java.nio.ByteBuffer.wrap(bytes)
-        Uuid.fromLongs(buffer.long, buffer.long)
-    }
-
-    private fun Long.toBytes(): ByteArray {
-        val buffer = java.nio.ByteBuffer.allocate(8)
-        buffer.putLong(this)
-        return buffer.array()
-    }
+    val nodeId = uuid("node_id").clientDefault { NodeIdentity.nodeId }
+    val nodeName = varchar("node_name", 255).clientDefault { NodeIdentity.nodeName }
 
     val collectTimeStamp = timestampWithTimeZone("collect_time")
-    val deviceKey = varchar("device_key", 255).nullable()
+    val deviceKey = varchar("device_key", 255)
     val deviceSerialName = varchar("device_serial_name", 255).nullable()
     val connectionProtocol = varchar("connection_protocol", 255)
     val deviceModel = varchar("device_model", 255).nullable()
@@ -62,7 +40,7 @@ object DiskSnapshotTable: UuidTable(
     val nvmeDataUnitsRead = long("nvme_data_units_read").nullable()
 
     init {
-        index(false, deviceKey, collectTimeStamp)
+        index(false, nodeId, deviceKey, collectTimeStamp)
     }
 
     val snapshotJson = jsonb<DiskSnapshot>(

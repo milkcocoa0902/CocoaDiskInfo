@@ -30,7 +30,7 @@ fun Application.installSapphireAgentApi(
             call.respond(
                 ApiResponse.Success(
                     LatestSnapshotsPayload(
-                        snapshots = repository.findLatestForEachDevice(),
+                        nodes = repository.findLatestNodes(),
                     ),
                 ),
             )

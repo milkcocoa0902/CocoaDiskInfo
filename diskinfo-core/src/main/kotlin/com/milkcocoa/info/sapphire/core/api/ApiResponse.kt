@@ -26,5 +26,12 @@ data class ApiError(
 
 @Serializable
 data class LatestSnapshotsPayload(
-    val snapshots: List<DiskSnapshot>,
+    val nodes: List<NodeSnapshot>,
 ) : ResponsePayload
+
+@Serializable
+data class NodeSnapshot(
+    val nodeId: String,
+    val nodeName: String,
+    val devices: List<DiskSnapshot>,
+)

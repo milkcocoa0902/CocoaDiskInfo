@@ -46,11 +46,13 @@ class DataStoreColotokProvider: Provider(DataStoreColotokProviderConfig()) {
             is LogRecord.StructuredText<*> -> {
                 // handle structured text
                 val snapshot = (record.msg as DiskSnapshot)
+                val nodeId = NodeIdentity.nodeId
+                val nodeName = NodeIdentity.nodeName
                 runCatching {
                     val id = transaction{
                         DiskSnapshotTable.insertAndGetId {
-                            // ClientDefaultにより設定される
-//                    it[DiskSnapshotTable.nodeId]
+                            it[DiskSnapshotTable.nodeId] = nodeId
+                            it[DiskSnapshotTable.nodeName] = nodeName
                             it[DiskSnapshotTable.collectTimeStamp] = OffsetDateTime.ofInstant(
                                 Instant.ofEpochMilli(snapshot.timestamp.toEpochMilliseconds()),
                                 ZoneId.systemDefault()
