@@ -1,8 +1,35 @@
-# Ignore Gradle project-specific cache directory
-.gradle
+# Gradle
+.gradle/
+**/build/
 
-# Ignore Gradle build output directory
-build
+# Kotlin
+.kotlin/
 
-# Ignore Kotlin plugin data
-.kotlin
+# IntelliJ IDEA local/generated files
+.idea/
+*.iml
+
+# Local environment
+local.properties
+.env
+.env.*
+!.env.example
+
+# Runtime data
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local agent/tool state
+.agents/
+.codex/
+.junie/
