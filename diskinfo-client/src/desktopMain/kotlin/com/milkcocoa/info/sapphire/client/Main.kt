@@ -50,7 +50,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import com.milkcocoa.info.sapphire.core.api.NodeSnapshot
+import com.milkcocoa.info.sapphire.core.ata.AtaSmartAttributeId
 import com.milkcocoa.info.sapphire.core.snapshot.AtaAttribute
+import com.milkcocoa.info.sapphire.core.snapshot.AttributeEvaluation
+import com.milkcocoa.info.sapphire.core.snapshot.AttributeStatus
 import com.milkcocoa.info.sapphire.core.snapshot.DiskHealth
 import com.milkcocoa.info.sapphire.core.snapshot.DiskSnapshot
 import com.milkcocoa.info.sapphire.core.snapshot.MetricsSnapshot
@@ -462,9 +465,8 @@ private fun DeviceDetailPane(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         DetailHeader(node, snapshot)
-        FocusMetrics(snapshot)
+        FocusMetrics(node, snapshot)
         DetailInfoList(
-            node = node,
             snapshot = snapshot,
             modifier = Modifier.weight(1f),
         )
@@ -523,7 +525,10 @@ private fun DetailHeader(
 }
 
 @Composable
-private fun FocusMetrics(snapshot: DiskSnapshot) {
+private fun FocusMetrics(
+    node: NodeSnapshot,
+    snapshot: DiskSnapshot,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         SectionTitle("Focus")
         Row(
@@ -548,17 +553,17 @@ private fun FocusMetrics(snapshot: DiskSnapshot) {
                 accent = wearColor(snapshot.metricsSnapshot.universal.percentageUsed),
                 modifier = Modifier.weight(1f),
             )
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
             HighlightMetric(
                 label = "Warnings",
                 value = snapshot.metricsSnapshot.universal.criticalWarningCount?.toString() ?: "-",
                 accent = warningColor(snapshot.metricsSnapshot.universal.criticalWarningCount),
                 modifier = Modifier.weight(1f),
             )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
             HighlightMetric(
                 label = "Power On",
                 value = snapshot.powerOnHours?.let { "${it}h" } ?: "-",
@@ -569,6 +574,47 @@ private fun FocusMetrics(snapshot: DiskSnapshot) {
                 label = "Capacity",
                 value = formatBytes(snapshot.capacityBytes),
                 accent = Color(0xFFA78BFA),
+                modifier = Modifier.weight(1f),
+            )
+            HighlightMetric(
+                label = "Protocol",
+                value = snapshot.protocolName(),
+                accent = Color(0xFFE7E9EB),
+                modifier = Modifier.weight(1f),
+            )
+            HighlightMetric(
+                label = "Device Key",
+                value = snapshot.deviceKey,
+                accent = Color(0xFFE7E9EB),
+                modifier = Modifier.weight(1f),
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            HighlightMetric(
+                label = "Node",
+                value = node.nodeName,
+                accent = Color(0xFFE7E9EB),
+                modifier = Modifier.weight(1f),
+            )
+            HighlightMetric(
+                label = "Node ID",
+                value = node.nodeId,
+                accent = Color(0xFFE7E9EB),
+                modifier = Modifier.weight(1f),
+            )
+            HighlightMetric(
+                label = "Model",
+                value = snapshot.model ?: "-",
+                accent = Color(0xFFE7E9EB),
+                modifier = Modifier.weight(1f),
+            )
+            HighlightMetric(
+                label = "Serial",
+                value = snapshot.serial ?: "-",
+                accent = Color(0xFFE7E9EB),
                 modifier = Modifier.weight(1f),
             )
         }
@@ -583,7 +629,7 @@ private fun HighlightMetric(
     modifier: Modifier = Modifier,
 ) {
     Card(
-        modifier = modifier.height(92.dp),
+        modifier = modifier.height(72.dp),
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFF171717)),
     ) {
@@ -600,7 +646,7 @@ private fun HighlightMetric(
             )
             Text(
                 text = value,
-                style = MaterialTheme.typography.titleLarge,
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = accent,
                 maxLines = 1,
@@ -612,7 +658,6 @@ private fun HighlightMetric(
 
 @Composable
 private fun DetailInfoList(
-    node: NodeSnapshot,
     snapshot: DiskSnapshot,
     modifier: Modifier = Modifier,
 ) {
@@ -634,8 +679,25 @@ private fun DetailInfoList(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                items(detailRows(node, snapshot)) { row ->
-                    DetailRow(row.label, row.value)
+                when (val metrics = snapshot.metricsSnapshot) {
+                    is MetricsSnapshot.AtaMetricsSnapshot -> {
+                        item {
+                            AtaInformationHeader()
+                        }
+                        items(ataInformationRows(snapshot, metrics)) { row ->
+                            AtaInformationRow(row)
+                        }
+                    }
+
+                    is MetricsSnapshot.NvmeMetricsSnapshot -> {
+                        item {
+                            Text(
+                                text = "NVMe information table is not implemented yet.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color(0xFF9AA1A8),
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -652,28 +714,89 @@ private fun SectionTitle(text: String) {
 }
 
 @Composable
-private fun DetailRow(
-    label: String,
-    value: String,
-) {
+private fun AtaInformationHeader() {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.Top,
+        verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text(
-            text = label,
-            modifier = Modifier.width(152.dp),
-            style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFF858C93),
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
+            text = "Status",
+            modifier = Modifier.width(72.dp),
+            style = MaterialTheme.typography.labelMedium,
+            color = Color(0xFFA7ADB3),
         )
         Text(
-            text = value,
+            text = "Item",
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.labelMedium,
+            color = Color(0xFFA7ADB3),
+        )
+        Text(
+            text = "Value",
+            modifier = Modifier.width(72.dp),
+            style = MaterialTheme.typography.labelMedium,
+            color = Color(0xFFA7ADB3),
+        )
+        Text(
+            text = "Worst",
+            modifier = Modifier.width(72.dp),
+            style = MaterialTheme.typography.labelMedium,
+            color = Color(0xFFA7ADB3),
+        )
+    }
+}
+
+@Composable
+private fun AtaInformationRow(row: AtaInformationRowValue) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        EvaluationBadge(row.status)
+        Text(
+            text = row.name,
             modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.bodyMedium,
             color = Color(0xFFE7E9EB),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = row.value,
+            modifier = Modifier.width(72.dp),
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color(0xFFE7E9EB),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = row.worst,
+            modifier = Modifier.width(72.dp),
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color(0xFFE7E9EB),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun EvaluationBadge(status: AttributeStatus) {
+    Surface(
+        modifier = Modifier.width(72.dp),
+        shape = RoundedCornerShape(8.dp),
+        color = attributeStatusColor(status).copy(alpha = 0.16f),
+        contentColor = attributeStatusColor(status),
+    ) {
+        Text(
+            text = status.name,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -777,62 +900,58 @@ private fun DiskSnapshot.protocolName(): String {
     }
 }
 
-private fun detailRows(
-    node: NodeSnapshot,
+private fun ataInformationRows(
     snapshot: DiskSnapshot,
-): List<DetailRowValue> {
-    val universal = snapshot.metricsSnapshot.universal
-    return buildList {
-        add("Node ID", node.nodeId)
-        add("Node name", node.nodeName)
-        add("Device key", snapshot.deviceKey)
-        add("Path", snapshot.path)
-        add("Model", snapshot.model ?: "-")
-        add("Serial", snapshot.serial ?: "-")
-        add("Protocol", snapshot.protocolName())
-        add("Timestamp", snapshot.timestamp.toString())
-        add("Capacity", "${formatBytes(snapshot.capacityBytes)} (${snapshot.capacityBytes} bytes)")
-        add("Health", snapshot.health.name)
-        add("Temperature", snapshot.temperatureCelsius?.let { "$it C" } ?: "-")
-        add("Power on hours", snapshot.powerOnHours?.toString() ?: "-")
-        add("Power cycles", universal.powerCycleCount?.toString() ?: "-")
-        add("Percentage used", universal.percentageUsed?.let { "$it%" } ?: "-")
-        add("Total bytes written", universal.totalBytesWritten?.let { formatBytes(it) } ?: "-")
-        add("Total bytes read", universal.totalBytesRead?.let { formatBytes(it) } ?: "-")
-        add("Critical warnings", universal.criticalWarningCount?.toString() ?: "-")
-
-        when (val metrics = snapshot.metricsSnapshot) {
-            is MetricsSnapshot.AtaMetricsSnapshot -> {
-                add("ATA attributes", metrics.attributes.size.toString())
-                metrics.attributes.forEach { attribute ->
-                    add(attribute.displayLabel(), attribute.displayValue())
-                }
-            }
-
-            is MetricsSnapshot.NvmeMetricsSnapshot -> {
-                add("Available spare", metrics.availableSpare?.let { "$it%" } ?: "-")
-                add("NVMe percentage used", metrics.percentageUsed?.let { "$it%" } ?: "-")
-                add("Media errors", metrics.mediaErrors?.toString() ?: "-")
-                add("Data units written", metrics.dataUnitsWritten?.toString() ?: "-")
-                add("Data units read", metrics.dataUnitsRead?.toString() ?: "-")
-            }
+    metrics: MetricsSnapshot.AtaMetricsSnapshot,
+): List<AtaInformationRowValue> {
+    val evaluations = snapshot.evaluations.associateBy { it.key }
+    return metrics.attributes
+        .sortedWith(compareBy<AtaAttribute> { ataStatusRank(it.evaluationStatus(evaluations)) }.thenBy { it.id.id })
+        .map { attribute ->
+            AtaInformationRowValue(
+                status = attribute.evaluationStatus(evaluations),
+                name = attribute.displayLabel(),
+                value = attribute.value.toString(),
+                worst = attribute.worst.toString(),
+            )
         }
+}
+
+private fun ataStatusRank(status: AttributeStatus): Int {
+    return when (status) {
+        AttributeStatus.BAD -> 0
+        AttributeStatus.CAUTION -> 1
+        AttributeStatus.UNKNOWN -> 2
+        AttributeStatus.GOOD -> 3
     }
 }
 
-private fun MutableList<DetailRowValue>.add(
-    label: String,
-    value: String,
-) {
-    add(DetailRowValue(label, value))
+private fun AtaAttribute.evaluationStatus(evaluations: Map<String, AttributeEvaluation>): AttributeStatus {
+    val explicitStatus = evaluationKey()?.let { evaluations[it]?.status }
+    return explicitStatus ?: genericAtaStatus()
+}
+
+private fun AtaAttribute.evaluationKey(): String? {
+    return when (id) {
+        AtaSmartAttributeId.ReallocatedSectorCt -> "ata.reallocated_sector_count"
+        AtaSmartAttributeId.CurrentPendingSector -> "ata.current_pending_sector_count"
+        AtaSmartAttributeId.OfflineUncorrectable -> "ata.offline_uncorrectable_count"
+        AtaSmartAttributeId.UdmaCrcErrorCount -> "ata.udma_crc_error_count"
+        AtaSmartAttributeId.PercentLifetimeRemain -> "ata.percentage_used"
+        else -> null
+    }
+}
+
+private fun AtaAttribute.genericAtaStatus(): AttributeStatus {
+    return when {
+        threshold > 0 && value <= threshold -> AttributeStatus.BAD
+        threshold > 0 && worst <= threshold -> AttributeStatus.CAUTION
+        else -> AttributeStatus.GOOD
+    }
 }
 
 private fun AtaAttribute.displayLabel(): String {
     return "SMART ${id.id} ${id.name}"
-}
-
-private fun AtaAttribute.displayValue(): String {
-    return "value=$value, worst=$worst, threshold=$threshold, raw=${rawString.ifBlank { rawValue.toString() }}"
 }
 
 private fun healthColor(health: DiskHealth): Color {
@@ -841,6 +960,15 @@ private fun healthColor(health: DiskHealth): Color {
         DiskHealth.CAUTION -> Color(0xFFFBBF24)
         DiskHealth.BAD -> Color(0xFFFF6B6B)
         DiskHealth.UNKNOWN -> Color(0xFF9AA1A8)
+    }
+}
+
+private fun attributeStatusColor(status: AttributeStatus): Color {
+    return when (status) {
+        AttributeStatus.GOOD -> Color(0xFF62D6A4)
+        AttributeStatus.CAUTION -> Color(0xFFFBBF24)
+        AttributeStatus.BAD -> Color(0xFFFF6B6B)
+        AttributeStatus.UNKNOWN -> Color(0xFF9AA1A8)
     }
 }
 
@@ -884,7 +1012,9 @@ private fun formatBytes(bytes: Long): String {
     return "%.1f %s".format(value, units[unitIndex])
 }
 
-private data class DetailRowValue(
-    val label: String,
+private data class AtaInformationRowValue(
+    val status: AttributeStatus,
+    val name: String,
     val value: String,
+    val worst: String,
 )

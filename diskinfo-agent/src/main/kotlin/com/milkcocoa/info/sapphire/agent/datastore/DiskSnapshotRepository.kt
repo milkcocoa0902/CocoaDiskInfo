@@ -20,7 +20,9 @@ class DiskSnapshotRepository {
                 NodeSnapshot(
                     nodeId = node.first.toString(),
                     nodeName = node.second,
-                    devices = rows.map { it[DiskSnapshotTable.snapshotJson] },
+                    devices = rows
+                        .map { it[DiskSnapshotTable.snapshotJson] }
+                        .sortedBy { it.deviceKey },
                 )
             }
             .sortedBy { it.nodeName }
