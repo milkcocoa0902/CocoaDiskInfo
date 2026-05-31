@@ -8,6 +8,7 @@
 pluginManagement {
     repositories {
         gradlePluginPortal()
+        google()
         mavenCentral()
     }
 }
@@ -19,6 +20,7 @@ plugins {
 
 dependencyResolutionManagement {
     repositories {
+        google()
         mavenCentral()
     }
 }
@@ -27,4 +29,5 @@ rootProject.name = "CocoaDiskInfo"
 
 
 include("diskinfo-agent")
+include("diskinfo-client")
 include("diskinfo-core")
