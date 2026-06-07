@@ -51,6 +51,7 @@ data class DiskSnapshot(
             appendLine("- power on hours: ${powerOnHours ?: "-"}")
             appendLine("- power cycles: ${universal.powerCycleCount ?: "-"}")
             appendLine("- percentage used: ${universal.percentageUsed?.let { "$it%" } ?: "-"}")
+            appendLine("- lifetime remaining: ${universal.lifetimeRemainingPercent?.let { "$it%" } ?: "-"}")
             appendLine("- total written: ${universal.totalBytesWritten?.let { formatBytes(it) } ?: "-"}")
             appendLine("- total read: ${universal.totalBytesRead?.let { formatBytes(it) } ?: "-"}")
             appendLine("- critical warnings: ${universal.criticalWarningCount ?: "-"}")

@@ -32,7 +32,7 @@ class AtaHealthRule : HealthRule<MetricsSnapshot.AtaMetricsSnapshot> {
                 key = "ata.udma_crc_error_count",
                 reason = "UDMA CRC errors usually indicate cabling, enclosure, or link reliability problems.",
             ),
-            ssdLifeRule(snapshot),
+            lifetimeRemainingRule(snapshot),
         )
     }
 
@@ -56,19 +56,19 @@ class AtaHealthRule : HealthRule<MetricsSnapshot.AtaMetricsSnapshot> {
         )
     }
 
-    private fun ssdLifeRule(snapshot: MetricsSnapshot.AtaMetricsSnapshot): AttributeEvaluation {
-        val percentageUsed = snapshot.universal.percentageUsed?.toLong()
+    private fun lifetimeRemainingRule(snapshot: MetricsSnapshot.AtaMetricsSnapshot): AttributeEvaluation {
+        val lifetimeRemaining = snapshot.universal.lifetimeRemainingPercent?.toLong()
         return AttributeEvaluation(
-            key = "ata.percentage_used",
-            value = percentageUsed,
+            key = "ata.percent_lifetime_remaining",
+            value = lifetimeRemaining,
             status = when {
-                percentageUsed == null -> AttributeStatus.UNKNOWN
-                percentageUsed >= 100 -> AttributeStatus.BAD
-                percentageUsed >= 80 -> AttributeStatus.CAUTION
+                lifetimeRemaining == null -> AttributeStatus.UNKNOWN
+                lifetimeRemaining <= 10 -> AttributeStatus.BAD
+                lifetimeRemaining <= 20 -> AttributeStatus.CAUTION
                 else -> AttributeStatus.GOOD
             },
-            threshold = 80,
-            reason = "ATA SSD lifetime indicator is approaching its rated endurance.",
+            threshold = 20,
+            reason = "ATA SSD lifetime remaining indicator is low.",
         )
     }
 }

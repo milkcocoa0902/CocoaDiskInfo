@@ -10,11 +10,17 @@ import com.milkcocoa.info.sapphire.agent.smartctl.model.AtaSmartctlSnapshot
 import kotlin.time.Instant
 
 fun AtaSmartctlSnapshot.toDiskSnapshot(): DiskSnapshot {
+    val percentLifetimeRemaining = this.ataSmartAttributes
+        ?.table
+        ?.find { it.id == AtaSmartAttributeId.PercentLifetimeRemain }
+        ?.value
+
     val universal = UniversalMetrics(
         temperatureCelsius = this.temperature.current,
         powerOnHours = this.powerOnTime.hours.toLong(),
         powerCycleCount = this.powerCycleCount.toLong(),
-        percentageUsed = this.ataSmartAttributes?.table?.find { it.id == AtaSmartAttributeId.of(231, null) || it.id == AtaSmartAttributeId.PercentLifetimeRemain }?.value, // SSW or SSD life remaining
+        percentageUsed = null,
+        lifetimeRemainingPercent = percentLifetimeRemaining,
         totalBytesWritten = this.ataSmartAttributes?.table?.find { it.id == AtaSmartAttributeId.TotalLbasWritten }?.raw?.value, // total written in sectors
         totalBytesRead = this.ataSmartAttributes?.table?.find { it.id == AtaSmartAttributeId.TotalLbasRead }?.raw?.value,
         criticalWarningCount = this.ataSmartAttributes?.table?.filter { it.id in listOf(AtaSmartAttributeId.ReallocatedSectorCt, AtaSmartAttributeId.CurrentPendingSector, AtaSmartAttributeId.OfflineUncorrectable) }?.sumOf { it.raw.value }?.toInt() ?: 0

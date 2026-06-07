@@ -22,7 +22,7 @@ class DiskSnapshotRepository {
                     nodeName = node.second,
                     devices = rows
                         .map { it[DiskSnapshotTable.snapshotJson] }
-                        .sortedBy { it.deviceKey },
+                        .sortedBy { it.path },
                 )
             }
             .sortedBy { it.nodeName }
