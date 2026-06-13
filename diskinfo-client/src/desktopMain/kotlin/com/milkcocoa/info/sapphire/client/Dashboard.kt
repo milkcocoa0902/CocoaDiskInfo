@@ -26,6 +26,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,19 +35,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.milkcocoa.info.sapphire.core.api.NodeSnapshot
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-
-private const val DefaultAgentUrl = "http://localhost:14631"
 
 @Composable
 internal fun Dashboard(agentApiClient: AgentApiClient) {
     val scope = rememberCoroutineScope()
-    var agentUrl by androidx.compose.runtime.remember { mutableStateOf(DefaultAgentUrl) }
-    var uiState by androidx.compose.runtime.remember { mutableStateOf<DeviceListState>(DeviceListState.Loading) }
-    var selectedNodeId by androidx.compose.runtime.remember { mutableStateOf<String?>(null) }
-    var selectedDeviceKey by androidx.compose.runtime.remember { mutableStateOf<String?>(null) }
+    var agentUrl by remember { mutableStateOf(AgentUrlStore.agentUrl) }
+    var uiState by remember { mutableStateOf<DeviceListState>(DeviceListState.Loading) }
+    var selectedNodeId by remember { mutableStateOf<String?>(null) }
+    var selectedDeviceKey by remember { mutableStateOf<String?>(null) }
 
     fun refresh() {
+        agentUrl = AgentUrlStore.agentUrl // Settingsで変更された可能性があるので再取得
         uiState = DeviceListState.Loading
         scope.launch {
             uiState = runCatching {
@@ -66,7 +67,15 @@ internal fun Dashboard(agentApiClient: AgentApiClient) {
     }
 
     LaunchedEffect(Unit) {
-        refresh()
+        while (true) {
+            refresh()
+            val interval = AgentUrlStore.refreshIntervalSeconds
+            if (interval > 0) {
+                delay(interval * 1000)
+            } else {
+                break
+            }
+        }
     }
 
     val nodes = (uiState as? DeviceListState.Ready)?.nodes.orEmpty()
@@ -79,8 +88,6 @@ internal fun Dashboard(agentApiClient: AgentApiClient) {
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         Header(
-            agentUrl = agentUrl,
-            onAgentUrlChange = { agentUrl = it },
             isLoading = uiState is DeviceListState.Loading,
             onRefresh = ::refresh,
         )
@@ -110,8 +117,6 @@ internal fun Dashboard(agentApiClient: AgentApiClient) {
 
 @Composable
 private fun Header(
-    agentUrl: String,
-    onAgentUrlChange: (String) -> Unit,
     isLoading: Boolean,
     onRefresh: () -> Unit,
 ) {
@@ -140,26 +145,6 @@ private fun Header(
                 Icon(Icons.Outlined.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Refresh")
-            }
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            OutlinedTextField(
-                value = agentUrl,
-                onValueChange = onAgentUrlChange,
-                modifier = Modifier.weight(1f),
-                singleLine = true,
-                label = { Text("Agent URL") },
-            )
-            Button(
-                onClick = onRefresh,
-                enabled = !isLoading,
-                modifier = Modifier.height(56.dp),
-            ) {
-                Text("Connect")
             }
         }
     }
