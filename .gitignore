@@ -1,2 +1,35 @@
-build
-*.swp
+# Gradle
+.gradle/
+**/build/
+
+# Kotlin
+.kotlin/
+
+# IntelliJ IDEA local/generated files
+.idea/
+*.iml
+
+# Local environment
+local.properties
+.env
+.env.*
+!.env.example
+
+# Runtime data
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local agent/tool state
+.agents/
+.codex/
+.junie/
