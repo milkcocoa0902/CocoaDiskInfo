@@ -3,7 +3,6 @@ package com.milkcocoa.info.sapphire.core.snapshot
 import com.milkcocoa.info.colotok.core.formatter.details.LogStructure
 import com.milkcocoa.info.sapphire.core.ata.AtaHealthRule
 import com.milkcocoa.info.sapphire.core.nvme.NvmeHealthRule
-import com.milkcocoa.info.sapphire.core.ata.AtaSmartAttributeId
 import com.milkcocoa.info.sapphire.core.api.ResponsePayload
 import kotlinx.serialization.Serializable
 import kotlin.time.Instant
@@ -29,7 +28,7 @@ data class DiskSnapshot(
     }
 
     override fun stringify(): String {
-        val universal = metricsSnapshot.universal
+        val nonGoodEvaluations = evaluations.filter { it.status != AttributeStatus.GOOD }
 
         return buildString {
             appendLine("Disk Snapshot")
@@ -43,65 +42,26 @@ data class DiskSnapshot(
             appendLine("- key: $deviceKey")
             appendLine("- model: ${model.orDash()}")
             appendLine("- serial: ${serial.orDash()}")
-            appendLine("- capacity: ${formatBytes(capacityBytes)} ($capacityBytes bytes)")
+            appendLine("- capacity: ${capacityBytes.formatBytes()} ($capacityBytes bytes)")
             appendLine()
 
-            appendLine("Universal Metrics")
-            appendLine("- temperature: ${temperatureCelsius?.let { "$it C" } ?: "-"}")
-            appendLine("- power on hours: ${powerOnHours ?: "-"}")
-            appendLine("- power cycles: ${universal.powerCycleCount ?: "-"}")
-            appendLine("- percentage used: ${universal.percentageUsed?.let { "$it%" } ?: "-"}")
-            appendLine("- lifetime remaining: ${universal.lifetimeRemainingPercent?.let { "$it%" } ?: "-"}")
-            appendLine("- total written: ${universal.totalBytesWritten?.let { formatBytes(it) } ?: "-"}")
-            appendLine("- total read: ${universal.totalBytesRead?.let { formatBytes(it) } ?: "-"}")
-            appendLine("- critical warnings: ${universal.criticalWarningCount ?: "-"}")
-            appendLine()
-
-            appendLine("Protocol Metrics")
-            when (val metrics = metricsSnapshot) {
-                is MetricsSnapshot.AtaMetricsSnapshot -> {
-                    appendLine("- attributes: ${metrics.attributes.size}")
-                    appendLine("- reallocated sector count: ${metrics.attributes.find { it.id == AtaSmartAttributeId.ReallocatedSectorCt }?.value ?: "-"}")
-                    appendLine("- current pending sector: ${metrics.attributes.find { it.id == AtaSmartAttributeId.CurrentPendingSector }?.value ?: "-"}")
-                    appendLine("- offline uncorrectable: ${metrics.attributes.find { it.id == AtaSmartAttributeId.OfflineUncorrectable }?.value ?: "-"}")
-                    appendLine("- udma crc error count: ${metrics.attributes.find { it.id == AtaSmartAttributeId.UdmaCrcErrorCount }?.value ?: "-"}")
-                }
-
-                is MetricsSnapshot.NvmeMetricsSnapshot -> {
-                    appendLine("- available spare: ${metrics.availableSpare?.let { "$it%" } ?: "-"}")
-                    appendLine("- percentage used: ${metrics.percentageUsed?.let { "$it%" } ?: "-"}")
-                    appendLine("- media errors: ${metrics.mediaErrors ?: "-"}")
-                    appendLine("- data units written: ${metrics.dataUnitsWritten ?: "-"}")
-                    appendLine("- data units read: ${metrics.dataUnitsRead ?: "-"}")
-                }
-            }
+            appendLine(metricsSnapshot.stringify())
             appendLine()
 
             appendLine("Evaluations")
-            if (evaluations.isEmpty()) {
-                appendLine("- -")
+            appendLine("- checks: ${evaluations.size}")
+            if (nonGoodEvaluations.isEmpty()) {
+                appendLine("- result: all checks are GOOD")
             } else {
-                evaluations.forEach {
-                    appendLine("- ${it.key}: ${it.status.name} (value=${it.value ?: "-"}, threshold=${it.threshold ?: "-"}${it.reason?.let { reason -> ", reason=$reason" } ?: ""})")
+                appendLine("- non-good: ${nonGoodEvaluations.size}")
+                nonGoodEvaluations.forEach {
+                    appendLine("- ${it.key}: ${it.status.name} (value=${it.value ?: "-"}, threshold=${it.threshold ?: "-"})")
+                    it.reason?.let { reason ->
+                        appendLine("  reason: $reason")
+                    }
                 }
             }
         }.trimEnd()
-    }
-
-    private fun String?.orDash(): String = this ?: "-"
-
-    private fun formatBytes(bytes: Long): String {
-        if (bytes < 1024L) return "${bytes} B"
-        val units = listOf("KiB", "MiB", "GiB", "TiB", "PiB", "EiB")
-        var value = bytes.toDouble()
-        var unitIndex = -1
-
-        while (value >= 1024.0 && unitIndex < units.lastIndex) {
-            value /= 1024.0
-            unitIndex++
-        }
-
-        return "%.2f %s".format(value, units[unitIndex])
     }
 }
 

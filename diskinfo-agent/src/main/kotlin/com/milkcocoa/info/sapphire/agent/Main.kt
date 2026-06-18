@@ -14,7 +14,13 @@ import com.github.ajalt.clikt.parameters.types.enum
 import com.github.ajalt.clikt.parameters.types.path
 import com.milkcocoa.info.colotok.core.logger.Colotok
 import com.milkcocoa.info.colotok.core.logger.ColotokLoggerContext
+import com.milkcocoa.info.sapphire.agent.datastore.DiskSnapshotRepository
 import com.milkcocoa.info.sapphire.agent.exec.SapphireExecutor
+import com.milkcocoa.info.sapphire.agent.server.SapphireAgentServer
+import com.milkcocoa.info.sapphire.agent.sink.ColotokSnapshotSink
+import com.milkcocoa.info.sapphire.agent.sink.CompositeSnapshotSink
+import com.milkcocoa.info.sapphire.agent.sink.RepositorySnapshotSink
+import com.milkcocoa.info.sapphire.agent.sink.SnapshotSink
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.exposed.v1.jdbc.Database
 import kotlin.io.path.absolutePathString
@@ -64,6 +70,8 @@ class SapphireAgent : CliktCommand() {
         if (shouldUseDatabase()) {
             Database.connect("jdbc:sqlite:./sapphire.db", "org.sqlite.JDBC")
         }
+        val repository = if (shouldUseDatabase()) DiskSnapshotRepository() else null
+        val snapshotSink = createSnapshotSink(repository)
 
         val effectiveOutput = when (executionMode) {
             is ExecutionMode.Agent -> OutputMode.DEFAULT
@@ -75,13 +83,19 @@ class SapphireAgent : CliktCommand() {
             .create(
                 executionMode = executionMode,
                 outputMode = effectiveOutput,
-                persist = persist,
             )
             ?.also { ColotokLoggerContext.setDefault(it) }
 
         val executor = when (executionMode) {
-            is ExecutionMode.Agent -> SapphireExecutor.Agent(device!!)
-            is ExecutionMode.Oneshot -> SapphireExecutor.Oneshot(device!!)
+            is ExecutionMode.Agent -> SapphireExecutor.Agent(
+                device = device!!,
+                sink = snapshotSink,
+                server = SapphireAgentServer(repository = repository!!),
+            )
+            is ExecutionMode.Oneshot -> SapphireExecutor.Oneshot(
+                device = device!!,
+                sink = snapshotSink,
+            )
             is ExecutionMode.Migration -> SapphireExecutor.Migrate()
         }
 
@@ -119,6 +133,18 @@ class SapphireAgent : CliktCommand() {
                     throw UsageError("Migration mode does not allow --scan, --device, --output, or --persist.")
                 }
             }
+        }
+    }
+
+    private fun createSnapshotSink(repository: DiskSnapshotRepository?): SnapshotSink {
+        val outputSink = ColotokSnapshotSink()
+        return if (repository == null) {
+            outputSink
+        } else {
+            CompositeSnapshotSink(
+                outputSink,
+                RepositorySnapshotSink(repository),
+            )
         }
     }
 }

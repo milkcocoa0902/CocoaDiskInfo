@@ -1,14 +1,76 @@
 package com.milkcocoa.info.sapphire.agent.datastore
 
 import com.milkcocoa.info.sapphire.core.api.NodeSnapshot
+import com.milkcocoa.info.sapphire.core.ata.AtaSmartAttributeId
 import com.milkcocoa.info.sapphire.core.snapshot.DiskSnapshot
+import com.milkcocoa.info.sapphire.core.snapshot.MetricsSnapshot
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import java.time.Instant
+import java.time.OffsetDateTime
+import java.time.ZoneId
 import kotlin.uuid.ExperimentalUuidApi
 
 class DiskSnapshotRepository {
+    @OptIn(ExperimentalUuidApi::class)
+    fun insert(snapshot: DiskSnapshot) {
+        val nodeId = NodeIdentity.nodeId
+        val nodeName = NodeIdentity.nodeName
+
+        transaction {
+            DiskSnapshotTable.insert {
+                it[DiskSnapshotTable.nodeId] = nodeId
+                it[DiskSnapshotTable.nodeName] = nodeName
+                it[DiskSnapshotTable.collectTimeStamp] = OffsetDateTime.ofInstant(
+                    Instant.ofEpochMilli(snapshot.timestamp.toEpochMilliseconds()),
+                    ZoneId.systemDefault(),
+                )
+                it[DiskSnapshotTable.deviceKey] = snapshot.deviceKey
+                it[DiskSnapshotTable.deviceSerialName] = snapshot.serial
+                it[DiskSnapshotTable.connectionProtocol] = snapshot.metricsSnapshot.protocol.name
+                it[DiskSnapshotTable.deviceModel] = snapshot.model
+                it[DiskSnapshotTable.devicePath] = snapshot.path
+                it[DiskSnapshotTable.temperatureCelsius] = snapshot.temperatureCelsius?.toBigDecimal()
+                it[DiskSnapshotTable.powerOnCycles] = snapshot.metricsSnapshot.universal.powerCycleCount
+                it[DiskSnapshotTable.powerOnHours] = snapshot.powerOnHours
+
+                when (val metrics = snapshot.metricsSnapshot) {
+                    is MetricsSnapshot.AtaMetricsSnapshot -> {
+                        it[DiskSnapshotTable.ataReallocatedSectorCount] =
+                            metrics.attributes.find { attribute ->
+                                attribute.id == AtaSmartAttributeId.ReallocatedSectorCt
+                            }?.value
+                        it[DiskSnapshotTable.ataCurrentPendingSectorCount] =
+                            metrics.attributes.find { attribute ->
+                                attribute.id == AtaSmartAttributeId.CurrentPendingSector
+                            }?.value
+                        it[DiskSnapshotTable.ataOfflineUncorrectableCount] =
+                            metrics.attributes.find { attribute ->
+                                attribute.id == AtaSmartAttributeId.OfflineUncorrectable
+                            }?.value
+                        it[DiskSnapshotTable.ataUdmaCrcErrorCount] =
+                            metrics.attributes.find { attribute ->
+                                attribute.id == AtaSmartAttributeId.UdmaCrcErrorCount
+                            }?.value
+                    }
+
+                    is MetricsSnapshot.NvmeMetricsSnapshot -> {
+                        it[DiskSnapshotTable.nvmePercentageUsed] = metrics.percentageUsed
+                        it[DiskSnapshotTable.nvmeAvailableSpare] = metrics.availableSpare
+                        it[DiskSnapshotTable.nvmeMediaErrorCount] = metrics.mediaErrors
+                        it[DiskSnapshotTable.nvmeDataUnitsWritten] = metrics.dataUnitsWritten
+                        it[DiskSnapshotTable.nvmeDataUnitsRead] = metrics.dataUnitsRead
+                    }
+                }
+
+                it[DiskSnapshotTable.snapshotJson] = snapshot
+            }
+        }
+    }
+
     @OptIn(ExperimentalUuidApi::class)
     fun findLatestNodes(): List<NodeSnapshot> = transaction {
         DiskSnapshotTable

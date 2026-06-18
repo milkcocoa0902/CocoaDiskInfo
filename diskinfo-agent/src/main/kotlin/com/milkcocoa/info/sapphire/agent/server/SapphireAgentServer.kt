@@ -9,6 +9,8 @@ import io.ktor.resources.Resource
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
+import io.ktor.server.cio.CIO
+import io.ktor.server.engine.embeddedServer
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.resources.Resources
 import io.ktor.server.resources.get
@@ -16,6 +18,24 @@ import io.ktor.server.response.respond
 import io.ktor.server.routing.routing
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+
+class SapphireAgentServer(
+    private val repository: DiskSnapshotRepository = DiskSnapshotRepository(),
+    private val port: Int = 14631,
+) {
+    fun start(
+        wait: Boolean = true,
+        module: Application.() -> Unit = {},
+    ) {
+        embeddedServer(
+            factory = CIO,
+            port = port,
+        ) {
+            installSapphireAgentApi(repository)
+            module()
+        }.start(wait = wait)
+    }
+}
 
 fun Application.installSapphireAgentApi(
     repository: DiskSnapshotRepository = DiskSnapshotRepository(),
