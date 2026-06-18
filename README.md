@@ -84,6 +84,22 @@ LinuxやmacOSでは、環境によって `smartctl` の実行に管理者権限�
 
 agent は `http://localhost:14631` でAPIを公開します。
 
+### systemd で agent を常駐させる
+
+Linux では [deploy/systemd/cocoadiskinfo-agent.service](deploy/systemd/cocoadiskinfo-agent.service) をテンプレートとして利用できます。
+
+```bash
+./gradlew :diskinfo-agent:shadowJar
+sudo install -d /opt/cocoadiskinfo /var/lib/cocoadiskinfo
+sudo install -m 0644 diskinfo-agent/build/libs/diskinfo-agent-1.0-SNAPSHOT-all.jar /opt/cocoadiskinfo/
+(cd /var/lib/cocoadiskinfo && sudo /usr/bin/java -jar /opt/cocoadiskinfo/diskinfo-agent-1.0-SNAPSHOT-all.jar --migration)
+sudo install -m 0644 deploy/systemd/cocoadiskinfo-agent.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now cocoadiskinfo-agent
+```
+
+特定デバイスだけ監視する場合は、service ファイル内の `ExecStart` を `--agent --device /dev/sda` のように変更します。
+
 ### 3. Clientを起動する
 
 ```bash

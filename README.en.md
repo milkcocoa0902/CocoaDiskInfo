@@ -84,6 +84,22 @@ For a single device:
 
 The agent serves its API at `http://localhost:14631`.
 
+### Run the agent with systemd
+
+On Linux, use [deploy/systemd/cocoadiskinfo-agent.service](deploy/systemd/cocoadiskinfo-agent.service) as a template.
+
+```bash
+./gradlew :diskinfo-agent:shadowJar
+sudo install -d /opt/cocoadiskinfo /var/lib/cocoadiskinfo
+sudo install -m 0644 diskinfo-agent/build/libs/diskinfo-agent-1.0-SNAPSHOT-all.jar /opt/cocoadiskinfo/
+(cd /var/lib/cocoadiskinfo && sudo /usr/bin/java -jar /opt/cocoadiskinfo/diskinfo-agent-1.0-SNAPSHOT-all.jar --migration)
+sudo install -m 0644 deploy/systemd/cocoadiskinfo-agent.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now cocoadiskinfo-agent
+```
+
+To monitor only one device, change `ExecStart` in the service file to use `--agent --device /dev/sda`.
+
 ### 3. Start the client
 
 ```bash
