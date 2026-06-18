@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.milkcocoa.info.sapphire.core.api.NodeSnapshot
 
 @Composable
 internal fun DeviceContent(
@@ -17,58 +18,71 @@ internal fun DeviceContent(
     onSelectDevice: (String, String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    when (uiState) {
-        is DeviceListState.Loading -> LoadingDeviceList(modifier)
-        is DeviceListState.Failed -> MessagePanel(
+    when {
+        uiState.nodes.isNotEmpty() -> DeviceSnapshotContent(
+            nodes = uiState.nodes,
+            selectedNodeId = selectedNodeId,
+            selectedDeviceKey = selectedDeviceKey,
+            onSelectDevice = onSelectDevice,
+            modifier = modifier,
+        )
+
+        uiState.isLoading -> LoadingDeviceList(modifier)
+        uiState.message != null -> MessagePanel(
             title = "Agent unavailable",
             message = uiState.message,
             modifier = modifier,
         )
 
-        is DeviceListState.Ready -> {
-            if (uiState.nodes.isEmpty()) {
-                MessagePanel(
-                    title = "No disk snapshots",
-                    message = "The agent returned no collected nodes.",
-                    modifier = modifier,
-                )
-            } else {
-                val selectedNode = uiState.nodes.firstOrNull { it.nodeId == selectedNodeId }
-                    ?: uiState.nodes.first()
-                val selectedSnapshot = selectedNode.devices.firstOrNull { it.deviceKey == selectedDeviceKey }
-                    ?: selectedNode.devices.firstOrNull()
-                Row(
-                    modifier = modifier.fillMaxSize(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                    DeviceListPane(
-                        nodes = uiState.nodes,
-                        selectedNodeId = selectedNode.nodeId,
-                        selectedDeviceKey = selectedDeviceKey,
-                        onSelectDevice = onSelectDevice,
-                        modifier = Modifier
-                            .weight(0.45f)
-                            .fillMaxHeight(),
-                    )
-                    if (selectedSnapshot == null) {
-                        MessagePanel(
-                            title = "No devices",
-                            message = "This node has no collected devices.",
-                            modifier = Modifier
-                                .weight(0.55f)
-                                .fillMaxHeight(),
-                        )
-                    } else {
-                        DeviceDetailPane(
-                            node = selectedNode,
-                            snapshot = selectedSnapshot,
-                            modifier = Modifier
-                                .weight(0.55f)
-                                .fillMaxHeight(),
-                        )
-                    }
-                }
-            }
+        else -> MessagePanel(
+            title = "No disk snapshots",
+            message = "The agent returned no collected nodes.",
+            modifier = modifier,
+        )
+    }
+}
+
+@Composable
+private fun DeviceSnapshotContent(
+    nodes: List<NodeSnapshot>,
+    selectedNodeId: String?,
+    selectedDeviceKey: String?,
+    onSelectDevice: (String, String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val selectedNode = nodes.firstOrNull { it.nodeId == selectedNodeId } ?: nodes.first()
+    val selectedSnapshot = selectedNode.devices.firstOrNull { it.deviceKey == selectedDeviceKey }
+        ?: selectedNode.devices.firstOrNull()
+
+    Row(
+        modifier = modifier.fillMaxSize(),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        DeviceListPane(
+            nodes = nodes,
+            selectedNodeId = selectedNode.nodeId,
+            selectedDeviceKey = selectedDeviceKey,
+            onSelectDevice = onSelectDevice,
+            modifier = Modifier
+                .weight(0.45f)
+                .fillMaxHeight(),
+        )
+        if (selectedSnapshot == null) {
+            MessagePanel(
+                title = "No devices",
+                message = "This node has no collected devices.",
+                modifier = Modifier
+                    .weight(0.55f)
+                    .fillMaxHeight(),
+            )
+        } else {
+            DeviceDetailPane(
+                node = selectedNode,
+                snapshot = selectedSnapshot,
+                modifier = Modifier
+                    .weight(0.55f)
+                    .fillMaxHeight(),
+            )
         }
     }
 }

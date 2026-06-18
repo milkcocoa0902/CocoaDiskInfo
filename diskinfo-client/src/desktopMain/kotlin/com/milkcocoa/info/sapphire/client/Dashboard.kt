@@ -13,13 +13,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Refresh
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -37,32 +35,42 @@ import androidx.compose.ui.unit.dp
 import com.milkcocoa.info.sapphire.core.api.NodeSnapshot
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
 internal fun Dashboard(agentApiClient: AgentApiClient) {
     val scope = rememberCoroutineScope()
     var agentUrl by remember { mutableStateOf(AgentUrlStore.agentUrl) }
-    var uiState by remember { mutableStateOf<DeviceListState>(DeviceListState.Loading) }
+    var uiState by remember { mutableStateOf(DeviceListState(isLoading = true)) }
     var selectedNodeId by remember { mutableStateOf<String?>(null) }
     var selectedDeviceKey by remember { mutableStateOf<String?>(null) }
 
-    fun refresh() {
+    suspend fun refresh() {
         agentUrl = AgentUrlStore.agentUrl // Settingsで変更された可能性があるので再取得
-        uiState = DeviceListState.Loading
-        scope.launch {
-            uiState = runCatching {
-                val nodes = agentApiClient.fetchLatestNodes(agentUrl)
-                val selectedStillExists = nodes.any { node ->
-                    node.nodeId == selectedNodeId && node.devices.any { it.deviceKey == selectedDeviceKey }
-                }
-                if (!selectedStillExists) {
-                    selectedNodeId = nodes.firstOrNull()?.nodeId
-                    selectedDeviceKey = nodes.firstOrNull()?.devices?.firstOrNull()?.deviceKey
-                }
-                DeviceListState.Ready(nodes)
-            }.getOrElse {
-                DeviceListState.Failed(it.message ?: "Failed to load disk snapshots.")
+        uiState = uiState.copy(
+            isLoading = true,
+            message = null,
+        )
+
+        uiState = runCatching {
+            val nodes = agentApiClient.fetchLatestNodes(agentUrl)
+            val selectedStillExists = nodes.any { node ->
+                node.nodeId == selectedNodeId && node.devices.any { it.deviceKey == selectedDeviceKey }
             }
+            if (!selectedStillExists) {
+                selectedNodeId = nodes.firstOrNull()?.nodeId
+                selectedDeviceKey = nodes.firstOrNull()?.devices?.firstOrNull()?.deviceKey
+            }
+            uiState.copy(
+                isLoading = false,
+                nodes = nodes,
+            )
+        }.getOrElse {
+            val message = it.message ?: "Failed to load disk snapshots."
+            uiState.copy(
+                isLoading = false,
+                message = message,
+            )
         }
     }
 
@@ -71,14 +79,14 @@ internal fun Dashboard(agentApiClient: AgentApiClient) {
             refresh()
             val interval = AgentUrlStore.refreshIntervalSeconds
             if (interval > 0) {
-                delay(interval * 1000)
+                delay((interval * 1000).milliseconds)
             } else {
                 break
             }
         }
     }
 
-    val nodes = (uiState as? DeviceListState.Ready)?.nodes.orEmpty()
+    val nodes = uiState.nodes
     val devices = nodes.flatMap { it.devices }
 
     Column(
@@ -88,8 +96,9 @@ internal fun Dashboard(agentApiClient: AgentApiClient) {
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         Header(
-            isLoading = uiState is DeviceListState.Loading,
-            onRefresh = ::refresh,
+            isRefreshing = uiState.isLoading,
+            lastError = uiState.message,
+            onRefresh = { scope.launch { refresh() } },
         )
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -117,7 +126,8 @@ internal fun Dashboard(agentApiClient: AgentApiClient) {
 
 @Composable
 private fun Header(
-    isLoading: Boolean,
+    isRefreshing: Boolean,
+    lastError: String?,
     onRefresh: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -133,18 +143,24 @@ private fun Header(
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    text = "Disk health dashboard",
+                    text = when {
+                        lastError != null -> "Last refresh failed: $lastError"
+                        isRefreshing -> "Refreshing disk snapshots"
+                        else -> "Disk health dashboard"
+                    },
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Color(0xFFA7ADB3),
+                    color = if (lastError == null) Color(0xFFA7ADB3) else Color(0xFFFFB4A9),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
             OutlinedButton(
                 onClick = onRefresh,
-                enabled = !isLoading,
+                enabled = !isRefreshing,
             ) {
                 Icon(Icons.Outlined.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Refresh")
+                Text(if (isRefreshing) "Refreshing" else "Refresh")
             }
         }
     }
@@ -183,14 +199,9 @@ private fun SummaryCard(
     }
 }
 
-internal sealed interface DeviceListState {
-    data object Loading : DeviceListState
 
-    data class Ready(
-        val nodes: List<NodeSnapshot>,
-    ) : DeviceListState
-
-    data class Failed(
-        val message: String,
-    ) : DeviceListState
-}
+internal data class DeviceListState(
+    val isLoading: Boolean = false,
+    val nodes: List<NodeSnapshot> = emptyList(),
+    val message: String? = null,
+)
