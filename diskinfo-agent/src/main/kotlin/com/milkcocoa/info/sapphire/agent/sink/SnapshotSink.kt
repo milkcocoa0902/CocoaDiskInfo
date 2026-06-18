@@ -18,7 +18,18 @@ class RepositorySnapshotSink(
     private val repository: DiskSnapshotRepository,
 ) : SnapshotSink {
     override suspend fun write(snapshot: DiskSnapshot) {
-        repository.insert(snapshot)
+        runCatching {
+            repository.insert(snapshot)
+        }.getOrElse { error ->
+            Colotok.warn(
+                msg = "Failed to persist disk snapshot.",
+                attr = mapOf(
+                    "device_key" to snapshot.deviceKey,
+                    "device_path" to snapshot.path,
+                    "error" to (error.message ?: error::class.simpleName.orEmpty()),
+                ),
+            )
+        }
     }
 }
 
