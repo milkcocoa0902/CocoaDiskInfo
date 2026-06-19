@@ -1,8 +1,8 @@
 # Phase 2A: Subcommand Migration Test Workplan
 
 ## Source Strategy
-- Primary: `strategy/0006_agent_evolution_direction.md`
-- Supporting: `strategy/0004_future_architecture_mode.md`
+- Primary: `../../master.md`
+- Supporting: `../../strategy/0004_future_architecture_mode.md`
 
 ## Goal
 Phase 2Aで導入済みのサブコマンドCLIを、自動テストと代表コマンド検証で固定する。
@@ -25,7 +25,7 @@ Phase 2Aで導入済みのサブコマンドCLIを、自動テストと代表コ
 
 ## Boundary Decision
 - Owner boundary: CLI/executor assembly と configuration/runtime settings
-- Why this belongs there: Phase 2Aの本体は実行モードをフラグからサブコマンドへ移すことであり、mode-dependent behaviorは `0006` の方針どおりCLI/Executor組み立て層に集めるべきため。
+- Why this belongs there: Phase 2Aの本体は実行モードをフラグからサブコマンドへ移すことであり、mode-dependent behaviorは `master.md` の方針どおりCLI/Executor組み立て層に集めるべきため。
 - Cross-boundary impact: `Collector`, `Sink`, `Repository`, `Server` の責務は変更しない。テスト容易性のためにExecutor生成やruntime起動の境界を薄く切る場合も、収集・保存・API公開の内部責務へCLI知識を漏らさない。
 
 ## Task Breakdown

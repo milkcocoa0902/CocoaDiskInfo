@@ -1,9 +1,9 @@
 # Phase 2B: Config and Runtime Settings
 
 ## Source Strategy
-- Primary: `strategy/0006_agent_evolution_direction.md`
-- Supporting: `strategy/0004_future_architecture_mode.md`
-- Related task: `tasks/phase-2a-subcommand-migration.md`
+- Primary: `../../master.md`
+- Supporting: `../../strategy/0004_future_architecture_mode.md`
+- Related task: `phase-2a-subcommand-migration.md`
 
 ## Goal
 Phase 2Aで安定化する `oneshot`, `standalone`, `db migrate` のサブコマンドを前提に、設定ファイルとruntime設定の扱いを固定する。
@@ -25,7 +25,7 @@ Phase 2Aで安定化する `oneshot`, `standalone`, `db migrate` のサブコマ
 
 ## Current State
 - Phase 2Aが並行実装中で、`Main.kt` にはCliktベースの `oneshot`, `standalone`, `db migrate` が入っている。
-- `tasks/phase-2a-subcommand-migration.md` では、既存の最小TOML読み込みをPhase 2Bの先行要素として扱っている。
+- `phase-2a-subcommand-migration.md` では、既存の最小TOML読み込みをPhase 2Bの先行要素として扱っている。
 - 現時点の `AgentConfigLoader` は独自の最小TOML parserで、`smartctl.scan`, `smartctl.device`, `runtime.persist`, `runtime.intervalSeconds`, `storage.jdbcUrl`, `http.port`, `output.mode` を読める。
 - 現時点ではenvironment variables overlayとdefault config pathは未実装である。
 - `standalone` は `--port` を持つが、`http.host` の設定経路はまだない。
@@ -36,7 +36,7 @@ Phase 2B着手時は、Phase 2Aの差分を先に確認し、CLI形状・テス�
 ## Boundary Decision
 - Owner boundary: configuration/runtime settings
 - Secondary boundary: CLI/executor assembly
-- Why this belongs there: `0006` はmode-dependent behaviorをCLI/Executor組み立て層へ集める方針であり、設定優先順位とruntime validationは各Collector/Repository/Serverへ散らさず入口で解決するべきため。
+- Why this belongs there: `master.md` はmode-dependent behaviorをCLI/Executor組み立て層へ集める方針であり、設定優先順位とruntime validationは各Collector/Repository/Serverへ散らさず入口で解決するべきため。
 - Cross-boundary impact: `Server` には `http.host` と `http.port` の最終値だけを渡す。`Collector`, `Sink`, `Repository` は設定ファイルやenvironment variableを直接読まない。
 
 ## Task Breakdown
@@ -44,7 +44,7 @@ Phase 2B着手時は、Phase 2Aの差分を先に確認し、CLI形状・テス�
 ### Task 1: Phase 2A完了状態をbaselineとして再確認する
 - Objective: Phase 2AとPhase 2Bの責務が混ざらないように、着手時点のCLI shapeとテスト境界を固定する。
 - Affected modules/files:
-  - `tasks/phase-2a-subcommand-migration.md`
+  - `evolution_plan/phase_0002/tasks/phase-2a-subcommand-migration.md`
   - `diskinfo-agent/src/main/kotlin/com/milkcocoa/info/sapphire/agent/Main.kt`
   - `diskinfo-agent/src/main/kotlin/com/milkcocoa/info/sapphire/agent/SapphireCommandRuntime.kt`
   - `diskinfo-agent/src/test/kotlin/com/milkcocoa/info/sapphire/agent/CliCommandTest.kt`
@@ -219,7 +219,7 @@ Phase 2B着手時は、Phase 2Aの差分を先に確認し、CLI形状・テス�
   - `db migrate --config <file>` が、`smartctl.scan` と `smartctl.device` の競合、または未使用の `output.mode` 不正値に影響されず、`storage.jdbcUrl` だけで実行できること。
   - `oneshot` と `standalone` では引き続きtarget競合、interval/port、blank DB URL、output mode不正を検出できること。
 - Notes:
-  - `0006` と `AGENTS.md` の方針どおり、DB commandはschema operationのみを担当し、収集・HTTP公開・出力形式のvalidationに巻き込まない。
+  - `master.md` と `AGENTS.md` の方針どおり、DB commandはschema operationのみを担当し、収集・HTTP公開・出力形式のvalidationに巻き込まない。
 
 ### Task 10: `[output].mode` の適用範囲を実装とドキュメントで揃える
 - Objective: 設定ファイルに書ける `[output].mode` がどのcommandに効くのかを明確にし、実装とREADME/exampleの認識差をなくす。

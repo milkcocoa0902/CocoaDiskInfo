@@ -37,7 +37,7 @@ sessionId: session-260524-115333-ri43
 - **メカニズム**: TTLベースのクリーンアップにはSQLの `DELETE` を使用し、ディスクスペースを回収するために `VACUUM` を実行します。
 
 ### 変更内容
-- **新規戦略ドキュメント**: `strategy/0003_db_cleanup_strategy.md` を作成し、日本語で内容を記述します。
+- **新規戦略ドキュメント**: `evolution_plan/strategy/0003_db_cleanup_strategy.md` を作成し、日本語で内容を記述します。
 - **新規クラス**: `DatabaseCleaner` (`com.milkcocoa.info.sapphire.agent.datastore` パッケージ)。
     - `cleanup(retentionDays: Int)`: `DiskSnapshotTable` からレコードを削除します。
     - `vacuum()`: SQLiteの `VACUUM` コマンドを実行します。
@@ -52,7 +52,7 @@ sessionId: session-260524-115333-ri43
 - `diskinfo-agent/src/main/kotlin/com/milkcocoa/info/sapphire/agent/datastore/DatabaseCleaner.kt` (新規)
 - `diskinfo-agent/src/main/kotlin/com/milkcocoa/info/sapphire/agent/Main.kt` (修正)
 - `diskinfo-agent/src/main/kotlin/com/milkcocoa/info/sapphire/agent/exec/SapphireExecutor.kt` (修正)
-- `strategy/0003_db_cleanup_strategy.md` (新規)
+- `evolution_plan/strategy/0003_db_cleanup_strategy.md` (新規)
 
 # Testing
 
@@ -68,7 +68,7 @@ sessionId: session-260524-115333-ri43
 # Delivery Steps
 
 ###   Step 1: DBクリーンアップ戦略ドキュメントの作成
-`strategy/0003_db_cleanup_strategy.md` を作成し、保持ポリシーとクリーンアップメカニズムを日本語で定義します。
+`evolution_plan/strategy/0003_db_cleanup_strategy.md` を作成し、保持ポリシーとクリーンアップメカニズムを日本語で定義します。
 - デフォルト保持期間（30日）を定義。
 - クリーンアップのトリガー（起動時および24時間ごと）を指定。
 - 設定用のCLIオプションをドキュメント化。

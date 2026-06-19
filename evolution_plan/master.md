@@ -1,9 +1,15 @@
-# diskinfo-agent Evolution Direction
+# CocoaDiskInfo Evolution Plan
 
 ## Summary
 `diskinfo-agent` は、単体マシンのSMART確認ツールから、複数ノードのディスク状態を継続監視するための小さなObservability基盤へ発展させる。
 
-この文書は詳細設計ではなく、今後のstrategyや実装PRが方針を外さないための上位方針を定義する。個別機能はこの文書の分離方針と実装順に沿って、別strategyまたはPRで具体化する。
+この文書は詳細設計ではなく、今後のstrategy、phase plan、task、実装PRが方針を外さないための master plan として扱う。個別機能はこの文書の分離方針と実装順に沿って、`strategy/`、`phase_000N/phase_000N_plan.md`、または `phase_000N/tasks/` で具体化する。
+
+## Document Layout
+- `master.md`: agent evolutionの上位方針、用語、境界、判断ルール。
+- `strategy/`: API、Hub、DB cleanup、実行モード、履歴UI/API、データライフタイムなどの補助strategy。
+- `phase_000N/phase_000N_plan.md`: phase単位の目的、範囲、実装順。
+- `phase_000N/tasks/`: phase内で実装・検証可能な作業単位。
 
 ## Direction
 当面の中心方針は、機能を増やす前に `収集`, `保存`, `公開`, `表示`, `判定` の責務を分けること。
@@ -91,7 +97,7 @@ default < config file < environment variables < CLI arguments
 ## Storage Direction
 最初はSQLiteを基準実装とする。PostgreSQL/MySQL対応は、JDBC URLを増やすだけではなく、`SnapshotRepository` のbackend追加として扱う。
 
-DBデータのライフタイムは、DB backend追加より前に明文化する。raw snapshot、current cache、aggregated history、runtime event、raw smartctl JSONを同じ保持期間で扱わない。詳細は `0007_db_data_lifetime_policy.md` に従う。
+DBデータのライフタイムは、DB backend追加より前に明文化する。raw snapshot、current cache、aggregated history、runtime event、raw smartctl JSONを同じ保持期間で扱わない。詳細は `strategy/0007_db_data_lifetime_policy.md` に従う。
 
 DBごとに次の差分があるため、storage層に閉じ込める。
 - JSON/JSONBの扱い
@@ -205,86 +211,14 @@ Prometheus対応は、CocoaDiskInfoの履歴DBを置き換えるものではな�
 - metric nameは安定させる。
 
 ## Implementation Phases
-### Phase 1: Internal Boundaries
-- `SmartctlCollector` を追加する。
-- `SnapshotSink` を追加する。
-- `SnapshotRepository.insert(...)` を追加する。
-- `SapphireAgentServer` をExecutorから切り離す。
-- 既存Oneshot/Agentの挙動をできるだけ変えず、内部だけ整理する。
-
-### Phase 2: Subcommands and Config
-Phase 2は、前半でCLI形状を安定させ、後半で設定ファイルと運用設定の扱いを固める。
-
-#### Phase 2A: Subcommand Migration
-- Cliktサブコマンドへ移行する。
-- 既存のmode flagsは、未リリースであれば互換維持しなくてよい。
-- 最低限、次のサブコマンドを提供する。
-    - `oneshot`
-    - `standalone`
-    - `db migrate`
-- 既存のoneshot/agent/migration相当の挙動を、新サブコマンドで再現する。
-- README、AGENTS、systemdテンプレートの実行例を新CLIへ更新する。
-- 代表的なhelp/error/migrationコマンドを確認する。
-
-#### Phase 2B: Config and Runtime Settings
-- 設定ファイル形式を固定する。初期方針はTOML。
-- 設定の優先順位を実装で明確にする。
-    - `default < config file < environment variables < CLI arguments`
-- 設定ファイルの読み込み対象を整理する。
-    - `smartctl`: `scan`, `device`, 将来 `smartctlPath`
-    - `runtime`: `intervalSeconds`, `persist`
-    - `storage`: `jdbcUrl`, 将来 `type`, `username`, `password`
-    - `http`: `host`, `port`
-    - `output`: `mode`
-    - 将来 `retention`, `maintenance`, `health`
-- 設定値のvalidationを明示する。
-    - device指定とscan指定の競合
-    - interval/portの範囲
-    - output modeの列挙値
-    - DB URLの空文字
-- 運用配置を意識したdefault pathを決める。
-    - 開発時: 明示 `--config`
-    - systemd/package想定: `/etc/cocoadiskinfo/agent.toml`
-- 設定ファイルのサンプルを管理する。
-    - repository内に example TOML を置く。
-    - READMEから参照する。
-- 設定ファイル由来の挙動を代表コマンドで確認する。
-    - `oneshot --config ...`
-    - `standalone --config ...`
-    - `db migrate --config ...`
-- Phase 2Bでは、DB backend追加、retention実装、Hub/Node Agent設定はまだ必須にしない。
-
-### Phase 3: History API and Client History
-- node/device単位のbounded history APIを追加する。
-- ClientにHistory tabを追加する。
-- 初期はtimelineとsummaryを優先し、グラフは後続にする。
-
-### Phase 4: Storage Backends
-- Repository interfaceを固める。
-- SQLite backendを基準実装として整理する。
-- PostgreSQL backendを追加する。
-- MySQL backendは必要性と差分を確認して追加する。
-
-### Phase 5: Hub and Node Agent
-- ingest APIを追加する。
-- Node AgentからHubへsnapshotを送信する。
-- Hubはcache-firstで集約APIを返す。
-- stale/partial/error metadataをAPIに入れる。
-
-### Phase 6: Health Policy
-- policy識別子を導入する。
-- rule keyとreasonを整理する。
-- しきい値の設定ファイル化を検討する。
-
-### Phase 7: Packaging and Operations
-- systemd unitをサブコマンド/設定ファイル前提へ更新する。
-- `/etc`, `/var/lib`, `/var/log` 配置を固定する。
-- `.deb` パッケージを作る。
-
-### Phase 8: Prometheus Export
-- `/metrics` を追加する。
-- Standalone/Hubで現在値をexportする。
-- READMEにPrometheus scrape例を追加する。
+- [Phase 1: Internal Boundaries](phase_0001/phase_0001_plan.md)
+- [Phase 2: Subcommands and Config](phase_0002/phase_0002_plan.md)
+- [Phase 3: History API and Client History](phase_0003/phase_0003_plan.md)
+- [Phase 4: Storage Backends](phase_0004/phase_0004_plan.md)
+- [Phase 5: Hub and Node Agent](phase_0005/phase_0005_plan.md)
+- [Phase 6: Health Policy](phase_0006/phase_0006_plan.md)
+- [Phase 7: Packaging and Operations](phase_0007/phase_0007_plan.md)
+- [Phase 8: Prometheus Export](phase_0008/phase_0008_plan.md)
 
 ## Non-Goals For Now
 - 最初から分散DBや高可用Hubを作らない。
@@ -294,13 +228,13 @@ Phase 2は、前半でCLI形状を安定させ、後半で設定ファイルと�
 - DB backend追加前に各層へDB依存を広げない。
 - Health判定を説明不能なスコアに置き換えない。
 
-## Relationship To Existing Strategy Docs
-- `0001_api_response_strategy.md`: history/live切替方針として維持する。
-- `0002_future_architecture.md`: Hub/Master集約方針として維持する。ただし中央側の呼称はHub/Masterへ寄せる。
-- `0003_db_cleanup_strategy.md`: storage maintenance方針として維持する。
-- `0004_future_architecture_mode.md`: Phase 1/2の具体化に近い。最初に実装する候補。
-- `0005_device_history_ui_api_strategy.md`: Phase 3の具体化に近い。
-- `0007_db_data_lifetime_policy.md`: DB内データ種別ごとの保持期間とcleanup方針として維持する。
+## Relationship To Strategy Docs
+- `strategy/0001_api_response_strategy.md`: history/live切替方針として維持する。
+- `strategy/0002_future_architecture.md`: Hub/Master集約方針として維持する。ただし中央側の呼称はHub/Masterへ寄せる。
+- `strategy/0003_db_cleanup_strategy.md`: storage maintenance方針として維持する。
+- `strategy/0004_future_architecture_mode.md`: Phase 1/2の具体化に近い。最初に実装する候補。
+- `strategy/0005_device_history_ui_api_strategy.md`: Phase 3の具体化に近い。
+- `strategy/0007_db_data_lifetime_policy.md`: DB内データ種別ごとの保持期間とcleanup方針として維持する。
 
 ## Decision Rule
 新しい要望が出たら、次の順で判断する。
