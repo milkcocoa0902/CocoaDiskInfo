@@ -24,7 +24,7 @@ The project focuses on three ideas:
 - ATA/SATA and NVMe snapshot conversion
 - Health classification as `GOOD`, `CAUTION`, `BAD`, or `UNKNOWN`
 - Oneshot output through structured or text-oriented output paths
-- Agent mode with periodic collection, SQLite persistence, and HTTP API
+- Standalone mode with periodic collection, SQLite persistence, and HTTP API
 - Compose Desktop client with node/device overview, warning count, last scan time, and device details
 
 This repository is still under active development. Database migration behavior and UI details may change.
@@ -46,7 +46,7 @@ Defines shared disk state models such as `DiskSnapshot`, `MetricsSnapshot`, and 
 
 ### diskinfo-agent
 
-Runs `smartctl` on the target machine, converts S.M.A.R.T. data into `diskinfo-core` models, and serves the latest state. In agent mode it collects data every 60 seconds, stores it in SQLite, and exposes an API at `http://localhost:14631`.
+Runs `smartctl` on the target machine, converts S.M.A.R.T. data into `diskinfo-core` models, and serves the latest state. In standalone mode it collects data every 60 seconds, stores it in SQLite, and exposes an API at `http://localhost:14631`.
 
 ### diskinfo-client
 
@@ -196,4 +196,4 @@ The `sample` directory contains `smartctl --json`-style input examples. When cha
 - Expanded health rules
 - Better API response and OpenAPI coverage
 - Improved client detail views and filtering
-- Operational design for multiple agents
+- Operational design for multiple Node Agents and a Hub

@@ -1,62 +1,78 @@
-## Master-Agent / Collector 集約アーキテクチャ計画（Cache-First）
+# Hub / Node Agent Aggregation Strategy
 
-### Summary
-将来構成として、**Master Agent が複数 Collector を集約して Client に返す**方針は妥当。  
-設計は以下で固定する。
+## Summary
+将来構成では、各マシンで動く `Node Agent` がローカルSMART snapshotを収集し、中央側の `Hub` / `Master` が受信、保存、集約、Client API提供を担う。
 
-- デフォルトは **Collector履歴キャッシュ返却（cache-first）**
-- Collector は **Masterへ自己登録 + heartbeat**
-- 一部Collector障害時は **部分成功で返却**
-- 各Collector結果に **鮮度メタデータ** を付与
-- 障害Collectorは **前回キャッシュを返しつつ stale と error を明示**（部分成功方針と整合）
+古い文書で使っていた `Collector Agent` / `Master Agent` という呼称は、現在のmaster planでは次のように読み替える。
 
-### Key Changes
-- 役割分離:
-    - `Collector Agent`: ローカルSMART収集・ローカル履歴保持・Master送信
-    - `Master Agent`: Collector管理、集約キャッシュ保持、Client API提供
-- Masterの内部モデル（最小）:
-    - `CollectorRegistry`: collectorId, endpoint, status, lastHeartbeatAt
-    - `CollectorCache`: collectorId + deviceKey ごとの latest snapshot と受信時刻
-    - `CollectorErrorState`: collectorId, lastError, lastFailureAt
-- 返却ロジック:
-    - デフォルト `source=cache`（省略時）
-    - 将来拡張で `source=live` を許可する場合は Collector へ同期問い合わせ（初期は未実装でも可）
-    - 集約時に失敗Collectorは stale cache を返し、`errors[]` に理由を格納
-- APIレスポンス（集約）に鮮度情報を追加:
-    - `collectedAt`（Collector採取時刻）
-    - `receivedAt`（Master受信時刻）
-    - `ageMs`
-    - `stale`（閾値超過 or 取得失敗でキャッシュ返却）
-- Collector参加:
-    - `POST /collectors/register`
-    - `POST /collectors/heartbeat`
-    - 将来のサービスディスカバリ連携を見据え、`collectorId` と `capabilities` を登録payloadに含める
+- `Collector Agent` -> `Node Agent`
+- `Master Agent` -> `Hub` / `Master`
+- `Collector` -> 収集責務またはcollector interface。中央側の呼称には使わない。
 
-### Public Interfaces
-- Client向け（Master）:
-    - `GET /api/v1/snapshots/latest`（全Collector集約）
-    - `GET /api/v1/snapshots/latest?collectorId=...`（単一Collector）
-- Collector向け（Master）:
-    - `POST /api/v1/collectors/register`
-    - `POST /api/v1/collectors/heartbeat`
-    - （push型採用時）`POST /api/v1/collectors/snapshots`
-- 応答スキーマ方針:
-    - `data[]`（collectorごとのsnapshot+freshness）
-    - `errors[]`（collector単位の失敗情報）
-    - `partial: true|false`
+## Core Direction
+- Hubの通常応答はcache-firstにする。
+- Node AgentはHubへ自己登録または初回snapshot送信で識別される。
+- 一部Node Agent障害時も、Hubは前回cache、stale metadata、errorsで部分成功を返す。
+- freshness metadataをAPI応答に含められる形にする。
+- 初期Hubではlive同期問い合わせを必須にしない。
 
-### Test Plan
-- 正常系:
-    1. 複数Collector登録後、集約APIで全件返却
-    2. 鮮度メタデータが各Collectorに付与される
-- 障害系:
-    1. 1台停止時、APIは`partial=true`で成功、`errors[]`に停止Collector
-    2. 停止Collectorは前回キャッシュがあれば`stale=true`で返る
-    3. キャッシュなし停止Collectorは`data`欠落 + `errors[]`のみ
-- 回帰:
-    - 単体Agent（非集約）モードの既存Oneshot/Agent/Migration挙動は不変
+## Minimal Hub Model
+候補モデル:
 
-### Assumptions
-- 初期は **cache-first 固定** で運用し、live同期問い合わせは後段追加。
-- stale判定閾値は暫定で「Collector収集周期の2倍」。
-- 認証/認可は後続フェーズで導入（初期は閉域/ローカル運用前提）。
+- `NodeAgentRegistry`: `nodeId`, `nodeName`, `endpoint`, `capabilities`, `status`, `lastHeartbeatAt`
+- `NodeSnapshotCache`: `nodeId`, `deviceKey`, latest snapshot, `receivedAt`
+- `NodeAgentErrorState`: `nodeId`, `lastError`, `lastFailureAt`
+
+用語として `collectorId` は避け、既存の `nodeId` / `nodeName` と整合させる。
+
+## Response Metadata
+候補:
+
+- `collectedAt`
+- `receivedAt`
+- `ageMs`
+- `stale`
+- `nodeId`
+- `errors[]`
+- `partial`
+
+## Candidate Public Interfaces
+Client向け:
+
+```text
+GET /api/v1/snapshots/latest
+GET /api/v1/nodes/{nodeId}/devices/{deviceKey}/snapshots
+```
+
+Node Agent向け ingest:
+
+```text
+POST /api/v1/snapshots
+```
+
+Node Agent登録/heartbeat候補:
+
+```text
+POST /api/v1/node-agents/register
+POST /api/v1/node-agents/heartbeat
+```
+
+## Open Questions
+Node Agent向け管理APIのpathは未確定である。候補は次のどちらか。
+
+- `/api/v1/node-agents/...`: 実行体としてのNode Agentを強調する。
+- `/api/v1/nodes/...`: Client向けhistory APIの `nodeId` と揃える。
+
+この命名はPhase 5 task作成時に決める。現時点では `collector` pathへ戻さないことだけを固定する。
+
+## Test Plan
+- 複数Node AgentのsnapshotをHubへingestできること。
+- 集約APIがnode/device単位でlatest snapshotを返すこと。
+- 1台停止時、APIは `partial=true` と `errors[]` を返すこと。
+- 停止Node Agentに前回cacheがある場合、`stale=true` として返せること。
+- cacheがない停止Node Agentはdata欠落 + errorsで説明されること。
+
+## Assumptions
+- 初期はcache-first固定で運用する。
+- stale判定閾値は収集周期の2倍を初期候補にする。
+- 認証/認可は後続フェーズで導入する。

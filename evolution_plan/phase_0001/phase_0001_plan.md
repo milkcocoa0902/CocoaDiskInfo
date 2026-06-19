@@ -33,3 +33,10 @@
 
 ## Tasks
 - No active task document in this phase.
+
+## Implementation Status
+- Done: `DiskSnapshotCollector` / `SmartctlCollector` で収集責務を分離した。
+- Done: `SnapshotSink` でconsole出力とRepository保存の出力先を分離した。
+- Done: `DiskSnapshotRepository.insert(...)` とlatest queryをRepository側へ寄せた。
+- Done: `SapphireAgentServer` をExecutorから分離し、HTTP API公開の責務をServer側へ閉じた。
+- Done: `Colotok.forceShutdown()` はproduction runtimeのprocess lifecycle側に閉じ込めた。

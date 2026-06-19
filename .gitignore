@@ -31,5 +31,9 @@ Thumbs.db
 
 # Local agent/tool state
 .agents/
-.codex/
+.codex/*
+!.codex/skills/
+.codex/skills/*
+!.codex/skills/phase-workplan/
+!.codex/skills/phase-workplan/**
 .junie/

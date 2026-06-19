@@ -107,6 +107,6 @@ Charts should stay inside the History tab, not the current-state tab.
     - agent periodic collection and migration behavior remain unchanged
 
 ### Assumptions
-- History is local SQLite history in the current PoC.
-- Multi-agent/master aggregation can reuse the same UI concept later, but freshness/stale metadata from strategy `0002` should be added before remote aggregation is exposed.
+- History is SQLite-backed history in Standalone, and later Hub-backed history for aggregated deployments.
+- Hub / Node Agent aggregation can reuse the same UI concept later, but freshness/stale metadata from strategy `0002` should be added before remote aggregation is exposed.
 - The first History implementation does not need downsampling. If history grows large, add server-side aggregation or retention/downsampling after the basic endpoint is proven.

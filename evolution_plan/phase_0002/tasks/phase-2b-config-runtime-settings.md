@@ -24,14 +24,13 @@ Phase 2Aで安定化する `oneshot`, `standalone`, `db migrate` のサブコマ
 - health policy設定の実装は扱わない。
 
 ## Current State
-- Phase 2Aが並行実装中で、`Main.kt` にはCliktベースの `oneshot`, `standalone`, `db migrate` が入っている。
+- Phase 2Aは完了済みで、`Main.kt` にはCliktベースの `oneshot`, `standalone`, `db migrate` が入っている。
 - `phase-2a-subcommand-migration.md` では、既存の最小TOML読み込みをPhase 2Bの先行要素として扱っている。
-- 現時点の `AgentConfigLoader` は独自の最小TOML parserで、`smartctl.scan`, `smartctl.device`, `runtime.persist`, `runtime.intervalSeconds`, `storage.jdbcUrl`, `http.port`, `output.mode` を読める。
-- 現時点ではenvironment variables overlayとdefault config pathは未実装である。
-- `standalone` は `--port` を持つが、`http.host` の設定経路はまだない。
-- `diskinfo-agent/src/main/resources/agent.example.toml` とREADMEにはTOML例が入り始めている。
-
-Phase 2B着手時は、Phase 2Aの差分を先に確認し、CLI形状・テスト境界・`SapphireCommandRequest` の最新形に合わせてから実装する。Phase 2Aの未確定な内部構造へ強く依存しない。
+- `AgentConfigLoader` は独自の最小TOML parserで、Phase 2B対象keyを読む。
+- `AgentConfigResolver` が `default < config file < environment variables < CLI arguments` のmergeとvalidationを担う。
+- `resolveOneshot`, `resolveStandalone`, `resolveDbMigrate` により、command scope別に未使用設定のvalidationを避けている。
+- `standalone` は `--host`, `--port`, `--output` を持ち、config/env/CLI経由でHTTP listen addressとsnapshot console outputを解決する。
+- `diskinfo-agent/src/main/resources/agent.example.toml`、README、systemd templateは現行TOML仕様に同期済みである。
 
 ## Boundary Decision
 - Owner boundary: configuration/runtime settings
@@ -308,26 +307,36 @@ compile check:
 ./gradlew :diskinfo-agent:run --args='standalone --scan --port 70000'
 ```
 
-## Risks and Open Questions
-- TOML parserは当面、現状の独自最小実装を維持する。専用libraryへの切り替えはPhase 2B修正範囲には含めない。
-- `/etc/cocoadiskinfo/agent.toml` を暗黙に自動読み込みするか、systemd templateで明示 `--config` にするか。
-- `[output].mode` は `standalone` にも適用する方針を推奨する。実装時に `standalone --output` を追加するか、設定ファイル/envだけにするかを確定する。
-- `http.host` のdefaultを現行Ktor default相当にするか、`127.0.0.1` に固定して公開範囲を絞るか。
-- `storage.jdbcUrl` のdefaultを現行 `jdbc:sqlite:./sapphire.db` のままにするか、systemd/package想定の `/var/lib/cocoadiskinfo/sapphire.db` へ寄せるか。Phase 7前に変える場合はREADMEとsystemd templateも同時に更新する。
-- Phase 2Aの実装がまだ動いているため、Phase 2B着手時に `SapphireCommandRequest` やtest helperの形が変わっている可能性がある。
-- 実装後レビューで、`db migrate` が未使用のruntime/http/output設定までvalidationしている点が見つかっている。次の修正ではcommand scope別validationを優先する。
+## Resolution Notes and Remaining Risks
+- Resolved: TOML parserは当面、現状の独自最小実装を維持する。専用libraryへの切り替えはPhase 2B修正範囲には含めない。
+- Resolved: `/etc/cocoadiskinfo/agent.toml` は、存在するときだけdefault config pathとして暗黙に読む。systemd templateでは運用明確化のため `--config /etc/cocoadiskinfo/agent.toml` を明示する。
+- Resolved: `[output].mode` は `oneshot` と `standalone` のsnapshot console outputに適用する。`db migrate` は使用しない。
+- Resolved: `http.host` のdefaultは `127.0.0.1` に固定し、既定では外部公開しない。
+- Resolved: `storage.jdbcUrl` のdefaultは現行 `jdbc:sqlite:./sapphire.db` を維持する。systemd運用では `WorkingDirectory=/var/lib/cocoadiskinfo` により `/var/lib/cocoadiskinfo/sapphire.db` へ寄せる。
+- Resolved: `db migrate` はstorage-only validationへ整理済みで、未使用のsmartctl/runtime/http/output設定に影響されない。
+- Remaining risk: TOML parserは最小実装のため、TOML仕様全体には対応しない。必要になった時点で専用libraryへの切り替えを別タスクにする。
 
-## Implementation Order
-1. Phase 2Aの最新差分とtask文書を読み、CLI/test baselineを固定する。
-2. Phase 2Bのconfig contractと未実装keyの扱いを決める。
-3. `AgentConfigLoader` と `AgentConfigResolver` の責務を分け、merge順序をunit testで固定する。
-4. environment variable overlayを追加する。
-5. config path policyと `/etc/cocoadiskinfo/agent.toml` の扱いを実装する。
-6. runtime validationをresolverへ集約する。
-7. `http.host` を `standalone` の起動設定へ接続する。
-8. example TOML、README、systemd templateを同期する。
-9. 実装後レビュー指摘として、resolverをcommand scope別に分け、`db migrate` をstorage-only validationへ修正する。
-10. `[output].mode` を `standalone` にも適用する方針で、`SapphireCommandRequest.Standalone`、`runStandalone()`、必要なら `standalone --output` を更新する。
-11. `AgentConfigResolverTest` と `CliCommandTest` に、command scope別validation、`standalone` output mode、`db migrate` の未使用設定無視を追加する。
-12. README、README.en、example TOMLを最終仕様に同期する。
-13. `:diskinfo-agent:test`、compile check、代表success/failure commandを実行する。
+## Implementation Status
+- Done: `AgentConfigLoader` と `AgentConfigResolver` の責務を分けた。
+- Done: environment variable overlayを追加した。
+- Done: default config path `/etc/cocoadiskinfo/agent.toml` を、存在時のみ読み込む方針で実装した。
+- Done: runtime validationをresolverへ集約した。
+- Done: `http.host` をStandalone起動へ接続した。
+- Done: `[output].mode` を `oneshot` と `standalone` に適用した。
+- Done: command scope別validationにより、`db migrate` をstorage-onlyにした。
+- Done: README、README.en、example TOML、systemd templateを同期した。
+
+## Completed Implementation Order
+1. Phase 2AのCLI/test baselineを固定した。
+2. Phase 2Bのconfig contractと未実装keyの扱いを決めた。
+3. `AgentConfigLoader` と `AgentConfigResolver` の責務を分け、merge順序をunit testで固定した。
+4. environment variable overlayを追加した。
+5. config path policyと `/etc/cocoadiskinfo/agent.toml` の扱いを実装した。
+6. runtime validationをresolverへ集約した。
+7. `http.host` を `standalone` の起動設定へ接続した。
+8. example TOML、README、systemd templateを同期した。
+9. resolverをcommand scope別に分け、`db migrate` をstorage-only validationへ修正した。
+10. `[output].mode` を `standalone` にも適用した。
+11. `AgentConfigResolverTest` と `CliCommandTest` に、command scope別validation、`standalone` output mode、`db migrate` の未使用設定無視を追加した。
+12. README、README.en、example TOMLを最終仕様に同期した。
+13. `:diskinfo-agent:test`、compile check、代表success/failure commandを実行した。

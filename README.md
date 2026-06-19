@@ -24,7 +24,7 @@ CrystalDiskInfo のような一覧性と分かりやすさを大切にしつつ�
 - ATA/SATA と NVMe のスナップショット変換
 - `GOOD` / `CAUTION` / `BAD` / `UNKNOWN` のヘルス判定
 - oneshot 実行による構造化出力またはテキスト形式の出力
-- agent 実行による定期収集、SQLite保存、HTTP API配信
+- standalone 実行による定期収集、SQLite保存、HTTP API配信
 - Compose Desktop client によるノード/デバイス一覧、警告数、最終スキャン時刻、詳細値の表示
 
 このリポジトリは開発中です。特にDBマイグレーションやUIの細部はまだ変わる可能性があります。
@@ -46,7 +46,7 @@ CocoaDiskInfo
 
 ### diskinfo-agent
 
-対象マシン上で `smartctl` を実行し、検出したディスクのS.M.A.R.T.情報を `diskinfo-core` のモデルへ変換します。agent mode では60秒ごとに収集し、SQLiteへ保存しながら `http://localhost:14631` でAPIを提供します。
+対象マシン上で `smartctl` を実行し、検出したディスクのS.M.A.R.T.情報を `diskinfo-core` のモデルへ変換します。standalone mode では60秒ごとに収集し、SQLiteへ保存しながら `http://localhost:14631` でAPIを提供します。
 
 ### diskinfo-client
 
@@ -196,4 +196,4 @@ sample ディレクトリには `smartctl --json` 相当の入力例がありま
 - ヘルス判定ルールの拡充
 - APIレスポンスとOpenAPI定義の整備
 - client の詳細表示とフィルタリング改善
-- 複数agentを前提にした運用設計
+- 複数Node AgentとHubを前提にした運用設計

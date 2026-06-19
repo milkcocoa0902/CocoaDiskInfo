@@ -50,7 +50,7 @@ cocoadiskinfo-agent db migrate
 cocoadiskinfo-agent db cleanup
 ```
 
-暫定的に既存の `--oneshot`, `--agent`, `--migration` を維持してもよいが、最終形はサブコマンドへ寄せる。
+現在の実装はサブコマンド中心であり、旧mode flagsである `--oneshot`, `--agent`, `--migration` はサポートしない。
 
 ### Oneshot
 - 1回だけ収集して出力する。
@@ -89,10 +89,10 @@ default < config file < environment variables < CLI arguments
 - runtime: `mode`, `interval`, `retentionDays`
 - HTTP: `host`, `port`, `baseUrl`
 - storage: `type`, `jdbcUrl`, `username`, `password`
-- hub: `endpoint`, `collectorId`, `heartbeatInterval`
+- hub: `endpoint`, `nodeId`, `heartbeatInterval`
 - health: `policy`, `policyVersion`
 
-設定ファイルの形式は未決定。TOMLまたはYAMLを候補とし、パッケージング時の `/etc/cocoadiskinfo/*.toml` 配置を想定して検討する。
+設定ファイル形式はTOMLを基準とする。現行のagent設定は `/etc/cocoadiskinfo/agent.toml` を想定し、Hub導入時も同じTOML方針で `hub.toml` を検討する。
 
 ## Storage Direction
 最初はSQLiteを基準実装とする。PostgreSQL/MySQL対応は、JDBC URLを増やすだけではなく、`SnapshotRepository` のbackend追加として扱う。
@@ -138,7 +138,7 @@ APIレスポンスには、将来のHub集約に備えて freshness metadata を
 - `receivedAt`
 - `ageMs`
 - `stale`
-- `collectorId`
+- `nodeId`
 - `errors[]`
 - `partial`
 

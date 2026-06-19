@@ -1,51 +1,66 @@
-## Agent API返却戦略（History既定 + Live選択）
+# API Response Strategy
 
-### Summary
-API返却は **履歴の最新値をデフォルト** とし、必要時のみ **query指定でリアルタイム取得** に切り替える。  
-これにより、Observability用途で重要な安定応答（低遅延・低負荷）を維持しつつ、診断時の即時再取得も提供する。
+## Summary
+APIの通常応答は、smartctlを同期実行するlive取得ではなく、Repositoryに保存された最新履歴またはcacheを返す方針にする。
 
-### Key Changes
-- Agent APIの返却ポリシーを明文化:
-    - 既定: `source=history`（省略時）
-    - 明示: `source=live` で smartctl を即時実行して返却
-- 単一エンドポイント方式を採用（queryで切替）。
-    - 例: `GET /api/v1/snapshots/latest?source=history|live`
-    - `device` 指定あり/なし（単体 or scan）は既存収集ロジックのパターンを流用
-- `history` 実装:
-    - SQLiteの `disk_snapshot` から対象デバイスの最新レコードを返す
-    - 履歴未収集時は `404`（または規約化した空レスポンス）を返す
-- `live` 実装:
-    - smartctlで再取得して `DiskSnapshot` を返す
-    - `Agent` モードでは `DataStoreColotokProvider` が有効なため、live結果は保存される（追加設定不要）
-- エラー規約（最低限）:
-    - 不正query値: `400`
-    - smartctl失敗: `502` or `500`（統一方針を固定）
-    - 履歴なし: `404`
+これはStandaloneでも将来のHubでも同じである。ClientやPrometheusが読む通常経路は低遅延・bounded responseを優先し、live取得は明示的な診断操作として後続で扱う。
 
-### Public Interfaces
-- 追加API（例）:
-    - `GET /api/v1/snapshots/latest`
-    - Query:
-        - `source`: `history` (default) | `live`
-        - `device`: 任意（未指定時はscan相当、指定時は単体取得）
-- 応答フォーマットは既存 `DiskSnapshot` ベースを維持（JSON）。
+## Current State
+現在のStandalone APIは次を提供する。
 
-### Test Plan
-- `source` 切替:
-    1. `source` 省略で history が返る
-    2. `source=history` で history が返る
-    3. `source=live` で再取得結果が返る
-    4. `source=foo` は `400`
-- データ有無:
-    1. 履歴ありで最新値返却
-    2. 履歴なしで `404`
-- 負荷/挙動:
-    1. history は smartctl を起動しない
-    2. live は smartctl を起動する
-- 回帰:
-    - 既存の Agent定期収集、Oneshot、Migration のCLI制約は不変
+```text
+GET /api/v1/snapshots/latest
+GET /api/v1/devices/{deviceKey}/snapshots/latest
+```
 
-### Assumptions
-- Agentは常駐で履歴収集しており、通常参照は history が主用途。
-- live取得は高頻度利用を想定せず、診断/緊急確認用途。
-- API実装時は認証/認可が未導入ならローカル利用前提で開始し、後続で追加可能とする。
+- `GET /api/v1/snapshots/latest` はRepositoryのlatest rowsから `LatestSnapshotsPayload` を返す。
+- `GET /api/v1/devices/{deviceKey}/snapshots/latest` はRepositoryから対象deviceのlatest snapshotを返す。
+- 現時点では `source=live` queryは実装しない。
+- 履歴がないdeviceは `404 snapshot_not_found` とする。
+
+## Direction
+- current-state APIはhistory/cache-firstとする。
+- unbounded responseは禁止する。
+- live取得を追加する場合は、通常APIの既定挙動を変えず、明示的なqueryまたは別endpointで扱う。
+- `oneshot` はCLI診断経路であり、APIの通常応答とは分ける。
+- Hub導入後は、一部Node Agentが停止してもpartial/stale/error metadataで説明できる応答にする。
+
+## Candidate Future Interfaces
+現在状態:
+
+```text
+GET /api/v1/snapshots/latest
+GET /api/v1/devices/{deviceKey}/snapshots/latest
+```
+
+履歴:
+
+```text
+GET /api/v1/nodes/{nodeId}/devices/{deviceKey}/snapshots
+```
+
+将来の明示live取得候補:
+
+```text
+GET /api/v1/snapshots/latest?source=live
+GET /api/v1/devices/{deviceKey}/snapshots/latest?source=live
+```
+
+ただし、`source=live` はStandaloneにだけ自然に実装できる。Hubでlive同期問い合わせを許可するかはPhase 5以降で判断する。
+
+## Error Policy
+- blank `deviceKey`: `400`
+- unknown `deviceKey`: `404`
+- invalid query value: `400`
+- smartctl失敗をlive取得で返す場合: `502` を第一候補にする
+- history/cache-firstで部分失敗を返す場合: `200` + `partial=true` + `errors[]` をHub方針で検討する
+
+## Test Plan
+- latest APIがsmartctlを起動せずRepositoryから返すこと。
+- 履歴なしdeviceは `404` を返すこと。
+- invalid queryは `400` を返すこと。
+- Hub導入時はpartial/stale/error metadataを含む部分成功を確認すること。
+
+## Open Questions
+- Standaloneのlive取得を `source=live` queryで追加するか、別endpointにするか。
+- Hubでlive同期問い合わせを許可するか、初期Hubはcache-first固定にするか。

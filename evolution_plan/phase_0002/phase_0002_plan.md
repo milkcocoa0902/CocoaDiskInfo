@@ -38,3 +38,11 @@
 ## Implementation Order
 1. `tasks/phase-2a-subcommand-migration.md` でCLI形状とテスト境界を固定する。
 2. `tasks/phase-2b-config-runtime-settings.md` でconfig contract、merge、validation、documentationを固定する。
+
+## Implementation Status
+- Done: `oneshot`, `standalone`, `db migrate` のサブコマンドを実装した。
+- Done: 旧mode flags `--oneshot`, `--agent`, `--migration` は拒否する。
+- Done: TOML config、environment overlay、CLI overrideの優先順位を実装した。
+- Done: `standalone --host`, `standalone --output` を含むruntime/http/output設定を接続した。
+- Done: `db migrate` はstorage-only validationとし、収集・HTTP・output設定に巻き込まれない。
+- Done: README、example TOML、systemd templateを現行CLI/configに同期した。

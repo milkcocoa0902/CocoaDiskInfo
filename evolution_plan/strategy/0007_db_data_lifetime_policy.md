@@ -3,7 +3,7 @@
 ## Summary
 DBに保存するデータは、すべて同じ寿命で扱わない。
 
-`diskinfo-agent` / `Hub` はディスク状態の履歴を扱うが、保存対象には現在状態、短期の高解像度履歴、長期傾向、collector状態、エラー情報などが混在する。これらを一律に無期限保存するとDBが肥大化し、逆に一律に短期削除するとグラフや傾向分析ができなくなる。
+`diskinfo-agent` / `Hub` はディスク状態の履歴を扱うが、保存対象には現在状態、短期の高解像度履歴、長期傾向、Node Agent状態、エラー情報などが混在する。これらを一律に無期限保存するとDBが肥大化し、逆に一律に短期削除するとグラフや傾向分析ができなくなる。
 
 この文書では、DBデータの種類ごとにライフタイム方針を定義する。
 
@@ -22,7 +22,7 @@ DBに保存するデータは、すべて同じ寿命で扱わない。
 - 例:
     - deviceごとのlatest snapshot
     - nodeごとのlatest status
-    - collector/hubの現在の接続状態
+    - Node Agent / Hubの現在の接続状態
 - ライフタイム:
     - 原則として上書きまたは再構築可能なcacheとして扱う。
     - raw historyの保持期間とは分けて考える。
@@ -96,11 +96,11 @@ DBに保存するデータは、すべて同じ寿命で扱わない。
     - 一定期間見えなくなったデバイスは即削除せず、inactiveとして扱う。
     - tombstone保持により、履歴UIで「過去に存在したデバイス」を説明できるようにする。
 
-### Collector / Hub Runtime State
+### Node Agent / Hub Runtime State
 Node Agentの登録、heartbeat、最後の送信状態。
 
 - 例:
-    - collector id
+    - node id
     - endpoint
     - capabilities
     - last heartbeat
@@ -148,7 +148,7 @@ aggregated hourly:    not implemented initially
 aggregated daily:     not implemented initially
 event history:        30 days
 heartbeat events:      7 days if implemented
-inactive collectors:  30 days
+inactive node agents: 30 days
 inactive devices:    180 days if inventory table is implemented
 raw smartctl JSON:     disabled, 7 days if enabled
 ```
@@ -205,7 +205,7 @@ cleanupにはdry-runを用意する。
 rawSnapshotDays = 30
 eventDays = 30
 heartbeatEventDays = 7
-inactiveCollectorDays = 30
+inactiveNodeAgentDays = 30
 inactiveDeviceDays = 180
 rawSmartctlJsonDays = 7
 enableRawSmartctlJson = false
@@ -239,7 +239,7 @@ DBライフタイム方針を導入する際は、次を確認する。
 
 1. `disk_snapshot` のraw snapshot retentionを設定可能にする。
 2. defaultを30日にする。
-3. agent/standalone起動時にcleanupを実行する。
+3. standalone起動時にcleanupを実行する。
 4. 24時間ごとにcleanupを実行する。
 5. `db cleanup --dry-run` 相当の手動確認を追加する。
 6. cleanup結果をログに出す。

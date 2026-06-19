@@ -21,7 +21,7 @@ Phase 2Aで導入済みのサブコマンドCLIを、自動テストと代表コ
 - 旧mode flagsである `--oneshot`, `--agent`, `--migration` の互換維持は不要というPhase 2A方針に寄っている。
 - `AgentConfigLoader` に最小TOML parserがあり、`--config` から `smartctl`, `runtime`, `storage`, `http`, `output` の一部を読める。
 - `SapphireExecutor.Oneshot`, `SapphireExecutor.Standalone`, `SapphireExecutor.Migrate` へ実行が接続されている。
-- 現時点ではCLI挙動を固定する自動テストがまだない。
+- CLI挙動は `CliCommandTest` と `AgentConfigLoaderTest` で固定されている。
 
 ## Boundary Decision
 - Owner boundary: CLI/executor assembly と configuration/runtime settings
