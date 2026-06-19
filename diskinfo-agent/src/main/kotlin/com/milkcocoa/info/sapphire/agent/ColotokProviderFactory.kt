@@ -8,31 +8,19 @@ import com.milkcocoa.info.sapphire.agent.logging.SapphireConsoleTextFormatter
 
 object ColotokProviderFactory {
     fun create(
-        executionMode: SapphireAgent.ExecutionMode,
-        outputMode: SapphireAgent.OutputMode,
-    ): ColotokLoggerContext? {
-        return when (executionMode) {
-            is SapphireAgent.ExecutionMode.Agent -> {
-                ColotokLoggerContext()
-                    .addProvider(createConsoleProvider(outputMode))
-            }
-
-            is SapphireAgent.ExecutionMode.Oneshot -> {
-                ColotokLoggerContext()
-                    .addProvider(createConsoleProvider(outputMode))
-            }
-
-            is SapphireAgent.ExecutionMode.Migration -> null
-        }
+        outputMode: OutputMode,
+    ): ColotokLoggerContext {
+        return ColotokLoggerContext()
+            .addProvider(createConsoleProvider(outputMode))
     }
 
-    private fun createConsoleProvider(outputMode: SapphireAgent.OutputMode) = ConsoleProvider {
+    private fun createConsoleProvider(outputMode: OutputMode) = ConsoleProvider {
         level = LogLevel.INFO
         formatter = when (outputMode) {
-            SapphireAgent.OutputMode.DEFAULT,
-            SapphireAgent.OutputMode.JSON -> DetailStructureFormatter
-            SapphireAgent.OutputMode.TEXT,
-            SapphireAgent.OutputMode.CBOR -> SapphireConsoleTextFormatter
+            OutputMode.DEFAULT,
+            OutputMode.JSON -> DetailStructureFormatter
+            OutputMode.TEXT,
+            OutputMode.CBOR -> SapphireConsoleTextFormatter
         }
     }
 }

@@ -3,150 +3,222 @@ package com.milkcocoa.info.sapphire.agent
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.UsageError
 import com.github.ajalt.clikt.core.main
-import com.github.ajalt.clikt.parameters.groups.default
-import com.github.ajalt.clikt.parameters.groups.mutuallyExclusiveOptions
-import com.github.ajalt.clikt.parameters.groups.single
-import com.github.ajalt.clikt.parameters.options.convert
-import com.github.ajalt.clikt.parameters.options.flag
+import com.github.ajalt.clikt.core.subcommands
 import com.github.ajalt.clikt.parameters.options.help
+import com.github.ajalt.clikt.parameters.options.nullableFlag
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.enum
+import com.github.ajalt.clikt.parameters.types.int
+import com.github.ajalt.clikt.parameters.types.long
 import com.github.ajalt.clikt.parameters.types.path
-import com.milkcocoa.info.colotok.core.logger.Colotok
-import com.milkcocoa.info.colotok.core.logger.ColotokLoggerContext
-import com.milkcocoa.info.sapphire.agent.datastore.DiskSnapshotRepository
-import com.milkcocoa.info.sapphire.agent.exec.SapphireExecutor
-import com.milkcocoa.info.sapphire.agent.server.SapphireAgentServer
-import com.milkcocoa.info.sapphire.agent.sink.ColotokSnapshotSink
-import com.milkcocoa.info.sapphire.agent.sink.CompositeSnapshotSink
-import com.milkcocoa.info.sapphire.agent.sink.RepositorySnapshotSink
-import com.milkcocoa.info.sapphire.agent.sink.SnapshotSink
-import kotlinx.coroutines.runBlocking
-import org.jetbrains.exposed.v1.jdbc.Database
+import com.milkcocoa.info.sapphire.agent.config.AgentConfig
+import com.milkcocoa.info.sapphire.agent.config.AgentConfigDefaults
+import com.milkcocoa.info.sapphire.agent.config.AgentConfigLoader
+import com.milkcocoa.info.sapphire.agent.config.AgentConfigParseException
+import java.nio.file.Path
+import java.nio.file.Paths
 import kotlin.io.path.absolutePathString
 
-class SapphireAgent : CliktCommand() {
-    enum class OutputMode {
-        DEFAULT,
-        JSON,
-        TEXT,
-        CBOR,
-    }
+class SapphireAgent : CliktCommand(name = "cocoadiskinfo-agent") {
+    override fun run() = Unit
+}
 
-    sealed interface TargetDevice {
-        data object Scan : TargetDevice
-        data class Explicit(val device: String) : TargetDevice
-    }
+internal fun createSapphireAgentCommand(
+    runtime: SapphireCommandRuntime = ProductionSapphireCommandRuntime,
+): CliktCommand = SapphireAgent()
+    .subcommands(
+        OneshotCommand(runtime),
+        StandaloneCommand(runtime),
+        DbCommand().subcommands(DbMigrateCommand(runtime)),
+    )
 
-    sealed interface ExecutionMode {
-        data object Agent : ExecutionMode
-        data object Oneshot : ExecutionMode
-        data object Migration : ExecutionMode
-    }
-
-    val device: TargetDevice? by mutuallyExclusiveOptions(
-        option1 = option("--scan").flag(default = false).help("Scan all devices").convert { TargetDevice.Scan },
-        option2 = option("--device").path(
+private abstract class ConfiguredCommand(
+    name: String,
+    protected val runtime: SapphireCommandRuntime,
+) : CliktCommand(name = name) {
+    protected val configPath: Path? by option("--config")
+        .path(
             mustExist = true,
             canBeFile = true,
             canBeDir = false,
             mustBeWritable = false,
             mustBeReadable = true,
             canBeSymlink = true,
-        ).help("Device path to query").convert { TargetDevice.Explicit(it.absolutePathString()) },
-    ).single()
+        )
+        .help("TOML configuration file")
 
-    val executionMode by mutuallyExclusiveOptions(
-        option("--agent").flag(default = false).help("Run as agent").convert { ExecutionMode.Agent },
-        option("--oneshot").flag(default = false).help("Run as oneshot").convert { ExecutionMode.Oneshot },
-        option("--migration").flag(default = false).help("Run as migration").convert { ExecutionMode.Migration },
-    ).default(ExecutionMode.Oneshot)
-
-    val output by option("--output").enum<OutputMode>(ignoreCase = true, key = { it.name }).help("Output format")
-    val persist by option("--persist").flag(default = false).help("Persist SMART snapshot to SQLite (oneshot only)")
-
-    override fun run() {
-        validateArguments()
-        if (shouldUseDatabase()) {
-            Database.connect("jdbc:sqlite:./sapphire.db", "org.sqlite.JDBC")
-        }
-        val repository = if (shouldUseDatabase()) DiskSnapshotRepository() else null
-        val snapshotSink = createSnapshotSink(repository)
-
-        val effectiveOutput = when (executionMode) {
-            is ExecutionMode.Agent -> OutputMode.DEFAULT
-            is ExecutionMode.Oneshot -> output ?: OutputMode.DEFAULT
-            is ExecutionMode.Migration -> OutputMode.DEFAULT
-        }
-
-        ColotokProviderFactory
-            .create(
-                executionMode = executionMode,
-                outputMode = effectiveOutput,
-            )
-            ?.also { ColotokLoggerContext.setDefault(it) }
-
-        val executor = when (executionMode) {
-            is ExecutionMode.Agent -> SapphireExecutor.Agent(
-                device = device!!,
-                sink = snapshotSink,
-                server = SapphireAgentServer(repository = repository!!),
-            )
-            is ExecutionMode.Oneshot -> SapphireExecutor.Oneshot(
-                device = device!!,
-                sink = snapshotSink,
-            )
-            is ExecutionMode.Migration -> SapphireExecutor.Migrate()
-        }
-
-        runBlocking {
-            try {
-                executor.execute()
-            } finally {
-                Colotok.forceShutdown()
-            }
-        }
-    }
-
-    private fun shouldUseDatabase(): Boolean {
-        return when (executionMode) {
-            is ExecutionMode.Agent -> true
-            is ExecutionMode.Oneshot -> persist
-            is ExecutionMode.Migration -> false
-        }
-    }
-
-    private fun validateArguments() {
-        when (executionMode) {
-            is ExecutionMode.Agent -> {
-                if (device == null) throw UsageError("Agent mode requires either --scan or --device.")
-                if (output != null) throw UsageError("Agent mode does not allow --output.")
-                if (persist) throw UsageError("Agent mode does not allow --persist.")
-            }
-
-            is ExecutionMode.Oneshot -> {
-                if (device == null) throw UsageError("Oneshot mode requires either --scan or --device.")
-            }
-
-            is ExecutionMode.Migration -> {
-                if (device != null || output != null || persist) {
-                    throw UsageError("Migration mode does not allow --scan, --device, --output, or --persist.")
-                }
-            }
-        }
-    }
-
-    private fun createSnapshotSink(repository: DiskSnapshotRepository?): SnapshotSink {
-        val outputSink = ColotokSnapshotSink()
-        return if (repository == null) {
-            outputSink
-        } else {
-            CompositeSnapshotSink(
-                outputSink,
-                RepositorySnapshotSink(repository),
-            )
+    protected fun loadConfig(): AgentConfig {
+        return try {
+            AgentConfigLoader.load(configPath)
+        } catch (error: AgentConfigParseException) {
+            throw UsageError(error.message ?: "Invalid config file.")
         }
     }
 }
 
-fun main(args: Array<String>) = SapphireAgent().main(args)
+private abstract class DeviceCommand(
+    name: String,
+    runtime: SapphireCommandRuntime,
+) : ConfiguredCommand(name, runtime) {
+    private val scan: Boolean? by option("--scan")
+        .nullableFlag()
+        .help("Scan all devices")
+
+    private val device: Path? by option("--device")
+        .path(
+            mustExist = true,
+            canBeFile = true,
+            canBeDir = false,
+            mustBeWritable = false,
+            mustBeReadable = true,
+            canBeSymlink = true,
+        )
+        .help("Device path to query")
+
+    protected fun resolveTarget(config: AgentConfig): TargetDevice {
+        if (scan == true && device != null) {
+            throw UsageError("Use either --scan or --device, not both.")
+        }
+
+        if (scan == true) return TargetDevice.Scan
+        device?.let { return TargetDevice.Explicit(it.absolutePathString()) }
+
+        val configuredScan = config.smartctl.scan == true
+        val configuredDevice = config.smartctl.device?.takeIf { it.isNotBlank() }
+        if (configuredScan && configuredDevice != null) {
+            throw UsageError("Config [smartctl] must not set both scan=true and device.")
+        }
+
+        return when {
+            configuredScan -> TargetDevice.Scan
+            configuredDevice != null -> TargetDevice.Explicit(
+                Paths.get(configuredDevice).toAbsolutePath().normalize().toString(),
+            )
+            else -> throw UsageError("Command requires --scan or --device, or [smartctl] scan/device in config.")
+        }
+    }
+}
+
+private class OneshotCommand(
+    runtime: SapphireCommandRuntime,
+) : DeviceCommand("oneshot", runtime) {
+    private val output: OutputMode? by option("--output")
+        .enum<OutputMode>(ignoreCase = true, key = { it.name })
+        .help("Output format")
+
+    private val persist: Boolean? by option("--persist")
+        .nullableFlag("--no-persist")
+        .help("Persist SMART snapshot to SQLite")
+
+    private val dbUrl: String? by option("--db-url")
+        .help("JDBC URL for local history storage")
+
+    override fun run() {
+        val config = loadConfig()
+        val target = resolveTarget(config)
+        val effectiveOutput = resolveOutput(config, output, OutputMode.DEFAULT)
+        val shouldPersist = persist ?: config.runtime.persist ?: false
+        val effectiveDbUrl = resolveDbUrl(config, dbUrl)
+
+        runtime.run(
+            SapphireCommandRequest.Oneshot(
+                target = target,
+                outputMode = effectiveOutput,
+                persist = shouldPersist,
+                dbUrl = effectiveDbUrl,
+            ),
+        )
+    }
+}
+
+private class StandaloneCommand(
+    runtime: SapphireCommandRuntime,
+) : DeviceCommand("standalone", runtime) {
+    private val intervalSeconds: Long? by option("--interval-seconds")
+        .long()
+        .help("Collection interval in seconds")
+
+    private val port: Int? by option("--port")
+        .int()
+        .help("HTTP API port")
+
+    private val dbUrl: String? by option("--db-url")
+        .help("JDBC URL for local history storage")
+
+    override fun run() {
+        val config = loadConfig()
+        val target = resolveTarget(config)
+        val effectiveInterval = resolveIntervalSeconds(config, intervalSeconds)
+        val effectivePort = resolvePort(config, port)
+        val effectiveDbUrl = resolveDbUrl(config, dbUrl)
+
+        runtime.run(
+            SapphireCommandRequest.Standalone(
+                target = target,
+                intervalSeconds = effectiveInterval,
+                port = effectivePort,
+                dbUrl = effectiveDbUrl,
+            ),
+        )
+    }
+}
+
+private class DbCommand : CliktCommand(name = "db") {
+    override fun run() = Unit
+}
+
+private class DbMigrateCommand(
+    runtime: SapphireCommandRuntime,
+) : ConfiguredCommand("migrate", runtime) {
+    private val dbUrl: String? by option("--db-url")
+        .help("JDBC URL for local history storage")
+
+    override fun run() {
+        val config = loadConfig()
+        val effectiveDbUrl = resolveDbUrl(config, dbUrl)
+        runtime.run(
+            SapphireCommandRequest.DbMigrate(
+                dbUrl = effectiveDbUrl,
+            ),
+        )
+    }
+}
+
+private fun resolveOutput(
+    config: AgentConfig,
+    cliOutput: OutputMode?,
+    default: OutputMode,
+): OutputMode {
+    return cliOutput ?: config.output.mode?.let { mode ->
+        OutputMode.entries.firstOrNull { it.name.equals(mode, ignoreCase = true) }
+            ?: throw UsageError("Config [output].mode must be one of: ${OutputMode.entries.joinToString { it.name }}.")
+    } ?: default
+}
+
+private fun resolveDbUrl(config: AgentConfig, cliDbUrl: String?): String {
+    return cliDbUrl
+        ?: config.storage.jdbcUrl?.takeIf { it.isNotBlank() }
+        ?: AgentConfigDefaults.JDBC_URL
+}
+
+private fun resolveIntervalSeconds(config: AgentConfig, cliIntervalSeconds: Long?): Long {
+    val interval = cliIntervalSeconds
+        ?: config.runtime.intervalSeconds
+        ?: AgentConfigDefaults.COLLECTION_INTERVAL_SECONDS
+    if (interval <= 0) {
+        throw UsageError("Collection interval must be greater than 0 seconds.")
+    }
+    return interval
+}
+
+private fun resolvePort(config: AgentConfig, cliPort: Int?): Int {
+    val port = cliPort
+        ?: config.http.port
+        ?: AgentConfigDefaults.HTTP_PORT
+    if (port !in 1..65535) {
+        throw UsageError("HTTP port must be between 1 and 65535.")
+    }
+    return port
+}
+
+fun main(args: Array<String>) = createSapphireAgentCommand().main(args)

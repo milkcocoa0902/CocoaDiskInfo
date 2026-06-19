@@ -1,7 +1,6 @@
 package com.milkcocoa.info.sapphire.agent.exec
 
-import com.milkcocoa.info.sapphire.agent.SapphireAgent
-import com.milkcocoa.info.sapphire.agent.SapphireAgent.TargetDevice
+import com.milkcocoa.info.sapphire.agent.TargetDevice
 import com.milkcocoa.info.sapphire.agent.collector.DiskSnapshotCollector
 import com.milkcocoa.info.sapphire.agent.collector.SmartctlCollector
 import com.milkcocoa.info.sapphire.agent.datastore.DiskSnapshotTable
@@ -14,13 +13,14 @@ import kotlinx.coroutines.launch
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.migration.jdbc.MigrationUtils
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 sealed interface SapphireExecutor {
     suspend fun execute()
 
     class Oneshot(
-        private val device: SapphireAgent.TargetDevice,
+        private val device: TargetDevice,
         private val collector: DiskSnapshotCollector = SmartctlCollector(),
         private val sink: SnapshotSink = ColotokSnapshotSink(),
     ) : SapphireExecutor {
@@ -31,8 +31,9 @@ sealed interface SapphireExecutor {
         }
     }
 
-    class Agent(
-        private val device: SapphireAgent.TargetDevice,
+    class Standalone(
+        private val device: TargetDevice,
+        private val collectionInterval: Duration = 60.seconds,
         private val collector: DiskSnapshotCollector = SmartctlCollector(),
         private val sink: SnapshotSink = ColotokSnapshotSink(),
         private val server: SapphireAgentServer = SapphireAgentServer(),
@@ -49,16 +50,18 @@ sealed interface SapphireExecutor {
                         launch {
                             oneshot.execute()
                         }
-                        delay(60.seconds)
+                        delay(collectionInterval)
                     }
                 }
             }
         }
     }
 
-    class Migrate : SapphireExecutor {
+    class Migrate(
+        private val jdbcUrl: String = "jdbc:sqlite:./sapphire.db",
+    ) : SapphireExecutor {
         override suspend fun execute() {
-            Database.connect("jdbc:sqlite:./sapphire.db", "org.sqlite.JDBC")
+            Database.connect(jdbcUrl, "org.sqlite.JDBC")
             transaction {
                 exec("DROP TABLE IF EXISTS disk_snapshot")
                 MigrationUtils

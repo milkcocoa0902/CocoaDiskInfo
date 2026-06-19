@@ -1,0 +1,19 @@
+# CocoaDiskInfo agent example configuration.
+# CLI arguments override values in this file.
+
+[smartctl]
+scan = true
+# device = "/dev/sda"
+
+[runtime]
+intervalSeconds = 60
+persist = false
+
+[storage]
+jdbcUrl = "jdbc:sqlite:./sapphire.db"
+
+[http]
+port = 14631
+
+[output]
+mode = "text"

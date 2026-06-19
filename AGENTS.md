@@ -24,9 +24,9 @@ This document defines working rules for human contributors and coding agents in 
   - `./gradlew :diskinfo-core:compileKotlin`
   - `./gradlew :diskinfo-agent:compileKotlin`
 - Run agent module:
-  - `./gradlew :diskinfo-agent:run --args='--oneshot --scan'`
-  - `./gradlew :diskinfo-agent:run --args='--agent --scan'`
-  - `./gradlew :diskinfo-agent:run --args='--migration'`
+  - `./gradlew :diskinfo-agent:run --args='oneshot --scan'`
+  - `./gradlew :diskinfo-agent:run --args='standalone --scan'`
+  - `./gradlew :diskinfo-agent:run --args='db migrate'`
 
 ## 5. Coding Rules
 - Use Kotlin idioms already present in the codebase.
@@ -36,9 +36,9 @@ This document defines working rules for human contributors and coding agents in 
 - For mode-dependent behavior, centralize decisions in a single place.
 
 ## 6. Runtime / Mode Policy
-- `Agent`: periodic collection, persistence allowed, long-running process.
+- `Standalone`: periodic collection, persistence allowed, HTTP API, long-running process.
 - `Oneshot`: single execution, optional persistence via flag.
-- `Migration`: schema operation only, no collection behavior.
+- `DB migrate`: schema operation only, no collection behavior.
 - `Colotok.forceShutdown()` must be treated as process-lifecycle logic, not business logic.
 
 ## 7. Database Policy
@@ -80,9 +80,9 @@ This document defines working rules for human contributors and coding agents in 
 - 方針判断では `strategy/0006_agent_evolution_direction.md` を最上位文書として扱い、関連する個別strategyを補助文書として参照してください。
 - DBの保持期間・cleanup・履歴・cache・event storageに関する変更では `strategy/0007_db_data_lifetime_policy.md` を確認してください。
 - 実行モードの原則:
-  - `Agent`: 定期収集・長時間稼働・永続化可
+  - `Standalone`: 定期収集・長時間稼働・永続化可・HTTP API
   - `Oneshot`: 単発実行・`--persist` 時のみ永続化
-  - `Migration`: スキーマ操作のみ
+  - `DB migrate`: スキーマ操作のみ
 - `Colotok.forceShutdown()` は業務ロジックではなく、プロセス終了時の責務として扱ってください。
 - CLIの仕様変更時は、成功ケース/失敗ケースの代表コマンドを必ず確認してください。
 - サンドボックス制約で `apply_patch` が失敗する場合は、承認付きの昇格コマンドで最小差分編集を行ってください。

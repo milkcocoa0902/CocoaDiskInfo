@@ -1,0 +1,37 @@
+[Unit]
+Description=CocoaDiskInfo Agent
+Documentation=https://github.com/milkcocoa0902/CocoaDiskInfo
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+# smartctl usually needs permission to read disk device health data.
+# Keep root here unless you have configured udev/sudo rules for a dedicated user.
+User=root
+Group=root
+
+# CocoaDiskInfo currently stores sapphire.db relative to the working directory.
+WorkingDirectory=/var/lib/cocoadiskinfo
+
+# Build the jar with:
+#   ./gradlew :diskinfo-agent:shadowJar
+# Then copy it to the path below, or change the path to match your installation.
+ExecStart=/usr/bin/java -jar /opt/cocoadiskinfo/diskinfo-agent-1.0-SNAPSHOT-all.jar standalone --scan
+
+# To monitor one device instead of scanning all devices, use:
+# ExecStart=/usr/bin/java -jar /opt/cocoadiskinfo/diskinfo-agent-1.0-SNAPSHOT-all.jar standalone --device /dev/sda
+
+Restart=on-failure
+RestartSec=10s
+SuccessExitStatus=143
+
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/cocoadiskinfo
+
+[Install]
+WantedBy=multi-user.target

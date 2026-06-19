@@ -65,7 +65,7 @@ Depending on your OS and device setup, `smartctl` may require administrator priv
 ### 1. Prepare the agent schema
 
 ```bash
-./gradlew :diskinfo-agent:run --args='--migration'
+./gradlew :diskinfo-agent:run --args='db migrate'
 ```
 
 The current migration command is intended for development-time schema initialization. Back up `sapphire.db` first if you need to keep existing data.
@@ -73,16 +73,42 @@ The current migration command is intended for development-time schema initializa
 ### 2. Start the agent
 
 ```bash
-./gradlew :diskinfo-agent:run --args='--agent --scan'
+./gradlew :diskinfo-agent:run --args='standalone --scan'
 ```
 
 For a single device:
 
 ```bash
-./gradlew :diskinfo-agent:run --args='--agent --device /dev/sda'
+./gradlew :diskinfo-agent:run --args='standalone --device /dev/sda'
 ```
 
 The agent serves its API at `http://localhost:14631`.
+
+You can also use a TOML configuration file. CLI arguments override configuration file values.
+An example is available at [diskinfo-agent/src/main/resources/agent.example.toml](diskinfo-agent/src/main/resources/agent.example.toml).
+
+```toml
+[smartctl]
+scan = true
+# device = "/dev/sda"
+
+[runtime]
+intervalSeconds = 60
+persist = false
+
+[storage]
+jdbcUrl = "jdbc:sqlite:./sapphire.db"
+
+[http]
+port = 14631
+
+[output]
+mode = "text"
+```
+
+```bash
+./gradlew :diskinfo-agent:run --args='standalone --config ./agent.toml'
+```
 
 ### Run the agent with systemd
 
@@ -92,13 +118,13 @@ On Linux, use [deploy/systemd/cocoadiskinfo-agent.service](deploy/systemd/cocoad
 ./gradlew :diskinfo-agent:shadowJar
 sudo install -d /opt/cocoadiskinfo /var/lib/cocoadiskinfo
 sudo install -m 0644 diskinfo-agent/build/libs/diskinfo-agent-1.0-SNAPSHOT-all.jar /opt/cocoadiskinfo/
-(cd /var/lib/cocoadiskinfo && sudo /usr/bin/java -jar /opt/cocoadiskinfo/diskinfo-agent-1.0-SNAPSHOT-all.jar --migration)
+(cd /var/lib/cocoadiskinfo && sudo /usr/bin/java -jar /opt/cocoadiskinfo/diskinfo-agent-1.0-SNAPSHOT-all.jar db migrate)
 sudo install -m 0644 deploy/systemd/cocoadiskinfo-agent.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now cocoadiskinfo-agent
 ```
 
-To monitor only one device, change `ExecStart` in the service file to use `--agent --device /dev/sda`.
+To monitor only one device, change `ExecStart` in the service file to use `standalone --device /dev/sda`.
 
 ### 3. Start the client
 
@@ -113,20 +139,20 @@ Set the Agent URL to `http://localhost:14631`, then use `Connect` or `Refresh`.
 You can collect data once without running the HTTP API.
 
 ```bash
-./gradlew :diskinfo-agent:run --args='--oneshot --scan'
-./gradlew :diskinfo-agent:run --args='--oneshot --device /dev/sda --output text'
-./gradlew :diskinfo-agent:run --args='--oneshot --scan --output json'
+./gradlew :diskinfo-agent:run --args='oneshot --scan'
+./gradlew :diskinfo-agent:run --args='oneshot --device /dev/sda --output text'
+./gradlew :diskinfo-agent:run --args='oneshot --scan --output json'
 ```
 
 Add `--persist` to store oneshot snapshots in SQLite.
 
 ```bash
-./gradlew :diskinfo-agent:run --args='--oneshot --scan --persist'
+./gradlew :diskinfo-agent:run --args='oneshot --scan --persist'
 ```
 
 ## API
 
-Agent mode provides:
+Standalone mode provides:
 
 ```text
 GET /api/v1/snapshots/latest

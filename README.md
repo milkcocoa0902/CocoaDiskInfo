@@ -65,7 +65,7 @@ LinuxやmacOSでは、環境によって `smartctl` の実行に管理者権限�
 ### 1. Agentのスキーマを準備する
 
 ```bash
-./gradlew :diskinfo-agent:run --args='--migration'
+./gradlew :diskinfo-agent:run --args='db migrate'
 ```
 
 現在の migration は開発中のスキーマ初期化用途です。既存の `sapphire.db` を保持したい場合は、実行前に退避してください。
@@ -73,16 +73,42 @@ LinuxやmacOSでは、環境によって `smartctl` の実行に管理者権限�
 ### 2. Agentを起動する
 
 ```bash
-./gradlew :diskinfo-agent:run --args='--agent --scan'
+./gradlew :diskinfo-agent:run --args='standalone --scan'
 ```
 
 特定デバイスだけを見る場合:
 
 ```bash
-./gradlew :diskinfo-agent:run --args='--agent --device /dev/sda'
+./gradlew :diskinfo-agent:run --args='standalone --device /dev/sda'
 ```
 
 agent は `http://localhost:14631` でAPIを公開します。
+
+設定ファイルを使う場合は、TOMLで最小限の設定を記述できます。CLI引数は設定ファイルより優先されます。
+サンプルは [diskinfo-agent/src/main/resources/agent.example.toml](diskinfo-agent/src/main/resources/agent.example.toml) にあります。
+
+```toml
+[smartctl]
+scan = true
+# device = "/dev/sda"
+
+[runtime]
+intervalSeconds = 60
+persist = false
+
+[storage]
+jdbcUrl = "jdbc:sqlite:./sapphire.db"
+
+[http]
+port = 14631
+
+[output]
+mode = "text"
+```
+
+```bash
+./gradlew :diskinfo-agent:run --args='standalone --config ./agent.toml'
+```
 
 ### systemd で agent を常駐させる
 
@@ -92,13 +118,13 @@ Linux では [deploy/systemd/cocoadiskinfo-agent.service](deploy/systemd/cocoadi
 ./gradlew :diskinfo-agent:shadowJar
 sudo install -d /opt/cocoadiskinfo /var/lib/cocoadiskinfo
 sudo install -m 0644 diskinfo-agent/build/libs/diskinfo-agent-1.0-SNAPSHOT-all.jar /opt/cocoadiskinfo/
-(cd /var/lib/cocoadiskinfo && sudo /usr/bin/java -jar /opt/cocoadiskinfo/diskinfo-agent-1.0-SNAPSHOT-all.jar --migration)
+(cd /var/lib/cocoadiskinfo && sudo /usr/bin/java -jar /opt/cocoadiskinfo/diskinfo-agent-1.0-SNAPSHOT-all.jar db migrate)
 sudo install -m 0644 deploy/systemd/cocoadiskinfo-agent.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now cocoadiskinfo-agent
 ```
 
-特定デバイスだけ監視する場合は、service ファイル内の `ExecStart` を `--agent --device /dev/sda` のように変更します。
+特定デバイスだけ監視する場合は、service ファイル内の `ExecStart` を `standalone --device /dev/sda` のように変更します。
 
 ### 3. Clientを起動する
 
@@ -113,20 +139,20 @@ sudo systemctl enable --now cocoadiskinfo-agent
 DBやHTTP APIを使わず、1回だけ取得して出力できます。
 
 ```bash
-./gradlew :diskinfo-agent:run --args='--oneshot --scan'
-./gradlew :diskinfo-agent:run --args='--oneshot --device /dev/sda --output text'
-./gradlew :diskinfo-agent:run --args='--oneshot --scan --output json'
+./gradlew :diskinfo-agent:run --args='oneshot --scan'
+./gradlew :diskinfo-agent:run --args='oneshot --device /dev/sda --output text'
+./gradlew :diskinfo-agent:run --args='oneshot --scan --output json'
 ```
 
 oneshot でSQLiteにも保存したい場合は `--persist` を付けます。
 
 ```bash
-./gradlew :diskinfo-agent:run --args='--oneshot --scan --persist'
+./gradlew :diskinfo-agent:run --args='oneshot --scan --persist'
 ```
 
 ## API
 
-agent mode では次のAPIを提供します。
+standalone mode では次のAPIを提供します。
 
 ```text
 GET /api/v1/snapshots/latest

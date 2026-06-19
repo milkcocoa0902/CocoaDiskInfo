@@ -213,9 +213,46 @@ Prometheus対応は、CocoaDiskInfoの履歴DBを置き換えるものではな�
 - 既存Oneshot/Agentの挙動をできるだけ変えず、内部だけ整理する。
 
 ### Phase 2: Subcommands and Config
+Phase 2は、前半でCLI形状を安定させ、後半で設定ファイルと運用設定の扱いを固める。
+
+#### Phase 2A: Subcommand Migration
 - Cliktサブコマンドへ移行する。
-- 設定ファイル読み込みを追加する。
-- 既存フラグ互換を残すか、移行期間をREADMEに明記する。
+- 既存のmode flagsは、未リリースであれば互換維持しなくてよい。
+- 最低限、次のサブコマンドを提供する。
+    - `oneshot`
+    - `standalone`
+    - `db migrate`
+- 既存のoneshot/agent/migration相当の挙動を、新サブコマンドで再現する。
+- README、AGENTS、systemdテンプレートの実行例を新CLIへ更新する。
+- 代表的なhelp/error/migrationコマンドを確認する。
+
+#### Phase 2B: Config and Runtime Settings
+- 設定ファイル形式を固定する。初期方針はTOML。
+- 設定の優先順位を実装で明確にする。
+    - `default < config file < environment variables < CLI arguments`
+- 設定ファイルの読み込み対象を整理する。
+    - `smartctl`: `scan`, `device`, 将来 `smartctlPath`
+    - `runtime`: `intervalSeconds`, `persist`
+    - `storage`: `jdbcUrl`, 将来 `type`, `username`, `password`
+    - `http`: `host`, `port`
+    - `output`: `mode`
+    - 将来 `retention`, `maintenance`, `health`
+- 設定値のvalidationを明示する。
+    - device指定とscan指定の競合
+    - interval/portの範囲
+    - output modeの列挙値
+    - DB URLの空文字
+- 運用配置を意識したdefault pathを決める。
+    - 開発時: 明示 `--config`
+    - systemd/package想定: `/etc/cocoadiskinfo/agent.toml`
+- 設定ファイルのサンプルを管理する。
+    - repository内に example TOML を置く。
+    - READMEから参照する。
+- 設定ファイル由来の挙動を代表コマンドで確認する。
+    - `oneshot --config ...`
+    - `standalone --config ...`
+    - `db migrate --config ...`
+- Phase 2Bでは、DB backend追加、retention実装、Hub/Node Agent設定はまだ必須にしない。
 
 ### Phase 3: History API and Client History
 - node/device単位のbounded history APIを追加する。
