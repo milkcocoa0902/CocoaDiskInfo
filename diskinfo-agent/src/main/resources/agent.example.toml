@@ -1,5 +1,5 @@
 # CocoaDiskInfo agent example configuration.
-# CLI arguments override values in this file.
+# Priority: default < config file < environment variables < CLI arguments.
 
 [smartctl]
 scan = true
@@ -13,6 +13,7 @@ persist = false
 jdbcUrl = "jdbc:sqlite:./sapphire.db"
 
 [http]
+host = "127.0.0.1"
 port = 14631
 
 [output]

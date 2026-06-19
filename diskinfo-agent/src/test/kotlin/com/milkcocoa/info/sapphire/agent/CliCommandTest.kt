@@ -2,6 +2,7 @@ package com.milkcocoa.info.sapphire.agent
 
 import com.github.ajalt.clikt.testing.test
 import com.milkcocoa.info.sapphire.agent.config.AgentConfigDefaults
+import java.nio.file.Path
 import kotlin.io.path.absolutePathString
 import kotlin.io.path.createTempFile
 import kotlin.io.path.writeText
@@ -32,6 +33,15 @@ class CliCommandTest {
             assertEquals(0, result.statusCode, result.output)
             assertContains(result.output, "Usage:")
         }
+    }
+
+    @Test
+    fun `standalone help includes phase 2b output and host options`() {
+        val result = command().test(listOf("standalone", "--help"))
+
+        assertEquals(0, result.statusCode, result.output)
+        assertContains(result.output, "--output")
+        assertContains(result.output, "--host")
     }
 
     @Test
@@ -121,7 +131,9 @@ class CliCommandTest {
         assertEquals(
             SapphireCommandRequest.Standalone(
                 target = TargetDevice.Scan,
+                outputMode = OutputMode.DEFAULT,
                 intervalSeconds = AgentConfigDefaults.COLLECTION_INTERVAL_SECONDS,
+                host = AgentConfigDefaults.HTTP_HOST,
                 port = AgentConfigDefaults.HTTP_PORT,
                 dbUrl = AgentConfigDefaults.JDBC_URL,
             ),
@@ -141,6 +153,10 @@ class CliCommandTest {
             device.absolutePathString(),
             "--interval-seconds",
             "15",
+            "--output",
+            "json",
+            "--host",
+            "0.0.0.0",
             "--port",
             "15432",
             "--db-url",
@@ -151,7 +167,9 @@ class CliCommandTest {
         assertEquals(
             SapphireCommandRequest.Standalone(
                 target = TargetDevice.Explicit(device.absolutePathString()),
+                outputMode = OutputMode.JSON,
                 intervalSeconds = 15,
+                host = "0.0.0.0",
                 port = 15432,
                 dbUrl = dbUrl,
             ),
@@ -160,13 +178,15 @@ class CliCommandTest {
     }
 
     @Test
-    fun `standalone rejects invalid target interval and port`() {
+    fun `standalone rejects invalid target interval host and port`() {
         val device = createTempFile()
 
         listOf(
             listOf("standalone"),
             listOf("standalone", "--scan", "--device", device.absolutePathString()),
             listOf("standalone", "--scan", "--interval-seconds", "0"),
+            listOf("standalone", "--scan", "--output", "xml"),
+            listOf("standalone", "--scan", "--host", ""),
             listOf("standalone", "--scan", "--port", "70000"),
         ).forEach { args ->
             val runtime = RecordingRuntime()
@@ -239,35 +259,32 @@ class CliCommandTest {
     }
 
     @Test
-    fun `config can provide standalone runtime http and storage settings`() {
+    fun `default config path is read when present`() {
         val config = createTempFile().apply {
             writeText(
                 """
                 [smartctl]
                 scan = true
 
+                [output]
+                mode = "text"
+
                 [runtime]
-                intervalSeconds = 45
-
-                [storage]
-                jdbcUrl = "jdbc:sqlite:/tmp/cocoadiskinfo-standalone-config.db"
-
-                [http]
-                port = 15431
+                persist = true
                 """.trimIndent(),
             )
         }
         val runtime = RecordingRuntime()
 
-        val result = command(runtime).test("standalone", "--config", config.absolutePathString())
+        val result = command(runtime, defaultConfigPath = config).test("oneshot")
 
         assertEquals(0, result.statusCode, result.output)
         assertEquals(
-            SapphireCommandRequest.Standalone(
+            SapphireCommandRequest.Oneshot(
                 target = TargetDevice.Scan,
-                intervalSeconds = 45,
-                port = 15431,
-                dbUrl = "jdbc:sqlite:/tmp/cocoadiskinfo-standalone-config.db",
+                outputMode = OutputMode.TEXT,
+                persist = true,
+                dbUrl = AgentConfigDefaults.JDBC_URL,
             ),
             runtime.singleRequest(),
         )
@@ -308,7 +325,65 @@ class CliCommandTest {
     }
 
     @Test
-    fun `config smartctl target conflict is rejected`() {
+    fun `environment overrides config and CLI overrides environment`() {
+        val config = createTempFile().apply {
+            writeText(
+                """
+                [smartctl]
+                scan = true
+
+                [output]
+                mode = "text"
+
+                [runtime]
+                intervalSeconds = 60
+
+                [storage]
+                jdbcUrl = "jdbc:sqlite:/tmp/config.db"
+
+                [http]
+                host = "127.0.0.1"
+                port = 14631
+                """.trimIndent(),
+            )
+        }
+        val runtime = RecordingRuntime()
+        val environment = mapOf(
+            "COCOADISKINFO_AGENT_OUTPUT_MODE" to "json",
+            "COCOADISKINFO_AGENT_RUNTIME_INTERVAL_SECONDS" to "30",
+            "COCOADISKINFO_AGENT_STORAGE_JDBC_URL" to "jdbc:sqlite:/tmp/env.db",
+            "COCOADISKINFO_AGENT_HTTP_HOST" to "192.0.2.10",
+            "COCOADISKINFO_AGENT_HTTP_PORT" to "15000",
+        )
+
+        val result = command(runtime, environment = environment).test(
+            "standalone",
+            "--config",
+            config.absolutePathString(),
+            "--interval-seconds",
+            "15",
+            "--output",
+            "cbor",
+            "--host",
+            "0.0.0.0",
+        )
+
+        assertEquals(0, result.statusCode, result.output)
+        assertEquals(
+            SapphireCommandRequest.Standalone(
+                target = TargetDevice.Scan,
+                outputMode = OutputMode.CBOR,
+                intervalSeconds = 15,
+                host = "0.0.0.0",
+                port = 15000,
+                dbUrl = "jdbc:sqlite:/tmp/env.db",
+            ),
+            runtime.singleRequest(),
+        )
+    }
+
+    @Test
+    fun `config smartctl target conflict is rejected for device commands`() {
         val device = createTempFile()
         val config = createTempFile().apply {
             writeText(
@@ -324,46 +399,47 @@ class CliCommandTest {
         val result = command(runtime).test("oneshot", "--config", config.absolutePathString())
 
         assertTrue(result.statusCode != 0, result.output)
-        assertContains(result.output, "must not set both scan=true and device")
+        assertContains(result.output, "Use either scan or device")
         assertEquals(emptyList(), runtime.requests)
     }
 
     @Test
-    fun `config output mode validation is actionable`() {
+    fun `db migrate config is overridden by CLI db url and does not require target`() {
+        val device = createTempFile()
         val config = createTempFile().apply {
             writeText(
                 """
                 [smartctl]
                 scan = true
+                device = "${device.absolutePathString()}"
 
                 [output]
                 mode = "xml"
-                """.trimIndent(),
-            )
-        }
-        val runtime = RecordingRuntime()
 
-        val result = command(runtime).test("oneshot", "--config", config.absolutePathString())
+                [runtime]
+                intervalSeconds = 0
 
-        assertTrue(result.statusCode != 0, result.output)
-        assertContains(result.output, "Config [output].mode must be one of")
-        assertEquals(emptyList(), runtime.requests)
-    }
-
-    @Test
-    fun `db migrate config is overridden by CLI db url`() {
-        val config = createTempFile().apply {
-            writeText(
-                """
                 [storage]
                 jdbcUrl = "jdbc:sqlite:/tmp/cocoadiskinfo-config.db"
+
+                [http]
+                host = ""
+                port = 70000
                 """.trimIndent(),
             )
         }
         val runtime = RecordingRuntime()
         val dbUrl = "jdbc:sqlite:/tmp/cocoadiskinfo-cli.db"
 
-        val result = command(runtime).test(
+        val result = command(
+            runtime,
+            environment = mapOf(
+                "COCOADISKINFO_AGENT_SMARTCTL_SCAN" to "maybe",
+                "COCOADISKINFO_AGENT_OUTPUT_MODE" to "xml",
+                "COCOADISKINFO_AGENT_RUNTIME_INTERVAL_SECONDS" to "slow",
+                "COCOADISKINFO_AGENT_HTTP_PORT" to "invalid",
+            ),
+        ).test(
             "db",
             "migrate",
             "--config",
@@ -379,7 +455,47 @@ class CliCommandTest {
         )
     }
 
-    private fun command(runtime: RecordingRuntime = RecordingRuntime()) = createSapphireAgentCommand(runtime)
+    @Test
+    fun `invalid oneshot environment values are rejected`() {
+        listOf(
+            mapOf("COCOADISKINFO_AGENT_RUNTIME_PERSIST" to "yes"),
+            mapOf("COCOADISKINFO_AGENT_STORAGE_JDBC_URL" to ""),
+            mapOf("COCOADISKINFO_AGENT_OUTPUT_MODE" to "xml"),
+        ).forEach { environment ->
+            val runtime = RecordingRuntime()
+            val result = command(runtime, environment = environment).test("oneshot", "--scan")
+
+            assertTrue(result.statusCode != 0, result.output)
+            assertEquals(emptyList(), runtime.requests)
+        }
+    }
+
+    @Test
+    fun `unused environment values do not affect db migrate`() {
+        val runtime = RecordingRuntime()
+        val result = command(
+            runtime,
+            environment = mapOf(
+                "COCOADISKINFO_AGENT_SMARTCTL_SCAN" to "maybe",
+                "COCOADISKINFO_AGENT_OUTPUT_MODE" to "xml",
+                "COCOADISKINFO_AGENT_RUNTIME_INTERVAL_SECONDS" to "fast",
+                "COCOADISKINFO_AGENT_HTTP_PORT" to "70000",
+            ),
+            defaultConfigPath = null,
+        ).test(listOf("db", "migrate"))
+
+        assertEquals(0, result.statusCode, result.output)
+        assertEquals(
+            SapphireCommandRequest.DbMigrate(dbUrl = AgentConfigDefaults.JDBC_URL),
+            runtime.singleRequest(),
+        )
+    }
+
+    private fun command(
+        runtime: RecordingRuntime = RecordingRuntime(),
+        environment: Map<String, String> = emptyMap(),
+        defaultConfigPath: Path? = null,
+    ) = createSapphireAgentCommand(runtime, environment, defaultConfigPath)
 
     private fun assertContains(actual: String, expected: String) {
         assertTrue(actual.contains(expected), "Expected output to contain <$expected>, but was:\n$actual")

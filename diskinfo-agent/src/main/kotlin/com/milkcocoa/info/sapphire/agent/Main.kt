@@ -14,7 +14,13 @@ import com.github.ajalt.clikt.parameters.types.path
 import com.milkcocoa.info.sapphire.agent.config.AgentConfig
 import com.milkcocoa.info.sapphire.agent.config.AgentConfigDefaults
 import com.milkcocoa.info.sapphire.agent.config.AgentConfigLoader
+import com.milkcocoa.info.sapphire.agent.config.AgentConfigOverrides
 import com.milkcocoa.info.sapphire.agent.config.AgentConfigParseException
+import com.milkcocoa.info.sapphire.agent.config.AgentConfigResolver
+import com.milkcocoa.info.sapphire.agent.config.AgentConfigValidationException
+import com.milkcocoa.info.sapphire.agent.config.EffectiveDbMigrateConfig
+import com.milkcocoa.info.sapphire.agent.config.EffectiveOneshotConfig
+import com.milkcocoa.info.sapphire.agent.config.EffectiveStandaloneConfig
 import java.nio.file.Path
 import java.nio.file.Paths
 import kotlin.io.path.absolutePathString
@@ -25,16 +31,20 @@ class SapphireAgent : CliktCommand(name = "cocoadiskinfo-agent") {
 
 internal fun createSapphireAgentCommand(
     runtime: SapphireCommandRuntime = ProductionSapphireCommandRuntime,
+    environment: Map<String, String> = System.getenv(),
+    defaultConfigPath: Path? = Paths.get(AgentConfigDefaults.DEFAULT_CONFIG_PATH),
 ): CliktCommand = SapphireAgent()
     .subcommands(
-        OneshotCommand(runtime),
-        StandaloneCommand(runtime),
-        DbCommand().subcommands(DbMigrateCommand(runtime)),
+        OneshotCommand(runtime, environment, defaultConfigPath),
+        StandaloneCommand(runtime, environment, defaultConfigPath),
+        DbCommand().subcommands(DbMigrateCommand(runtime, environment, defaultConfigPath)),
     )
 
 private abstract class ConfiguredCommand(
     name: String,
     protected val runtime: SapphireCommandRuntime,
+    private val environment: Map<String, String>,
+    private val defaultConfigPath: Path?,
 ) : CliktCommand(name = name) {
     protected val configPath: Path? by option("--config")
         .path(
@@ -47,19 +57,57 @@ private abstract class ConfiguredCommand(
         )
         .help("TOML configuration file")
 
-    protected fun loadConfig(): AgentConfig {
+    protected fun resolveOneshotConfig(overrides: AgentConfigOverrides): EffectiveOneshotConfig {
+        return resolveUsageErrors {
+            AgentConfigResolver.resolveOneshot(
+                config = loadConfig(),
+                environment = environment,
+                cli = overrides,
+            )
+        }
+    }
+
+    protected fun resolveStandaloneConfig(overrides: AgentConfigOverrides): EffectiveStandaloneConfig {
+        return resolveUsageErrors {
+            AgentConfigResolver.resolveStandalone(
+                config = loadConfig(),
+                environment = environment,
+                cli = overrides,
+            )
+        }
+    }
+
+    protected fun resolveDbMigrateConfig(overrides: AgentConfigOverrides): EffectiveDbMigrateConfig {
+        return resolveUsageErrors {
+            AgentConfigResolver.resolveDbMigrate(
+                config = loadConfig(),
+                environment = environment,
+                cli = overrides,
+            )
+        }
+    }
+
+    private fun <T> resolveUsageErrors(block: () -> T): T {
         return try {
-            AgentConfigLoader.load(configPath)
+            block()
         } catch (error: AgentConfigParseException) {
             throw UsageError(error.message ?: "Invalid config file.")
+        } catch (error: AgentConfigValidationException) {
+            throw UsageError(error.message ?: "Invalid runtime configuration.")
         }
+    }
+
+    private fun loadConfig(): AgentConfig {
+        return AgentConfigLoader.load(configPath, defaultConfigPath)
     }
 }
 
 private abstract class DeviceCommand(
     name: String,
     runtime: SapphireCommandRuntime,
-) : ConfiguredCommand(name, runtime) {
+    environment: Map<String, String>,
+    defaultConfigPath: Path?,
+) : ConfiguredCommand(name, runtime, environment, defaultConfigPath) {
     private val scan: Boolean? by option("--scan")
         .nullableFlag()
         .help("Scan all devices")
@@ -75,33 +123,19 @@ private abstract class DeviceCommand(
         )
         .help("Device path to query")
 
-    protected fun resolveTarget(config: AgentConfig): TargetDevice {
-        if (scan == true && device != null) {
-            throw UsageError("Use either --scan or --device, not both.")
-        }
-
-        if (scan == true) return TargetDevice.Scan
-        device?.let { return TargetDevice.Explicit(it.absolutePathString()) }
-
-        val configuredScan = config.smartctl.scan == true
-        val configuredDevice = config.smartctl.device?.takeIf { it.isNotBlank() }
-        if (configuredScan && configuredDevice != null) {
-            throw UsageError("Config [smartctl] must not set both scan=true and device.")
-        }
-
-        return when {
-            configuredScan -> TargetDevice.Scan
-            configuredDevice != null -> TargetDevice.Explicit(
-                Paths.get(configuredDevice).toAbsolutePath().normalize().toString(),
-            )
-            else -> throw UsageError("Command requires --scan or --device, or [smartctl] scan/device in config.")
-        }
+    protected fun deviceOverrides(): AgentConfigOverrides {
+        return AgentConfigOverrides(
+            scan = scan,
+            device = device?.absolutePathString(),
+        )
     }
 }
 
 private class OneshotCommand(
     runtime: SapphireCommandRuntime,
-) : DeviceCommand("oneshot", runtime) {
+    environment: Map<String, String>,
+    defaultConfigPath: Path?,
+) : DeviceCommand("oneshot", runtime, environment, defaultConfigPath) {
     private val output: OutputMode? by option("--output")
         .enum<OutputMode>(ignoreCase = true, key = { it.name })
         .help("Output format")
@@ -114,18 +148,20 @@ private class OneshotCommand(
         .help("JDBC URL for local history storage")
 
     override fun run() {
-        val config = loadConfig()
-        val target = resolveTarget(config)
-        val effectiveOutput = resolveOutput(config, output, OutputMode.DEFAULT)
-        val shouldPersist = persist ?: config.runtime.persist ?: false
-        val effectiveDbUrl = resolveDbUrl(config, dbUrl)
+        val effective = resolveOneshotConfig(
+            deviceOverrides().copy(
+                outputMode = output,
+                persist = persist,
+                jdbcUrl = dbUrl,
+            ),
+        )
 
         runtime.run(
             SapphireCommandRequest.Oneshot(
-                target = target,
-                outputMode = effectiveOutput,
-                persist = shouldPersist,
-                dbUrl = effectiveDbUrl,
+                target = effective.target,
+                outputMode = effective.outputMode,
+                persist = effective.persist,
+                dbUrl = effective.jdbcUrl,
             ),
         )
     }
@@ -133,10 +169,19 @@ private class OneshotCommand(
 
 private class StandaloneCommand(
     runtime: SapphireCommandRuntime,
-) : DeviceCommand("standalone", runtime) {
+    environment: Map<String, String>,
+    defaultConfigPath: Path?,
+) : DeviceCommand("standalone", runtime, environment, defaultConfigPath) {
     private val intervalSeconds: Long? by option("--interval-seconds")
         .long()
         .help("Collection interval in seconds")
+
+    private val output: OutputMode? by option("--output")
+        .enum<OutputMode>(ignoreCase = true, key = { it.name })
+        .help("Snapshot console output format")
+
+    private val host: String? by option("--host")
+        .help("HTTP API listen host")
 
     private val port: Int? by option("--port")
         .int()
@@ -146,18 +191,24 @@ private class StandaloneCommand(
         .help("JDBC URL for local history storage")
 
     override fun run() {
-        val config = loadConfig()
-        val target = resolveTarget(config)
-        val effectiveInterval = resolveIntervalSeconds(config, intervalSeconds)
-        val effectivePort = resolvePort(config, port)
-        val effectiveDbUrl = resolveDbUrl(config, dbUrl)
+        val effective = resolveStandaloneConfig(
+            deviceOverrides().copy(
+                outputMode = output,
+                intervalSeconds = intervalSeconds,
+                host = host,
+                port = port,
+                jdbcUrl = dbUrl,
+            ),
+        )
 
         runtime.run(
             SapphireCommandRequest.Standalone(
-                target = target,
-                intervalSeconds = effectiveInterval,
-                port = effectivePort,
-                dbUrl = effectiveDbUrl,
+                target = effective.target,
+                outputMode = effective.outputMode,
+                intervalSeconds = effective.intervalSeconds,
+                host = effective.host,
+                port = effective.port,
+                dbUrl = effective.jdbcUrl,
             ),
         )
     }
@@ -169,56 +220,25 @@ private class DbCommand : CliktCommand(name = "db") {
 
 private class DbMigrateCommand(
     runtime: SapphireCommandRuntime,
-) : ConfiguredCommand("migrate", runtime) {
+    environment: Map<String, String>,
+    defaultConfigPath: Path?,
+) : ConfiguredCommand("migrate", runtime, environment, defaultConfigPath) {
     private val dbUrl: String? by option("--db-url")
         .help("JDBC URL for local history storage")
 
     override fun run() {
-        val config = loadConfig()
-        val effectiveDbUrl = resolveDbUrl(config, dbUrl)
+        val effective = resolveDbMigrateConfig(
+            AgentConfigOverrides(
+                jdbcUrl = dbUrl,
+            ),
+        )
+
         runtime.run(
             SapphireCommandRequest.DbMigrate(
-                dbUrl = effectiveDbUrl,
+                dbUrl = effective.jdbcUrl,
             ),
         )
     }
-}
-
-private fun resolveOutput(
-    config: AgentConfig,
-    cliOutput: OutputMode?,
-    default: OutputMode,
-): OutputMode {
-    return cliOutput ?: config.output.mode?.let { mode ->
-        OutputMode.entries.firstOrNull { it.name.equals(mode, ignoreCase = true) }
-            ?: throw UsageError("Config [output].mode must be one of: ${OutputMode.entries.joinToString { it.name }}.")
-    } ?: default
-}
-
-private fun resolveDbUrl(config: AgentConfig, cliDbUrl: String?): String {
-    return cliDbUrl
-        ?: config.storage.jdbcUrl?.takeIf { it.isNotBlank() }
-        ?: AgentConfigDefaults.JDBC_URL
-}
-
-private fun resolveIntervalSeconds(config: AgentConfig, cliIntervalSeconds: Long?): Long {
-    val interval = cliIntervalSeconds
-        ?: config.runtime.intervalSeconds
-        ?: AgentConfigDefaults.COLLECTION_INTERVAL_SECONDS
-    if (interval <= 0) {
-        throw UsageError("Collection interval must be greater than 0 seconds.")
-    }
-    return interval
-}
-
-private fun resolvePort(config: AgentConfig, cliPort: Int?): Int {
-    val port = cliPort
-        ?: config.http.port
-        ?: AgentConfigDefaults.HTTP_PORT
-    if (port !in 1..65535) {
-        throw UsageError("HTTP port must be between 1 and 65535.")
-    }
-    return port
 }
 
 fun main(args: Array<String>) = createSapphireAgentCommand().main(args)

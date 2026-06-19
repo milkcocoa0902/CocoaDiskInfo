@@ -6,9 +6,14 @@ import java.nio.file.Path
 class AgentConfigParseException(message: String) : IllegalArgumentException(message)
 
 object AgentConfigLoader {
-    fun load(path: Path?): AgentConfig {
-        if (path == null) return AgentConfig()
-        val entries = MinimalTomlParser.parse(path)
+    fun load(
+        path: Path?,
+        defaultPath: Path? = Path.of(AgentConfigDefaults.DEFAULT_CONFIG_PATH),
+    ): AgentConfig {
+        val source = path ?: defaultPath?.takeIf { Files.isRegularFile(it) }
+        if (source == null) return AgentConfig()
+
+        val entries = MinimalTomlParser.parse(source)
         return AgentConfig(
             smartctl = AgentConfig.SmartctlConfig(
                 scan = entries.boolean("smartctl", "scan"),
@@ -25,6 +30,7 @@ object AgentConfigLoader {
                 jdbcUrl = entries.string("storage", "jdbcUrl"),
             ),
             http = AgentConfig.HttpConfig(
+                host = entries.string("http", "host"),
                 port = entries.int("http", "port"),
             ),
         )
@@ -37,7 +43,7 @@ private object MinimalTomlParser {
         "output" to setOf("mode"),
         "runtime" to setOf("persist", "intervalSeconds"),
         "storage" to setOf("jdbcUrl"),
-        "http" to setOf("port"),
+        "http" to setOf("host", "port"),
     )
 
     fun parse(path: Path): TomlEntries {

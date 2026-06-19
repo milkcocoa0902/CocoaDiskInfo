@@ -21,6 +21,7 @@ import kotlinx.serialization.json.Json
 
 class SapphireAgentServer(
     private val repository: DiskSnapshotRepository = DiskSnapshotRepository(),
+    private val host: String = "127.0.0.1",
     private val port: Int = 14631,
 ) {
     fun start(
@@ -29,6 +30,7 @@ class SapphireAgentServer(
     ) {
         embeddedServer(
             factory = CIO,
+            host = host,
             port = port,
         ) {
             installSapphireAgentApi(repository)

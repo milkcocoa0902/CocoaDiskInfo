@@ -10,8 +10,8 @@ import kotlin.test.assertTrue
 
 class AgentConfigLoaderTest {
     @Test
-    fun `null path returns empty config`() {
-        val config = AgentConfigLoader.load(null)
+    fun `null path returns empty config when default path is disabled`() {
+        val config = AgentConfigLoader.load(path = null, defaultPath = null)
 
         assertNull(config.smartctl.scan)
         assertNull(config.smartctl.device)
@@ -19,11 +19,28 @@ class AgentConfigLoaderTest {
         assertNull(config.runtime.persist)
         assertNull(config.runtime.intervalSeconds)
         assertNull(config.storage.jdbcUrl)
+        assertNull(config.http.host)
         assertNull(config.http.port)
     }
 
     @Test
-    fun `loads supported phase 2a config values`() {
+    fun `default path is loaded when present`() {
+        val file = createTempFile().apply {
+            writeText(
+                """
+                [smartctl]
+                scan = true
+                """.trimIndent(),
+            )
+        }
+
+        val config = AgentConfigLoader.load(path = null, defaultPath = file)
+
+        assertEquals(true, config.smartctl.scan)
+    }
+
+    @Test
+    fun `loads supported phase 2b config values`() {
         val file = createTempFile().apply {
             writeText(
                 """
@@ -42,12 +59,13 @@ class AgentConfigLoaderTest {
                 jdbcUrl = "jdbc:sqlite:/tmp/cocoadiskinfo.db"
 
                 [http]
+                host = "127.0.0.1"
                 port = 14631
                 """.trimIndent(),
             )
         }
 
-        val config = AgentConfigLoader.load(file)
+        val config = AgentConfigLoader.load(path = file, defaultPath = null)
 
         assertEquals(true, config.smartctl.scan)
         assertEquals("/dev/sda", config.smartctl.device)
@@ -55,6 +73,7 @@ class AgentConfigLoaderTest {
         assertEquals(false, config.runtime.persist)
         assertEquals(30, config.runtime.intervalSeconds)
         assertEquals("jdbc:sqlite:/tmp/cocoadiskinfo.db", config.storage.jdbcUrl)
+        assertEquals("127.0.0.1", config.http.host)
         assertEquals(14631, config.http.port)
     }
 
@@ -70,7 +89,7 @@ class AgentConfigLoaderTest {
         }
 
         val error = assertFailsWith<AgentConfigParseException> {
-            AgentConfigLoader.load(file)
+            AgentConfigLoader.load(path = file, defaultPath = null)
         }
 
         assertMessageContains(error, "expected key = value")
@@ -87,7 +106,7 @@ class AgentConfigLoaderTest {
             )
         }
         val unknownSectionError = assertFailsWith<AgentConfigParseException> {
-            AgentConfigLoader.load(unknownSection)
+            AgentConfigLoader.load(path = unknownSection, defaultPath = null)
         }
         assertMessageContains(unknownSectionError, "unknown section [unknown]")
 
@@ -100,7 +119,7 @@ class AgentConfigLoaderTest {
             )
         }
         val unknownKeyError = assertFailsWith<AgentConfigParseException> {
-            AgentConfigLoader.load(unknownKey)
+            AgentConfigLoader.load(path = unknownKey, defaultPath = null)
         }
         assertMessageContains(unknownKeyError, "unknown key unknown")
     }
@@ -117,7 +136,7 @@ class AgentConfigLoaderTest {
         }
 
         val error = assertFailsWith<AgentConfigParseException> {
-            AgentConfigLoader.load(file)
+            AgentConfigLoader.load(path = file, defaultPath = null)
         }
 
         assertMessageContains(error, "[runtime].intervalSeconds must be an integer")
@@ -134,7 +153,7 @@ class AgentConfigLoaderTest {
             )
         }
         val blankValueError = assertFailsWith<AgentConfigParseException> {
-            AgentConfigLoader.load(blankValue)
+            AgentConfigLoader.load(path = blankValue, defaultPath = null)
         }
         assertMessageContains(blankValueError, "value must not be blank")
 
@@ -147,7 +166,7 @@ class AgentConfigLoaderTest {
             )
         }
         val unsupportedValueError = assertFailsWith<AgentConfigParseException> {
-            AgentConfigLoader.load(unsupportedValue)
+            AgentConfigLoader.load(path = unsupportedValue, defaultPath = null)
         }
         assertMessageContains(unsupportedValueError, "unsupported value")
     }

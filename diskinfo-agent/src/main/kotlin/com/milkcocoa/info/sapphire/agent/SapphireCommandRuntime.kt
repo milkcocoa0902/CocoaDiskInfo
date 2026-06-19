@@ -23,7 +23,9 @@ internal sealed interface SapphireCommandRequest {
 
     data class Standalone(
         val target: TargetDevice,
+        val outputMode: OutputMode,
         val intervalSeconds: Long,
+        val host: String,
         val port: Int,
         val dbUrl: String,
     ) : SapphireCommandRequest
@@ -67,7 +69,7 @@ internal object ProductionSapphireCommandRuntime : SapphireCommandRuntime {
     }
 
     private fun runStandalone(request: SapphireCommandRequest.Standalone) {
-        setupConsoleOutput(OutputMode.DEFAULT)
+        setupConsoleOutput(request.outputMode)
         connectDatabase(request.dbUrl)
         val repository = DiskSnapshotRepository()
 
@@ -78,6 +80,7 @@ internal object ProductionSapphireCommandRuntime : SapphireCommandRuntime {
                 sink = createSnapshotSink(repository),
                 server = SapphireAgentServer(
                     repository = repository,
+                    host = request.host,
                     port = request.port,
                 ),
             ),

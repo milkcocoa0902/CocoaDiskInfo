@@ -84,7 +84,7 @@ For a single device:
 
 The agent serves its API at `http://localhost:14631`.
 
-You can also use a TOML configuration file. CLI arguments override configuration file values.
+You can also use a TOML configuration file. Configuration priority is `default < config file < environment variables < CLI arguments`. If `--config` is omitted, `/etc/cocoadiskinfo/agent.toml` is loaded when it exists.
 An example is available at [diskinfo-agent/src/main/resources/agent.example.toml](diskinfo-agent/src/main/resources/agent.example.toml).
 
 ```toml
@@ -100,6 +100,7 @@ persist = false
 jdbcUrl = "jdbc:sqlite:./sapphire.db"
 
 [http]
+host = "127.0.0.1"
 port = 14631
 
 [output]
@@ -110,21 +111,37 @@ mode = "text"
 ./gradlew :diskinfo-agent:run --args='standalone --config ./agent.toml'
 ```
 
+`[output].mode` applies to snapshot console output for `oneshot` and `standalone`. `db migrate` is schema-only and does not use this setting.
+
+Supported environment variables:
+
+```text
+COCOADISKINFO_AGENT_SMARTCTL_SCAN
+COCOADISKINFO_AGENT_SMARTCTL_DEVICE
+COCOADISKINFO_AGENT_RUNTIME_INTERVAL_SECONDS
+COCOADISKINFO_AGENT_RUNTIME_PERSIST
+COCOADISKINFO_AGENT_STORAGE_JDBC_URL
+COCOADISKINFO_AGENT_HTTP_HOST
+COCOADISKINFO_AGENT_HTTP_PORT
+COCOADISKINFO_AGENT_OUTPUT_MODE
+```
+
 ### Run the agent with systemd
 
 On Linux, use [deploy/systemd/cocoadiskinfo-agent.service](deploy/systemd/cocoadiskinfo-agent.service) as a template.
 
 ```bash
 ./gradlew :diskinfo-agent:shadowJar
-sudo install -d /opt/cocoadiskinfo /var/lib/cocoadiskinfo
+sudo install -d /opt/cocoadiskinfo /var/lib/cocoadiskinfo /etc/cocoadiskinfo
 sudo install -m 0644 diskinfo-agent/build/libs/diskinfo-agent-1.0-SNAPSHOT-all.jar /opt/cocoadiskinfo/
-(cd /var/lib/cocoadiskinfo && sudo /usr/bin/java -jar /opt/cocoadiskinfo/diskinfo-agent-1.0-SNAPSHOT-all.jar db migrate)
+sudo install -m 0644 diskinfo-agent/src/main/resources/agent.example.toml /etc/cocoadiskinfo/agent.toml
+(cd /var/lib/cocoadiskinfo && sudo /usr/bin/java -jar /opt/cocoadiskinfo/diskinfo-agent-1.0-SNAPSHOT-all.jar db migrate --config /etc/cocoadiskinfo/agent.toml)
 sudo install -m 0644 deploy/systemd/cocoadiskinfo-agent.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now cocoadiskinfo-agent
 ```
 
-To monitor only one device, change `ExecStart` in the service file to use `standalone --device /dev/sda`.
+To monitor only one device, set `[smartctl] device = "/dev/sda"` in `/etc/cocoadiskinfo/agent.toml`.
 
 ### 3. Start the client
 

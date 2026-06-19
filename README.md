@@ -84,7 +84,7 @@ LinuxやmacOSでは、環境によって `smartctl` の実行に管理者権限�
 
 agent は `http://localhost:14631` でAPIを公開します。
 
-設定ファイルを使う場合は、TOMLで最小限の設定を記述できます。CLI引数は設定ファイルより優先されます。
+設定ファイルを使う場合は、TOMLで最小限の設定を記述できます。設定の優先順位は `default < config file < environment variables < CLI arguments` です。`--config` を指定しない場合でも `/etc/cocoadiskinfo/agent.toml` が存在すれば読み込みます。
 サンプルは [diskinfo-agent/src/main/resources/agent.example.toml](diskinfo-agent/src/main/resources/agent.example.toml) にあります。
 
 ```toml
@@ -100,6 +100,7 @@ persist = false
 jdbcUrl = "jdbc:sqlite:./sapphire.db"
 
 [http]
+host = "127.0.0.1"
 port = 14631
 
 [output]
@@ -110,21 +111,37 @@ mode = "text"
 ./gradlew :diskinfo-agent:run --args='standalone --config ./agent.toml'
 ```
 
+`[output].mode` は `oneshot` と `standalone` のsnapshot console出力に適用されます。`db migrate` はschema operationのみのため、この設定を使用しません。
+
+利用できる環境変数は次の通りです。
+
+```text
+COCOADISKINFO_AGENT_SMARTCTL_SCAN
+COCOADISKINFO_AGENT_SMARTCTL_DEVICE
+COCOADISKINFO_AGENT_RUNTIME_INTERVAL_SECONDS
+COCOADISKINFO_AGENT_RUNTIME_PERSIST
+COCOADISKINFO_AGENT_STORAGE_JDBC_URL
+COCOADISKINFO_AGENT_HTTP_HOST
+COCOADISKINFO_AGENT_HTTP_PORT
+COCOADISKINFO_AGENT_OUTPUT_MODE
+```
+
 ### systemd で agent を常駐させる
 
 Linux では [deploy/systemd/cocoadiskinfo-agent.service](deploy/systemd/cocoadiskinfo-agent.service) をテンプレートとして利用できます。
 
 ```bash
 ./gradlew :diskinfo-agent:shadowJar
-sudo install -d /opt/cocoadiskinfo /var/lib/cocoadiskinfo
+sudo install -d /opt/cocoadiskinfo /var/lib/cocoadiskinfo /etc/cocoadiskinfo
 sudo install -m 0644 diskinfo-agent/build/libs/diskinfo-agent-1.0-SNAPSHOT-all.jar /opt/cocoadiskinfo/
-(cd /var/lib/cocoadiskinfo && sudo /usr/bin/java -jar /opt/cocoadiskinfo/diskinfo-agent-1.0-SNAPSHOT-all.jar db migrate)
+sudo install -m 0644 diskinfo-agent/src/main/resources/agent.example.toml /etc/cocoadiskinfo/agent.toml
+(cd /var/lib/cocoadiskinfo && sudo /usr/bin/java -jar /opt/cocoadiskinfo/diskinfo-agent-1.0-SNAPSHOT-all.jar db migrate --config /etc/cocoadiskinfo/agent.toml)
 sudo install -m 0644 deploy/systemd/cocoadiskinfo-agent.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now cocoadiskinfo-agent
 ```
 
-特定デバイスだけ監視する場合は、service ファイル内の `ExecStart` を `standalone --device /dev/sda` のように変更します。
+特定デバイスだけ監視する場合は、`/etc/cocoadiskinfo/agent.toml` の `[smartctl]` を `device = "/dev/sda"` に変更します。
 
 ### 3. Clientを起動する
 

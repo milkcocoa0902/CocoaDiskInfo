@@ -12,16 +12,16 @@ Type=simple
 User=root
 Group=root
 
-# CocoaDiskInfo currently stores sapphire.db relative to the working directory.
+# The example config stores sapphire.db relative to this working directory.
 WorkingDirectory=/var/lib/cocoadiskinfo
 
 # Build the jar with:
 #   ./gradlew :diskinfo-agent:shadowJar
 # Then copy it to the path below, or change the path to match your installation.
-ExecStart=/usr/bin/java -jar /opt/cocoadiskinfo/diskinfo-agent-1.0-SNAPSHOT-all.jar standalone --scan
+ExecStart=/usr/bin/java -jar /opt/cocoadiskinfo/diskinfo-agent-1.0-SNAPSHOT-all.jar standalone --config /etc/cocoadiskinfo/agent.toml
 
-# To monitor one device instead of scanning all devices, use:
-# ExecStart=/usr/bin/java -jar /opt/cocoadiskinfo/diskinfo-agent-1.0-SNAPSHOT-all.jar standalone --device /dev/sda
+# To monitor one device instead of scanning all devices, set [smartctl].device
+# in /etc/cocoadiskinfo/agent.toml.
 
 Restart=on-failure
 RestartSec=10s

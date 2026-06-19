@@ -26,12 +26,15 @@ data class AgentConfig(
     )
 
     data class HttpConfig(
+        val host: String? = null,
         val port: Int? = null,
     )
 }
 
 object AgentConfigDefaults {
+    const val DEFAULT_CONFIG_PATH = "/etc/cocoadiskinfo/agent.toml"
     const val JDBC_URL = "jdbc:sqlite:./sapphire.db"
+    const val HTTP_HOST = "127.0.0.1"
     const val HTTP_PORT = 14631
     const val COLLECTION_INTERVAL_SECONDS = 60L
 }
