@@ -29,7 +29,10 @@ data class AgentConfig(
     )
 
     data class StorageConfig(
+        val type: String? = null,
         val jdbcUrl: String? = null,
+        val username: String? = null,
+        val password: String? = null,
     )
 
     data class HttpConfig(

@@ -28,4 +28,14 @@ SQLiteを基準実装としてRepository interfaceを固め、後続のPostgreSQ
 ```
 
 ## Tasks
-- No active task document in this phase.
+- [Phase 4: Storage Backends Task Index](tasks/phase-4-storage-backends.md)
+- [Phase 4A: Storage Settings and HikariCP Decision](tasks/phase-4a-storage-settings-hikari.md)
+- [Phase 4B: Repository Interface and SQLite Baseline](tasks/phase-4b-repository-interface-sqlite.md)
+- [Phase 4C: Flyway Migration and Transaction Boundary](tasks/phase-4c-flyway-migration-transaction.md)
+- [Phase 4D: Raw Snapshot Cleanup and Manual Maintenance](tasks/phase-4d-raw-snapshot-cleanup.md)
+- [Phase 4E: PostgreSQL Backend and pg_partman Partitioning](tasks/phase-4e-postgresql-pg-partman.md)
+- [Phase 4F: Standalone Automatic Cleanup](tasks/phase-4f-standalone-automatic-cleanup.md)
+
+## Implementation Status
+- Planning updated: Phase 4 task documentsを独立ファイルへ分割し、HikariCPは4A、Flyway移行は4C、pg_partman/partition interval判断は4Eへ配置した。
+- Phase 4A implemented: storage設定拡張、backend推定、HikariCP-backed connection factory、runtime接続境界を追加した。PostgreSQL driver dependencyはPhase 4Eへ残す。

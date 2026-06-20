@@ -161,7 +161,7 @@ private class OneshotCommand(
                 target = effective.target,
                 outputMode = effective.outputMode,
                 persist = effective.persist,
-                dbUrl = effective.jdbcUrl,
+                storage = effective.storage,
                 deviceIdentityNamespaceSalt = effective.deviceIdentityNamespaceSalt,
             ),
         )
@@ -209,7 +209,7 @@ private class StandaloneCommand(
                 intervalSeconds = effective.intervalSeconds,
                 host = effective.host,
                 port = effective.port,
-                dbUrl = effective.jdbcUrl,
+                storage = effective.storage,
                 deviceIdentityNamespaceSalt = effective.deviceIdentityNamespaceSalt,
             ),
         )
@@ -237,7 +237,7 @@ private class DbMigrateCommand(
 
         runtime.run(
             SapphireCommandRequest.DbMigrate(
-                dbUrl = effective.jdbcUrl,
+                storage = effective.storage,
             ),
         )
     }

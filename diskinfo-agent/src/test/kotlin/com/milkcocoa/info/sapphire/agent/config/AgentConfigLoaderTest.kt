@@ -19,7 +19,10 @@ class AgentConfigLoaderTest {
         assertNull(config.output.mode)
         assertNull(config.runtime.persist)
         assertNull(config.runtime.intervalSeconds)
+        assertNull(config.storage.type)
         assertNull(config.storage.jdbcUrl)
+        assertNull(config.storage.username)
+        assertNull(config.storage.password)
         assertNull(config.http.host)
         assertNull(config.http.port)
     }
@@ -60,7 +63,10 @@ class AgentConfigLoaderTest {
                 intervalSeconds = 30
 
                 [storage]
+                type = "sqlite"
                 jdbcUrl = "jdbc:sqlite:/tmp/cocoadiskinfo.db"
+                username = "storage-user"
+                password = "storage-password"
 
                 [http]
                 host = "127.0.0.1"
@@ -77,7 +83,10 @@ class AgentConfigLoaderTest {
         assertEquals("json", config.output.mode)
         assertEquals(false, config.runtime.persist)
         assertEquals(30, config.runtime.intervalSeconds)
+        assertEquals("sqlite", config.storage.type)
         assertEquals("jdbc:sqlite:/tmp/cocoadiskinfo.db", config.storage.jdbcUrl)
+        assertEquals("storage-user", config.storage.username)
+        assertEquals("storage-password", config.storage.password)
         assertEquals("127.0.0.1", config.http.host)
         assertEquals(14631, config.http.port)
     }

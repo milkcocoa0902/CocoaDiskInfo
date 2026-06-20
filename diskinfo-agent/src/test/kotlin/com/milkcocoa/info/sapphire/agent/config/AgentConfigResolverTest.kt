@@ -2,6 +2,7 @@ package com.milkcocoa.info.sapphire.agent.config
 
 import com.milkcocoa.info.sapphire.agent.OutputMode
 import com.milkcocoa.info.sapphire.agent.TargetDevice
+import com.milkcocoa.info.sapphire.agent.datastore.StorageBackend
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -15,12 +16,19 @@ class AgentConfigResolverTest {
                 deviceIdentity = AgentConfig.DeviceIdentityConfig(namespaceSalt = "config-salt"),
                 output = AgentConfig.OutputConfig(mode = "text"),
                 runtime = AgentConfig.RuntimeConfig(persist = false),
-                storage = AgentConfig.StorageConfig(jdbcUrl = "jdbc:sqlite:/tmp/config.db"),
+                storage = AgentConfig.StorageConfig(
+                    type = "sqlite",
+                    jdbcUrl = "jdbc:sqlite:/tmp/config.db",
+                    username = "config-user",
+                    password = "config-password",
+                ),
             ),
             environment = mapOf(
                 "COCOADISKINFO_AGENT_OUTPUT_MODE" to "json",
                 "COCOADISKINFO_AGENT_RUNTIME_PERSIST" to "true",
                 "COCOADISKINFO_AGENT_STORAGE_JDBC_URL" to "jdbc:sqlite:/tmp/env.db",
+                "COCOADISKINFO_AGENT_STORAGE_USERNAME" to "env-user",
+                "COCOADISKINFO_AGENT_STORAGE_PASSWORD" to "env-password",
                 "COCOADISKINFO_AGENT_DEVICE_IDENTITY_NAMESPACE_SALT" to "env-salt",
             ),
             cli = AgentConfigOverrides(
@@ -31,7 +39,10 @@ class AgentConfigResolverTest {
         assertEquals(TargetDevice.Scan, resolved.target)
         assertEquals(OutputMode.CBOR, resolved.outputMode)
         assertEquals(true, resolved.persist)
+        assertEquals(StorageBackend.SQLITE, resolved.storage.backend)
         assertEquals("jdbc:sqlite:/tmp/env.db", resolved.jdbcUrl)
+        assertEquals("env-user", resolved.storage.username)
+        assertEquals("env-password", resolved.storage.password)
         assertEquals("env-salt", resolved.deviceIdentityNamespaceSalt)
     }
 
@@ -43,13 +54,20 @@ class AgentConfigResolverTest {
                 deviceIdentity = AgentConfig.DeviceIdentityConfig(namespaceSalt = "config-salt"),
                 output = AgentConfig.OutputConfig(mode = "text"),
                 runtime = AgentConfig.RuntimeConfig(intervalSeconds = 60),
-                storage = AgentConfig.StorageConfig(jdbcUrl = "jdbc:sqlite:/tmp/config.db"),
+                storage = AgentConfig.StorageConfig(
+                    type = "postgresql",
+                    jdbcUrl = "jdbc:postgresql://localhost:5432/config",
+                    username = "config-user",
+                    password = "config-password",
+                ),
                 http = AgentConfig.HttpConfig(host = "127.0.0.1", port = 14631),
             ),
             environment = mapOf(
                 "COCOADISKINFO_AGENT_OUTPUT_MODE" to "json",
                 "COCOADISKINFO_AGENT_RUNTIME_INTERVAL_SECONDS" to "30",
-                "COCOADISKINFO_AGENT_STORAGE_JDBC_URL" to "jdbc:sqlite:/tmp/env.db",
+                "COCOADISKINFO_AGENT_STORAGE_JDBC_URL" to "jdbc:postgresql://localhost:5432/env",
+                "COCOADISKINFO_AGENT_STORAGE_USERNAME" to "env-user",
+                "COCOADISKINFO_AGENT_STORAGE_PASSWORD" to "env-password",
                 "COCOADISKINFO_AGENT_HTTP_HOST" to "192.0.2.10",
                 "COCOADISKINFO_AGENT_HTTP_PORT" to "15000",
                 "COCOADISKINFO_AGENT_DEVICE_IDENTITY_NAMESPACE_SALT" to "env-salt",
@@ -64,7 +82,10 @@ class AgentConfigResolverTest {
         assertEquals(TargetDevice.Scan, resolved.target)
         assertEquals(OutputMode.CBOR, resolved.outputMode)
         assertEquals(15, resolved.intervalSeconds)
-        assertEquals("jdbc:sqlite:/tmp/env.db", resolved.jdbcUrl)
+        assertEquals(StorageBackend.POSTGRESQL, resolved.storage.backend)
+        assertEquals("jdbc:postgresql://localhost:5432/env", resolved.jdbcUrl)
+        assertEquals("env-user", resolved.storage.username)
+        assertEquals("env-password", resolved.storage.password)
         assertEquals("0.0.0.0", resolved.host)
         assertEquals(15000, resolved.port)
         assertEquals("env-salt", resolved.deviceIdentityNamespaceSalt)
@@ -136,6 +157,54 @@ class AgentConfigResolverTest {
             AgentConfigResolver.resolveDbMigrate(
                 config = AgentConfig(),
                 environment = mapOf("COCOADISKINFO_AGENT_STORAGE_JDBC_URL" to ""),
+            )
+        }
+    }
+
+    @Test
+    fun `storage type is inferred from jdbc url and explicit mismatch is rejected`() {
+        val inferred = AgentConfigResolver.resolveDbMigrate(
+            config = AgentConfig(
+                storage = AgentConfig.StorageConfig(
+                    jdbcUrl = "jdbc:postgresql://localhost:5432/cocoadiskinfo",
+                ),
+            ),
+        )
+
+        assertEquals(StorageBackend.POSTGRESQL, inferred.storage.backend)
+
+        assertFailsWith<AgentConfigValidationException> {
+            AgentConfigResolver.resolveDbMigrate(
+                config = AgentConfig(
+                    storage = AgentConfig.StorageConfig(
+                        type = "sqlite",
+                        jdbcUrl = "jdbc:postgresql://localhost:5432/cocoadiskinfo",
+                    ),
+                ),
+            )
+        }
+    }
+
+    @Test
+    fun `storage rejects unknown type and unsupported jdbc url`() {
+        assertFailsWith<AgentConfigValidationException> {
+            AgentConfigResolver.resolveDbMigrate(
+                config = AgentConfig(
+                    storage = AgentConfig.StorageConfig(
+                        type = "mysql",
+                        jdbcUrl = "jdbc:sqlite:/tmp/cocoadiskinfo.db",
+                    ),
+                ),
+            )
+        }
+
+        assertFailsWith<AgentConfigValidationException> {
+            AgentConfigResolver.resolveDbMigrate(
+                config = AgentConfig(
+                    storage = AgentConfig.StorageConfig(
+                        jdbcUrl = "jdbc:mysql://localhost:3306/cocoadiskinfo",
+                    ),
+                ),
             )
         }
     }

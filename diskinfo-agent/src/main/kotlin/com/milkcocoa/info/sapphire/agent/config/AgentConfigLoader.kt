@@ -30,7 +30,10 @@ object AgentConfigLoader {
                 intervalSeconds = entries.long("runtime", "intervalSeconds"),
             ),
             storage = AgentConfig.StorageConfig(
+                type = entries.string("storage", "type"),
                 jdbcUrl = entries.string("storage", "jdbcUrl"),
+                username = entries.string("storage", "username"),
+                password = entries.string("storage", "password"),
             ),
             http = AgentConfig.HttpConfig(
                 host = entries.string("http", "host"),
@@ -46,7 +49,7 @@ private object MinimalTomlParser {
         "deviceIdentity" to setOf("namespaceSalt"),
         "output" to setOf("mode"),
         "runtime" to setOf("persist", "intervalSeconds"),
-        "storage" to setOf("jdbcUrl"),
+        "storage" to setOf("type", "jdbcUrl", "username", "password"),
         "http" to setOf("host", "port"),
     )
 

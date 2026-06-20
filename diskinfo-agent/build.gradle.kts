@@ -35,6 +35,10 @@ dependencies {
     implementation("org.jetbrains.exposed:exposed-migration-jdbc:1.2.0")
     implementation("org.xerial:sqlite-jdbc:3.45.3.0")
 
+    // Source: https://mvnrepository.com/artifact/com.zaxxer/HikariCP
+    implementation("com.zaxxer:HikariCP:7.1.0")
+    runtimeOnly("org.slf4j:slf4j-nop:2.0.18")
+
     testImplementation(kotlin("test"))
     testImplementation("io.ktor:ktor-server-test-host:3.5.0")
 }

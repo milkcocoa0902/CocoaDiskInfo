@@ -2,6 +2,8 @@ package com.milkcocoa.info.sapphire.agent.config
 
 import com.milkcocoa.info.sapphire.agent.OutputMode
 import com.milkcocoa.info.sapphire.agent.TargetDevice
+import com.milkcocoa.info.sapphire.agent.datastore.StorageBackend
+import com.milkcocoa.info.sapphire.agent.datastore.StorageSettings
 import java.nio.file.Paths
 
 class AgentConfigValidationException(message: String) : IllegalArgumentException(message)
@@ -13,6 +15,9 @@ data class AgentConfigOverrides(
     val persist: Boolean? = null,
     val intervalSeconds: Long? = null,
     val jdbcUrl: String? = null,
+    val storageType: String? = null,
+    val storageUsername: String? = null,
+    val storagePassword: String? = null,
     val host: String? = null,
     val port: Int? = null,
 )
@@ -21,23 +26,32 @@ data class EffectiveOneshotConfig(
     val target: TargetDevice,
     val outputMode: OutputMode,
     val persist: Boolean,
-    val jdbcUrl: String,
+    val storage: StorageSettings,
     val deviceIdentityNamespaceSalt: String,
-)
+) {
+    val jdbcUrl: String
+        get() = storage.jdbcUrl
+}
 
 data class EffectiveStandaloneConfig(
     val target: TargetDevice,
     val outputMode: OutputMode,
     val intervalSeconds: Long,
-    val jdbcUrl: String,
+    val storage: StorageSettings,
     val host: String,
     val port: Int,
     val deviceIdentityNamespaceSalt: String,
-)
+) {
+    val jdbcUrl: String
+        get() = storage.jdbcUrl
+}
 
 data class EffectiveDbMigrateConfig(
-    val jdbcUrl: String,
-)
+    val storage: StorageSettings,
+) {
+    val jdbcUrl: String
+        get() = storage.jdbcUrl
+}
 
 object AgentConfigResolver {
     fun resolveOneshot(
@@ -66,14 +80,14 @@ object AgentConfigResolver {
             ?: environment.boolean("COCOADISKINFO_AGENT_RUNTIME_PERSIST")
             ?: config.runtime.persist
             ?: false
-        val jdbcUrl = resolveJdbcUrl(config, environment, cli)
+        val storage = resolveStorageSettings(config, environment, cli)
         val deviceIdentityNamespaceSalt = resolveDeviceIdentityNamespaceSalt(config, environment)
 
         return EffectiveOneshotConfig(
             target = requireTarget(scan == true, device),
             outputMode = outputMode,
             persist = persist,
-            jdbcUrl = jdbcUrl,
+            storage = storage,
             deviceIdentityNamespaceSalt = deviceIdentityNamespaceSalt,
         )
     }
@@ -104,7 +118,7 @@ object AgentConfigResolver {
             ?: environment.long("COCOADISKINFO_AGENT_RUNTIME_INTERVAL_SECONDS")
             ?: config.runtime.intervalSeconds
             ?: AgentConfigDefaults.COLLECTION_INTERVAL_SECONDS
-        val jdbcUrl = resolveJdbcUrl(config, environment, cli)
+        val storage = resolveStorageSettings(config, environment, cli)
         val host = firstString(
             "[http].host",
             cli.host,
@@ -124,7 +138,7 @@ object AgentConfigResolver {
             target = requireTarget(scan == true, device),
             outputMode = outputMode,
             intervalSeconds = intervalSeconds,
-            jdbcUrl = jdbcUrl,
+            storage = storage,
             host = host,
             port = port,
             deviceIdentityNamespaceSalt = deviceIdentityNamespaceSalt,
@@ -137,21 +151,62 @@ object AgentConfigResolver {
         cli: AgentConfigOverrides = AgentConfigOverrides(),
     ): EffectiveDbMigrateConfig {
         return EffectiveDbMigrateConfig(
-            jdbcUrl = resolveJdbcUrl(config, environment, cli),
+            storage = resolveStorageSettings(config, environment, cli),
         )
     }
 
-    private fun resolveJdbcUrl(
+    private fun resolveStorageSettings(
         config: AgentConfig,
         environment: Map<String, String>,
         cli: AgentConfigOverrides,
-    ): String {
-        return firstString(
+    ): StorageSettings {
+        val jdbcUrl = firstString(
             "[storage].jdbcUrl",
             cli.jdbcUrl,
             environment.string("COCOADISKINFO_AGENT_STORAGE_JDBC_URL"),
             config.storage.jdbcUrl,
         ) ?: AgentConfigDefaults.JDBC_URL
+        val inferredBackend = StorageBackend.fromJdbcUrl(jdbcUrl)
+            ?: throw AgentConfigValidationException(
+                "[storage].jdbcUrl must start with one of: ${
+                    StorageBackend.entries.joinToString { it.jdbcPrefix }
+                }.",
+            )
+        val explicitBackend = firstString(
+            "[storage].type",
+            cli.storageType,
+            environment.string("COCOADISKINFO_AGENT_STORAGE_TYPE"),
+            config.storage.type,
+        )?.let { type ->
+            StorageBackend.fromConfigValue(type)
+                ?: throw AgentConfigValidationException(
+                    "[storage].type must be one of: ${
+                        StorageBackend.entries.joinToString { it.configValue }
+                    }.",
+                )
+        }
+        if (explicitBackend != null && explicitBackend != inferredBackend) {
+            throw AgentConfigValidationException(
+                "[storage].type ${explicitBackend.configValue} does not match [storage].jdbcUrl backend ${inferredBackend.configValue}.",
+            )
+        }
+
+        return StorageSettings(
+            backend = explicitBackend ?: inferredBackend,
+            jdbcUrl = jdbcUrl,
+            username = firstString(
+                "[storage].username",
+                cli.storageUsername,
+                environment.string("COCOADISKINFO_AGENT_STORAGE_USERNAME"),
+                config.storage.username,
+            ),
+            password = firstString(
+                "[storage].password",
+                cli.storagePassword,
+                environment.string("COCOADISKINFO_AGENT_STORAGE_PASSWORD"),
+                config.storage.password,
+            ),
+        )
     }
 
     private fun resolveDeviceIdentityNamespaceSalt(

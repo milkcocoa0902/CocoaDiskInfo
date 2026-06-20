@@ -4,6 +4,8 @@ import com.milkcocoa.info.colotok.core.logger.Colotok
 import com.milkcocoa.info.colotok.core.logger.ColotokLoggerContext
 import com.milkcocoa.info.sapphire.agent.collector.SmartctlCollector
 import com.milkcocoa.info.sapphire.agent.datastore.DiskSnapshotRepository
+import com.milkcocoa.info.sapphire.agent.datastore.StorageConnectionFactory
+import com.milkcocoa.info.sapphire.agent.datastore.StorageSettings
 import com.milkcocoa.info.sapphire.agent.exec.SapphireExecutor
 import com.milkcocoa.info.sapphire.agent.identity.UuidV5DeviceKeyDeriver
 import com.milkcocoa.info.sapphire.agent.server.SapphireAgentServer
@@ -12,7 +14,6 @@ import com.milkcocoa.info.sapphire.agent.sink.CompositeSnapshotSink
 import com.milkcocoa.info.sapphire.agent.sink.RepositorySnapshotSink
 import com.milkcocoa.info.sapphire.agent.sink.SnapshotSink
 import kotlinx.coroutines.runBlocking
-import org.jetbrains.exposed.v1.jdbc.Database
 import kotlin.time.Duration.Companion.seconds
 
 internal sealed interface SapphireCommandRequest {
@@ -20,9 +21,26 @@ internal sealed interface SapphireCommandRequest {
         val target: TargetDevice,
         val outputMode: OutputMode,
         val persist: Boolean,
-        val dbUrl: String,
+        val storage: StorageSettings,
         val deviceIdentityNamespaceSalt: String,
-    ) : SapphireCommandRequest
+    ) : SapphireCommandRequest {
+        constructor(
+            target: TargetDevice,
+            outputMode: OutputMode,
+            persist: Boolean,
+            dbUrl: String,
+            deviceIdentityNamespaceSalt: String,
+        ) : this(
+            target = target,
+            outputMode = outputMode,
+            persist = persist,
+            storage = StorageSettings.fromJdbcUrl(dbUrl),
+            deviceIdentityNamespaceSalt = deviceIdentityNamespaceSalt,
+        )
+
+        val dbUrl: String
+            get() = storage.jdbcUrl
+    }
 
     data class Standalone(
         val target: TargetDevice,
@@ -30,13 +48,39 @@ internal sealed interface SapphireCommandRequest {
         val intervalSeconds: Long,
         val host: String,
         val port: Int,
-        val dbUrl: String,
+        val storage: StorageSettings,
         val deviceIdentityNamespaceSalt: String,
-    ) : SapphireCommandRequest
+    ) : SapphireCommandRequest {
+        constructor(
+            target: TargetDevice,
+            outputMode: OutputMode,
+            intervalSeconds: Long,
+            host: String,
+            port: Int,
+            dbUrl: String,
+            deviceIdentityNamespaceSalt: String,
+        ) : this(
+            target = target,
+            outputMode = outputMode,
+            intervalSeconds = intervalSeconds,
+            host = host,
+            port = port,
+            storage = StorageSettings.fromJdbcUrl(dbUrl),
+            deviceIdentityNamespaceSalt = deviceIdentityNamespaceSalt,
+        )
+
+        val dbUrl: String
+            get() = storage.jdbcUrl
+    }
 
     data class DbMigrate(
-        val dbUrl: String,
-    ) : SapphireCommandRequest
+        val storage: StorageSettings,
+    ) : SapphireCommandRequest {
+        constructor(dbUrl: String) : this(storage = StorageSettings.fromJdbcUrl(dbUrl))
+
+        val dbUrl: String
+            get() = storage.jdbcUrl
+    }
 }
 
 internal interface SapphireCommandRuntime {
@@ -49,7 +93,7 @@ internal object ProductionSapphireCommandRuntime : SapphireCommandRuntime {
             is SapphireCommandRequest.Oneshot -> runOneshot(request)
             is SapphireCommandRequest.Standalone -> runStandalone(request)
             is SapphireCommandRequest.DbMigrate -> runExecutor(
-                SapphireExecutor.Migrate(jdbcUrl = request.dbUrl),
+                SapphireExecutor.Migrate(storage = request.storage),
             )
         }
     }
@@ -57,40 +101,46 @@ internal object ProductionSapphireCommandRuntime : SapphireCommandRuntime {
     private fun runOneshot(request: SapphireCommandRequest.Oneshot) {
         setupConsoleOutput(request.outputMode)
 
-        val repository = if (request.persist) {
-            connectDatabase(request.dbUrl)
-            DiskSnapshotRepository()
+        if (request.persist) {
+            StorageConnectionFactory.connect(request.storage).use {
+                runExecutor(
+                    SapphireExecutor.Oneshot(
+                        device = request.target,
+                        collector = createCollector(request.deviceIdentityNamespaceSalt),
+                        sink = createSnapshotSink(DiskSnapshotRepository()),
+                    ),
+                )
+            }
         } else {
-            null
+            runExecutor(
+                SapphireExecutor.Oneshot(
+                    device = request.target,
+                    collector = createCollector(request.deviceIdentityNamespaceSalt),
+                    sink = createSnapshotSink(repository = null),
+                ),
+            )
         }
-
-        runExecutor(
-            SapphireExecutor.Oneshot(
-                device = request.target,
-                collector = createCollector(request.deviceIdentityNamespaceSalt),
-                sink = createSnapshotSink(repository),
-            ),
-        )
     }
 
     private fun runStandalone(request: SapphireCommandRequest.Standalone) {
         setupConsoleOutput(request.outputMode)
-        connectDatabase(request.dbUrl)
-        val repository = DiskSnapshotRepository()
+        StorageConnectionFactory.connect(request.storage).use {
+            val repository = DiskSnapshotRepository()
 
-        runExecutor(
-            SapphireExecutor.Standalone(
-                device = request.target,
-                collectionInterval = request.intervalSeconds.seconds,
-                collector = createCollector(request.deviceIdentityNamespaceSalt),
-                sink = createSnapshotSink(repository),
-                server = SapphireAgentServer(
-                    repository = repository,
-                    host = request.host,
-                    port = request.port,
+            runExecutor(
+                SapphireExecutor.Standalone(
+                    device = request.target,
+                    collectionInterval = request.intervalSeconds.seconds,
+                    collector = createCollector(request.deviceIdentityNamespaceSalt),
+                    sink = createSnapshotSink(repository),
+                    server = SapphireAgentServer(
+                        repository = repository,
+                        host = request.host,
+                        port = request.port,
+                    ),
                 ),
-            ),
-        )
+            )
+        }
     }
 
     private fun runExecutor(executor: SapphireExecutor) {
@@ -107,10 +157,6 @@ internal object ProductionSapphireCommandRuntime : SapphireCommandRuntime {
         ColotokProviderFactory
             .create(outputMode = outputMode)
             .also { ColotokLoggerContext.setDefault(it) }
-    }
-
-    private fun connectDatabase(jdbcUrl: String) {
-        Database.connect(jdbcUrl, "org.sqlite.JDBC")
     }
 
     private fun createCollector(namespaceSalt: String): SmartctlCollector {

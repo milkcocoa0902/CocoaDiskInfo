@@ -14,7 +14,10 @@ intervalSeconds = 60
 persist = false
 
 [storage]
+type = "sqlite"
 jdbcUrl = "jdbc:sqlite:./sapphire.db"
+# username = "cocoadiskinfo"
+# password = "change-me"
 
 [http]
 host = "127.0.0.1"

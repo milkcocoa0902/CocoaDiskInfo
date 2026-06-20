@@ -4,13 +4,14 @@ import com.milkcocoa.info.sapphire.agent.TargetDevice
 import com.milkcocoa.info.sapphire.agent.collector.DiskSnapshotCollector
 import com.milkcocoa.info.sapphire.agent.collector.SmartctlCollector
 import com.milkcocoa.info.sapphire.agent.datastore.DiskSnapshotTable
+import com.milkcocoa.info.sapphire.agent.datastore.StorageConnectionFactory
+import com.milkcocoa.info.sapphire.agent.datastore.StorageSettings
 import com.milkcocoa.info.sapphire.agent.server.SapphireAgentServer
 import com.milkcocoa.info.sapphire.agent.sink.ColotokSnapshotSink
 import com.milkcocoa.info.sapphire.agent.sink.SnapshotSink
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.migration.jdbc.MigrationUtils
 import kotlin.time.Duration
@@ -58,15 +59,18 @@ sealed interface SapphireExecutor {
     }
 
     class Migrate(
-        private val jdbcUrl: String = "jdbc:sqlite:./sapphire.db",
+        private val storage: StorageSettings,
     ) : SapphireExecutor {
+        constructor(jdbcUrl: String = "jdbc:sqlite:./sapphire.db") : this(StorageSettings.fromJdbcUrl(jdbcUrl))
+
         override suspend fun execute() {
-            Database.connect(jdbcUrl, "org.sqlite.JDBC")
-            transaction {
-                exec("DROP TABLE IF EXISTS disk_snapshot")
-                MigrationUtils
-                    .statementsRequiredForDatabaseMigration(DiskSnapshotTable, withLogs = true)
-                    .forEach { exec(it) }
+            StorageConnectionFactory.connect(storage).use {
+                transaction {
+                    exec("DROP TABLE IF EXISTS disk_snapshot")
+                    MigrationUtils
+                        .statementsRequiredForDatabaseMigration(DiskSnapshotTable, withLogs = true)
+                        .forEach { exec(it) }
+                }
             }
             println("Migration completed.")
         }
