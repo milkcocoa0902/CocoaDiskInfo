@@ -11,6 +11,10 @@ Client should expose history because disk health is trend-oriented. The default 
 - Add a tab switch inside the right detail pane:
     - `Current`: existing focus tiles and information table.
     - `History`: selected device trend and snapshot timeline.
+- Initial node selection is implicit in the left pane:
+    - The Client renders a node grouped device list from `LatestSnapshotsPayload.nodes`.
+    - Selecting a device also selects its `nodeId`.
+    - The History tab calls the history API with the selected `(nodeId, deviceKey)` pair.
 - Do not show full history by default in the main list. It makes current health harder to scan.
 - In the first History view, prefer data clarity over chart complexity:
     - Summary tiles:
@@ -32,6 +36,7 @@ Client should expose history because disk health is trend-oriented. The default 
     - Returns `LatestSnapshotsPayload(nodes=[...devices...])`.
 - Add a device history endpoint:
     - `GET /api/v1/nodes/{nodeId}/devices/{deviceKey}/snapshots`
+    - `nodeId` is part of the URI because device keys such as `/dev/sda` or `nvme0n1` can collide across Node Agents after Hub aggregation.
     - Query:
         - `limit`: default `100`, max `1000`
         - `from`: optional ISO-8601 timestamp
@@ -59,15 +64,17 @@ Client should expose history because disk health is trend-oriented. The default 
 - Existing index `(node_id, device_key, collect_time)` is appropriate for this endpoint.
 
 ### Client Implementation Plan
-1. Add `AgentApiClient.fetchDeviceHistory(nodeId, deviceKey, limit)` using the selected agent URL.
-2. Add detail tabs:
+1. Keep the existing node grouped device list as the initial selection mechanism.
+2. Treat a device click as selecting `(nodeId, deviceKey)`.
+3. Add `AgentApiClient.fetchDeviceHistory(nodeId, deviceKey, limit)` using the selected agent URL.
+4. Add detail tabs:
     - `Current`
     - `History`
-3. Load history only when:
+5. Load history only when:
     - the History tab is selected, or
     - the selected device changes while already on History.
-4. Show loading/error/empty states inside the History tab only.
-5. Start with a timeline list and summary tiles. Add charts later.
+6. Show loading/error/empty states inside the History tab only.
+7. Start with a timeline list and summary tiles. Add charts later.
 
 ### History View Fields
 - Summary tiles:

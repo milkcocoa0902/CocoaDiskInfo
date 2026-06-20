@@ -36,6 +36,7 @@ dependencies {
     implementation("org.xerial:sqlite-jdbc:3.45.3.0")
 
     testImplementation(kotlin("test"))
+    testImplementation("io.ktor:ktor-server-test-host:3.5.0")
 }
 
 tasks.test {

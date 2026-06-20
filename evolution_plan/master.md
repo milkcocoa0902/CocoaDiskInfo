@@ -122,6 +122,7 @@ DBごとに次の差分があるため、storage層に閉じ込める。
     - low latency、bounded response、history/cache-first
 - device history:
     - `GET /api/v1/nodes/{nodeId}/devices/{deviceKey}/snapshots`
+    - `nodeId` と `deviceKey` の組で履歴対象を一意にする。Hub構成では複数Node Agentに `/dev/sda` や `nvme0n1` 相当のdevice keyが存在し得るため、device key単体で履歴を指定しない。
     - `limit`, `from`, `to`, `order` を持つ
     - unbounded responseは禁止
 - ingest:
@@ -146,6 +147,7 @@ APIレスポンスには、将来のHub集約に備えて freshness metadata を
 Clientは、まず現在状態を読みやすく保つ。
 
 - 一覧は現在状態を中心にする。
+- Nodeは独立した初期選択画面にせず、node grouped device listからdeviceを選ぶことで `nodeId` と `deviceKey` を同時に確定する。
 - 履歴は選択デバイスの詳細内に `Current | History` のような切替で置く。
 - 初期のHistoryは、複雑なグラフよりも、summary tiles と timeline を優先する。
 - グラフはAPI shapeが安定してから追加する。

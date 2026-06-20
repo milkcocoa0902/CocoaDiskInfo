@@ -39,6 +39,8 @@ GET /api/v1/devices/{deviceKey}/snapshots/latest
 GET /api/v1/nodes/{nodeId}/devices/{deviceKey}/snapshots
 ```
 
+履歴APIは `nodeId` と `deviceKey` の組で対象を指定する。Standaloneではnodeが実質1つなので冗長に見えるが、Hub構成では複数Node Agentに同じdevice keyが存在し得るため、device key単体では履歴対象を一意にできない。
+
 将来の明示live取得候補:
 
 ```text

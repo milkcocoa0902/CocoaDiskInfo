@@ -1,0 +1,261 @@
+openapi: "3.1.0"
+info:
+  title: "CocoaDiskInfo API"
+  description: "CocoaDiskInfo API"
+  version: "1.0.0"
+servers:
+  - url: "https://CocoaDiskInfo"
+paths:
+  /api/v1/nodes/{nodeId}/devices/{deviceKey}/snapshots:
+    get:
+      description: "Returns bounded snapshot history for one node/device pair."
+      parameters:
+        - name: "nodeId"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+        - name: "deviceKey"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+        - name: "limit"
+          in: "query"
+          required: false
+          schema:
+            type: "integer"
+            format: "int32"
+            default: 100
+            minimum: 1
+            maximum: 1000
+        - name: "from"
+          in: "query"
+          required: false
+          schema:
+            type: "string"
+            format: "date-time"
+        - name: "to"
+          in: "query"
+          required: false
+          schema:
+            type: "string"
+            format: "date-time"
+        - name: "order"
+          in: "query"
+          required: false
+          schema:
+            type: "string"
+            default: "desc"
+            enum:
+              - "asc"
+              - "desc"
+      responses:
+        "400":
+          description: "Bad Request"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Failure"
+              examples:
+                invalidLimit:
+                  description: "Invalid limit"
+                  value:
+                    error:
+                      code: "history_limit_invalid"
+                      message: "History limit must be between 1 and 1000."
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Success_NodeDeviceHistoryPayload"
+  /api/v1/devices/{deviceKey}/snapshots/latest:
+    get:
+      description: ""
+      parameters:
+        - name: "deviceKey"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      responses:
+        "400":
+          description: "Bad Request"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Failure"
+              examples:
+                Example#1:
+                  description: ""
+                  value:
+                    error:
+                      code: "device_key_required"
+                      message: "Device key is required."
+        "404":
+          description: "Not Found"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Failure"
+              examples:
+                Example#1:
+                  description: ""
+                  value:
+                    error:
+                      code: "snapshot_not_found"
+                      message: "null"
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Success_DiskSnapshot"
+  /api/v1/snapshots/latest:
+    get:
+      description: ""
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Success_LatestSnapshotsPayload"
+components:
+  schemas:
+    ApiError:
+      type: "object"
+      properties:
+        code:
+          type: "string"
+        message:
+          type: "string"
+      required:
+        - "code"
+        - "message"
+    Failure:
+      type: "object"
+      properties:
+        error:
+          $ref: "#/components/schemas/ApiError"
+      required:
+        - "error"
+    Instant:
+      type: "object"
+      properties:
+        epochSeconds:
+          type: "integer"
+          format: "int64"
+        nanosecondsOfSecond:
+          type: "integer"
+          format: "int32"
+      required:
+        - "epochSeconds"
+        - "nanosecondsOfSecond"
+    MetricsSnapshot:
+      type: "object"
+      properties: { }
+    DiskSnapshot:
+      type: "object"
+      properties:
+        timestamp:
+          $ref: "#/components/schemas/Instant"
+        deviceKey:
+          type: "string"
+        path:
+          type: "string"
+        model:
+          type: "string"
+          nullable: true
+        serial:
+          type: "string"
+          nullable: true
+        capacityBytes:
+          type: "integer"
+          format: "int64"
+        temperatureCelsius:
+          type: "integer"
+          format: "int32"
+          nullable: true
+        powerOnHours:
+          type: "integer"
+          format: "int64"
+          nullable: true
+        health:
+          type: "string"
+          enum:
+            - "GOOD"
+            - "CAUTION"
+            - "BAD"
+            - "UNKNOWN"
+        metricsSnapshot:
+          $ref: "#/components/schemas/MetricsSnapshot"
+      required:
+        - "timestamp"
+        - "deviceKey"
+        - "path"
+        - "capacityBytes"
+        - "health"
+        - "metricsSnapshot"
+    Success:
+      type: "object"
+      properties: { }
+    Success_DiskSnapshot:
+      type: "object"
+      properties:
+        payload:
+          $ref: "#/components/schemas/DiskSnapshot"
+    LatestSnapshotsPayload:
+      type: "object"
+      properties:
+        nodes:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/NodeSnapshot"
+      required:
+        - "nodes"
+    NodeSnapshot:
+      type: "object"
+      properties:
+        nodeId:
+          type: "string"
+        nodeName:
+          type: "string"
+        devices:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/DiskSnapshot"
+      required:
+        - "nodeId"
+        - "nodeName"
+        - "devices"
+    NodeDeviceHistoryPayload:
+      type: "object"
+      properties:
+        nodeId:
+          type: "string"
+        nodeName:
+          type: "string"
+        deviceKey:
+          type: "string"
+        snapshots:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/DiskSnapshot"
+      required:
+        - "nodeId"
+        - "nodeName"
+        - "deviceKey"
+        - "snapshots"
+    Success_LatestSnapshotsPayload:
+      type: "object"
+      properties:
+        payload:
+          $ref: "#/components/schemas/LatestSnapshotsPayload"
+    Success_NodeDeviceHistoryPayload:
+      type: "object"
+      properties:
+        payload:
+          $ref: "#/components/schemas/NodeDeviceHistoryPayload"

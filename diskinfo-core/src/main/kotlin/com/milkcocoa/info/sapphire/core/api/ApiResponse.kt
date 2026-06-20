@@ -35,3 +35,11 @@ data class NodeSnapshot(
     val nodeName: String,
     val devices: List<DiskSnapshot>,
 )
+
+@Serializable
+data class NodeDeviceHistoryPayload(
+    val nodeId: String,
+    val nodeName: String,
+    val deviceKey: String,
+    val snapshots: List<DiskSnapshot>,
+) : ResponsePayload
