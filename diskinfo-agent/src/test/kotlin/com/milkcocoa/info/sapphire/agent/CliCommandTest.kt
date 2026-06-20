@@ -72,6 +72,7 @@ class CliCommandTest {
                 outputMode = OutputMode.DEFAULT,
                 persist = false,
                 dbUrl = AgentConfigDefaults.JDBC_URL,
+                deviceIdentityNamespaceSalt = AgentConfigDefaults.DEVICE_IDENTITY_NAMESPACE_SALT,
             ),
             runtime.singleRequest(),
         )
@@ -101,6 +102,7 @@ class CliCommandTest {
                 outputMode = OutputMode.JSON,
                 persist = true,
                 dbUrl = dbUrl,
+                deviceIdentityNamespaceSalt = AgentConfigDefaults.DEVICE_IDENTITY_NAMESPACE_SALT,
             ),
             runtime.singleRequest(),
         )
@@ -136,6 +138,7 @@ class CliCommandTest {
                 host = AgentConfigDefaults.HTTP_HOST,
                 port = AgentConfigDefaults.HTTP_PORT,
                 dbUrl = AgentConfigDefaults.JDBC_URL,
+                deviceIdentityNamespaceSalt = AgentConfigDefaults.DEVICE_IDENTITY_NAMESPACE_SALT,
             ),
             runtime.singleRequest(),
         )
@@ -172,6 +175,7 @@ class CliCommandTest {
                 host = "0.0.0.0",
                 port = 15432,
                 dbUrl = dbUrl,
+                deviceIdentityNamespaceSalt = AgentConfigDefaults.DEVICE_IDENTITY_NAMESPACE_SALT,
             ),
             runtime.singleRequest(),
         )
@@ -239,6 +243,9 @@ class CliCommandTest {
 
                 [output]
                 mode = "json"
+
+                [deviceIdentity]
+                namespaceSalt = "config-salt"
                 """.trimIndent(),
             )
         }
@@ -253,6 +260,7 @@ class CliCommandTest {
                 outputMode = OutputMode.JSON,
                 persist = false,
                 dbUrl = AgentConfigDefaults.JDBC_URL,
+                deviceIdentityNamespaceSalt = "config-salt",
             ),
             runtime.singleRequest(),
         )
@@ -285,6 +293,7 @@ class CliCommandTest {
                 outputMode = OutputMode.TEXT,
                 persist = true,
                 dbUrl = AgentConfigDefaults.JDBC_URL,
+                deviceIdentityNamespaceSalt = AgentConfigDefaults.DEVICE_IDENTITY_NAMESPACE_SALT,
             ),
             runtime.singleRequest(),
         )
@@ -319,6 +328,7 @@ class CliCommandTest {
                 outputMode = OutputMode.DEFAULT,
                 persist = false,
                 dbUrl = AgentConfigDefaults.JDBC_URL,
+                deviceIdentityNamespaceSalt = AgentConfigDefaults.DEVICE_IDENTITY_NAMESPACE_SALT,
             ),
             runtime.singleRequest(),
         )
@@ -338,6 +348,9 @@ class CliCommandTest {
                 [runtime]
                 intervalSeconds = 60
 
+                [deviceIdentity]
+                namespaceSalt = "config-salt"
+
                 [storage]
                 jdbcUrl = "jdbc:sqlite:/tmp/config.db"
 
@@ -354,6 +367,7 @@ class CliCommandTest {
             "COCOADISKINFO_AGENT_STORAGE_JDBC_URL" to "jdbc:sqlite:/tmp/env.db",
             "COCOADISKINFO_AGENT_HTTP_HOST" to "192.0.2.10",
             "COCOADISKINFO_AGENT_HTTP_PORT" to "15000",
+            "COCOADISKINFO_AGENT_DEVICE_IDENTITY_NAMESPACE_SALT" to "env-salt",
         )
 
         val result = command(runtime, environment = environment).test(
@@ -377,6 +391,7 @@ class CliCommandTest {
                 host = "0.0.0.0",
                 port = 15000,
                 dbUrl = "jdbc:sqlite:/tmp/env.db",
+                deviceIdentityNamespaceSalt = "env-salt",
             ),
             runtime.singleRequest(),
         )
@@ -419,6 +434,9 @@ class CliCommandTest {
                 [runtime]
                 intervalSeconds = 0
 
+                [deviceIdentity]
+                namespaceSalt = ""
+
                 [storage]
                 jdbcUrl = "jdbc:sqlite:/tmp/cocoadiskinfo-config.db"
 
@@ -438,6 +456,7 @@ class CliCommandTest {
                 "COCOADISKINFO_AGENT_OUTPUT_MODE" to "xml",
                 "COCOADISKINFO_AGENT_RUNTIME_INTERVAL_SECONDS" to "slow",
                 "COCOADISKINFO_AGENT_HTTP_PORT" to "invalid",
+                "COCOADISKINFO_AGENT_DEVICE_IDENTITY_NAMESPACE_SALT" to "",
             ),
         ).test(
             "db",
@@ -461,6 +480,7 @@ class CliCommandTest {
             mapOf("COCOADISKINFO_AGENT_RUNTIME_PERSIST" to "yes"),
             mapOf("COCOADISKINFO_AGENT_STORAGE_JDBC_URL" to ""),
             mapOf("COCOADISKINFO_AGENT_OUTPUT_MODE" to "xml"),
+            mapOf("COCOADISKINFO_AGENT_DEVICE_IDENTITY_NAMESPACE_SALT" to ""),
         ).forEach { environment ->
             val runtime = RecordingRuntime()
             val result = command(runtime, environment = environment).test("oneshot", "--scan")
@@ -480,6 +500,7 @@ class CliCommandTest {
                 "COCOADISKINFO_AGENT_OUTPUT_MODE" to "xml",
                 "COCOADISKINFO_AGENT_RUNTIME_INTERVAL_SECONDS" to "fast",
                 "COCOADISKINFO_AGENT_HTTP_PORT" to "70000",
+                "COCOADISKINFO_AGENT_DEVICE_IDENTITY_NAMESPACE_SALT" to "",
             ),
             defaultConfigPath = null,
         ).test(listOf("db", "migrate"))

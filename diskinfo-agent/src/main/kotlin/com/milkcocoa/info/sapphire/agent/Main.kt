@@ -162,6 +162,7 @@ private class OneshotCommand(
                 outputMode = effective.outputMode,
                 persist = effective.persist,
                 dbUrl = effective.jdbcUrl,
+                deviceIdentityNamespaceSalt = effective.deviceIdentityNamespaceSalt,
             ),
         )
     }
@@ -209,6 +210,7 @@ private class StandaloneCommand(
                 host = effective.host,
                 port = effective.port,
                 dbUrl = effective.jdbcUrl,
+                deviceIdentityNamespaceSalt = effective.deviceIdentityNamespaceSalt,
             ),
         )
     }

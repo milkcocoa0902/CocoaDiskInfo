@@ -5,6 +5,10 @@
 scan = true
 # device = "/dev/sda"
 
+[deviceIdentity]
+# Not secret. Changing this changes derived device keys and splits history identity.
+namespaceSalt = "default"
+
 [runtime]
 intervalSeconds = 60
 persist = false

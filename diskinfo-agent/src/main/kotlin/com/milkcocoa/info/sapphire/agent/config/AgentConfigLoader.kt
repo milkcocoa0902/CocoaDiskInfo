@@ -19,6 +19,9 @@ object AgentConfigLoader {
                 scan = entries.boolean("smartctl", "scan"),
                 device = entries.string("smartctl", "device"),
             ),
+            deviceIdentity = AgentConfig.DeviceIdentityConfig(
+                namespaceSalt = entries.string("deviceIdentity", "namespaceSalt"),
+            ),
             output = AgentConfig.OutputConfig(
                 mode = entries.string("output", "mode"),
             ),
@@ -40,6 +43,7 @@ object AgentConfigLoader {
 private object MinimalTomlParser {
     private val allowedKeys = mapOf(
         "smartctl" to setOf("scan", "device"),
+        "deviceIdentity" to setOf("namespaceSalt"),
         "output" to setOf("mode"),
         "runtime" to setOf("persist", "intervalSeconds"),
         "storage" to setOf("jdbcUrl"),

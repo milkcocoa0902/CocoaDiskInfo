@@ -40,4 +40,4 @@
 ## Implementation Status
 - Phase 3A done: bounded history payload、Repository query、Server route/query validation、OpenAPI、Repository/route testsを追加した。
 - Phase 3B done: Client history API method、`Current | History` tab、history loading/error/empty state、summary/timeline UIを追加した。
-- Phase 3C planned: `deviceKey` をserial-based UUIDv5 derived opaque keyとして再定義し、TOMLのnamespace salt設定と将来HMAC派生に備えた導出抽象を追加する。既存開発DBのmigration/backfillは扱わない。
+- Phase 3C implemented: `deviceKey` をserial-based UUIDv5 derived opaque keyへ移行し、TOMLのnamespace salt設定と将来HMAC派生に備えた導出抽象を追加した。既存開発DBのmigration/backfillは扱わない。

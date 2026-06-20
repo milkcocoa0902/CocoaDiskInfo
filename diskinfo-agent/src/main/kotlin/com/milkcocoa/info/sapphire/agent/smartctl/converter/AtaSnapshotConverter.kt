@@ -1,15 +1,16 @@
 package com.milkcocoa.info.sapphire.agent.smartctl.converter
 
+import com.milkcocoa.info.sapphire.agent.identity.DeviceKeyDeriver
+import com.milkcocoa.info.sapphire.agent.smartctl.model.AtaSmartctlSnapshot
 import com.milkcocoa.info.sapphire.core.ata.AtaSmartAttributeId
 import com.milkcocoa.info.sapphire.core.snapshot.AtaAttribute
 import com.milkcocoa.info.sapphire.core.snapshot.DiskHealth
 import com.milkcocoa.info.sapphire.core.snapshot.DiskSnapshot
 import com.milkcocoa.info.sapphire.core.snapshot.MetricsSnapshot
 import com.milkcocoa.info.sapphire.core.snapshot.UniversalMetrics
-import com.milkcocoa.info.sapphire.agent.smartctl.model.AtaSmartctlSnapshot
 import kotlin.time.Instant
 
-fun AtaSmartctlSnapshot.toDiskSnapshot(): DiskSnapshot {
+fun AtaSmartctlSnapshot.toDiskSnapshot(deviceKeyDeriver: DeviceKeyDeriver): DiskSnapshot {
     val percentLifetimeRemaining = this.ataSmartAttributes
         ?.table
         ?.find { it.id == AtaSmartAttributeId.PercentLifetimeRemain }
@@ -28,7 +29,7 @@ fun AtaSmartctlSnapshot.toDiskSnapshot(): DiskSnapshot {
 
     return DiskSnapshot(
         timestamp = Instant.fromEpochSeconds(this.localTime.time),
-        deviceKey = this.serialNumber,
+        deviceKey = deviceKeyDeriver.deriveFromSerial(this.serialNumber),
         path = this.device.name,
         model = this.modelName,
         serial = this.serialNumber,

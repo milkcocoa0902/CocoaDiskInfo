@@ -22,6 +22,7 @@ data class EffectiveOneshotConfig(
     val outputMode: OutputMode,
     val persist: Boolean,
     val jdbcUrl: String,
+    val deviceIdentityNamespaceSalt: String,
 )
 
 data class EffectiveStandaloneConfig(
@@ -31,6 +32,7 @@ data class EffectiveStandaloneConfig(
     val jdbcUrl: String,
     val host: String,
     val port: Int,
+    val deviceIdentityNamespaceSalt: String,
 )
 
 data class EffectiveDbMigrateConfig(
@@ -65,12 +67,14 @@ object AgentConfigResolver {
             ?: config.runtime.persist
             ?: false
         val jdbcUrl = resolveJdbcUrl(config, environment, cli)
+        val deviceIdentityNamespaceSalt = resolveDeviceIdentityNamespaceSalt(config, environment)
 
         return EffectiveOneshotConfig(
             target = requireTarget(scan == true, device),
             outputMode = outputMode,
             persist = persist,
             jdbcUrl = jdbcUrl,
+            deviceIdentityNamespaceSalt = deviceIdentityNamespaceSalt,
         )
     }
 
@@ -111,6 +115,7 @@ object AgentConfigResolver {
             ?: environment.int("COCOADISKINFO_AGENT_HTTP_PORT")
             ?: config.http.port
             ?: AgentConfigDefaults.HTTP_PORT
+        val deviceIdentityNamespaceSalt = resolveDeviceIdentityNamespaceSalt(config, environment)
 
         validateInterval(intervalSeconds)
         validatePort(port)
@@ -122,6 +127,7 @@ object AgentConfigResolver {
             jdbcUrl = jdbcUrl,
             host = host,
             port = port,
+            deviceIdentityNamespaceSalt = deviceIdentityNamespaceSalt,
         )
     }
 
@@ -146,6 +152,17 @@ object AgentConfigResolver {
             environment.string("COCOADISKINFO_AGENT_STORAGE_JDBC_URL"),
             config.storage.jdbcUrl,
         ) ?: AgentConfigDefaults.JDBC_URL
+    }
+
+    private fun resolveDeviceIdentityNamespaceSalt(
+        config: AgentConfig,
+        environment: Map<String, String>,
+    ): String {
+        return firstString(
+            "[deviceIdentity].namespaceSalt",
+            environment.string("COCOADISKINFO_AGENT_DEVICE_IDENTITY_NAMESPACE_SALT"),
+            config.deviceIdentity.namespaceSalt,
+        ) ?: AgentConfigDefaults.DEVICE_IDENTITY_NAMESPACE_SALT
     }
 
     private fun requireTarget(scan: Boolean, device: String?): TargetDevice {

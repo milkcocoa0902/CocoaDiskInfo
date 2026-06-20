@@ -15,6 +15,7 @@ class AgentConfigLoaderTest {
 
         assertNull(config.smartctl.scan)
         assertNull(config.smartctl.device)
+        assertNull(config.deviceIdentity.namespaceSalt)
         assertNull(config.output.mode)
         assertNull(config.runtime.persist)
         assertNull(config.runtime.intervalSeconds)
@@ -48,6 +49,9 @@ class AgentConfigLoaderTest {
                 scan = true
                 device = "/dev/sda"
 
+                [deviceIdentity]
+                namespaceSalt = "lab"
+
                 [output]
                 mode = "json"
 
@@ -69,6 +73,7 @@ class AgentConfigLoaderTest {
 
         assertEquals(true, config.smartctl.scan)
         assertEquals("/dev/sda", config.smartctl.device)
+        assertEquals("lab", config.deviceIdentity.namespaceSalt)
         assertEquals("json", config.output.mode)
         assertEquals(false, config.runtime.persist)
         assertEquals(30, config.runtime.intervalSeconds)

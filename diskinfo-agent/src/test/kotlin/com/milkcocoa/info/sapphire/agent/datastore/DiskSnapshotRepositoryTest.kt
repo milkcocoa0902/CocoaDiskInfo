@@ -12,16 +12,19 @@ import kotlin.uuid.ExperimentalUuidApi
 
 @OptIn(ExperimentalUuidApi::class)
 class DiskSnapshotRepositoryTest {
+    private val deviceKeyA = "b25b5b07-5629-5c33-89ba-1ef17c03cc0c"
+    private val deviceKeyB = "36a2c1b1-8b7e-5f99-8ad9-bc6ecd2662f2"
+
     @Test
     fun `findHistory returns bounded snapshots for selected node and device in descending order`() {
         connectDiskSnapshotTestDatabase()
         val selectedNodeId = testNodeId(1)
         val otherNodeId = testNodeId(2)
-        val deviceKey = "serial-a"
+        val deviceKey = deviceKeyA
 
         insertDiskSnapshot(selectedNodeId, "node-a", testDiskSnapshot(deviceKey, timestampMillis = 1_000))
         insertDiskSnapshot(selectedNodeId, "node-a", testDiskSnapshot(deviceKey, timestampMillis = 2_000))
-        insertDiskSnapshot(selectedNodeId, "node-a", testDiskSnapshot("serial-b", timestampMillis = 3_000))
+        insertDiskSnapshot(selectedNodeId, "node-a", testDiskSnapshot(deviceKeyB, timestampMillis = 3_000))
         insertDiskSnapshot(otherNodeId, "node-b", testDiskSnapshot(deviceKey, timestampMillis = 4_000))
 
         val payload = DiskSnapshotRepository().findHistory(
@@ -40,7 +43,7 @@ class DiskSnapshotRepositoryTest {
     fun `findHistory applies asc order limit and inclusive time range`() {
         connectDiskSnapshotTestDatabase()
         val nodeId = testNodeId(1)
-        val deviceKey = "serial-a"
+        val deviceKey = deviceKeyA
 
         insertDiskSnapshot(nodeId, "node-a", testDiskSnapshot(deviceKey, timestampMillis = 1_000))
         insertDiskSnapshot(nodeId, "node-a", testDiskSnapshot(deviceKey, timestampMillis = 2_000))

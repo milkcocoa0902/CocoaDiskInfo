@@ -231,3 +231,14 @@ CLI flagは増やさない。
 4. converter/collector/runtimeへ導出器を通す。
 5. OpenAPI/testsをopaque key前提へ更新する。
 6. compile/test/runtime checkを実行する。
+
+## Implementation Status
+- Implemented: serial-based UUIDv5 `deviceKey` derivation with `DeviceKeyDeriver` abstraction.
+- Implemented: `[deviceIdentity].namespaceSalt` TOML/environment setting with default `"default"`.
+- Implemented: smartctl converter/collector/runtime integration so persisted/API `deviceKey` is derived and raw serial remains in `serial`.
+- Implemented: OpenAPI/example config/tests updated for opaque `deviceKey`.
+- Verified:
+    - `./gradlew :diskinfo-agent:compileKotlin`
+    - `./gradlew :diskinfo-agent:test`
+    - `./gradlew :diskinfo-core:compileKotlin`
+    - `./gradlew :diskinfo-agent:run --args='db migrate --db-url jdbc:sqlite:/tmp/cocoadiskinfo-phase3c-migrate.db'`

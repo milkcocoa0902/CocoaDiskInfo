@@ -12,6 +12,7 @@ class AgentConfigResolverTest {
         val resolved = AgentConfigResolver.resolveOneshot(
             config = AgentConfig(
                 smartctl = AgentConfig.SmartctlConfig(scan = true),
+                deviceIdentity = AgentConfig.DeviceIdentityConfig(namespaceSalt = "config-salt"),
                 output = AgentConfig.OutputConfig(mode = "text"),
                 runtime = AgentConfig.RuntimeConfig(persist = false),
                 storage = AgentConfig.StorageConfig(jdbcUrl = "jdbc:sqlite:/tmp/config.db"),
@@ -20,6 +21,7 @@ class AgentConfigResolverTest {
                 "COCOADISKINFO_AGENT_OUTPUT_MODE" to "json",
                 "COCOADISKINFO_AGENT_RUNTIME_PERSIST" to "true",
                 "COCOADISKINFO_AGENT_STORAGE_JDBC_URL" to "jdbc:sqlite:/tmp/env.db",
+                "COCOADISKINFO_AGENT_DEVICE_IDENTITY_NAMESPACE_SALT" to "env-salt",
             ),
             cli = AgentConfigOverrides(
                 outputMode = OutputMode.CBOR,
@@ -30,6 +32,7 @@ class AgentConfigResolverTest {
         assertEquals(OutputMode.CBOR, resolved.outputMode)
         assertEquals(true, resolved.persist)
         assertEquals("jdbc:sqlite:/tmp/env.db", resolved.jdbcUrl)
+        assertEquals("env-salt", resolved.deviceIdentityNamespaceSalt)
     }
 
     @Test
@@ -37,6 +40,7 @@ class AgentConfigResolverTest {
         val resolved = AgentConfigResolver.resolveStandalone(
             config = AgentConfig(
                 smartctl = AgentConfig.SmartctlConfig(scan = true),
+                deviceIdentity = AgentConfig.DeviceIdentityConfig(namespaceSalt = "config-salt"),
                 output = AgentConfig.OutputConfig(mode = "text"),
                 runtime = AgentConfig.RuntimeConfig(intervalSeconds = 60),
                 storage = AgentConfig.StorageConfig(jdbcUrl = "jdbc:sqlite:/tmp/config.db"),
@@ -48,6 +52,7 @@ class AgentConfigResolverTest {
                 "COCOADISKINFO_AGENT_STORAGE_JDBC_URL" to "jdbc:sqlite:/tmp/env.db",
                 "COCOADISKINFO_AGENT_HTTP_HOST" to "192.0.2.10",
                 "COCOADISKINFO_AGENT_HTTP_PORT" to "15000",
+                "COCOADISKINFO_AGENT_DEVICE_IDENTITY_NAMESPACE_SALT" to "env-salt",
             ),
             cli = AgentConfigOverrides(
                 outputMode = OutputMode.CBOR,
@@ -62,6 +67,7 @@ class AgentConfigResolverTest {
         assertEquals("jdbc:sqlite:/tmp/env.db", resolved.jdbcUrl)
         assertEquals("0.0.0.0", resolved.host)
         assertEquals(15000, resolved.port)
+        assertEquals("env-salt", resolved.deviceIdentityNamespaceSalt)
     }
 
     @Test
@@ -69,6 +75,7 @@ class AgentConfigResolverTest {
         val resolved = AgentConfigResolver.resolveDbMigrate(
             config = AgentConfig(
                 smartctl = AgentConfig.SmartctlConfig(scan = true, device = "/dev/sda"),
+                deviceIdentity = AgentConfig.DeviceIdentityConfig(namespaceSalt = ""),
                 output = AgentConfig.OutputConfig(mode = "xml"),
                 runtime = AgentConfig.RuntimeConfig(persist = false, intervalSeconds = 0),
                 storage = AgentConfig.StorageConfig(jdbcUrl = "jdbc:sqlite:/tmp/config.db"),
@@ -79,6 +86,7 @@ class AgentConfigResolverTest {
                 "COCOADISKINFO_AGENT_OUTPUT_MODE" to "xml",
                 "COCOADISKINFO_AGENT_RUNTIME_INTERVAL_SECONDS" to "slow",
                 "COCOADISKINFO_AGENT_HTTP_PORT" to "invalid",
+                "COCOADISKINFO_AGENT_DEVICE_IDENTITY_NAMESPACE_SALT" to "",
             ),
         )
 
@@ -93,6 +101,9 @@ class AgentConfigResolverTest {
             AgentConfig(smartctl = AgentConfig.SmartctlConfig(scan = true)) to
                 mapOf("COCOADISKINFO_AGENT_RUNTIME_PERSIST" to "yes"),
             AgentConfig(smartctl = AgentConfig.SmartctlConfig(scan = true), storage = AgentConfig.StorageConfig(jdbcUrl = "")) to emptyMap<String, String>(),
+            AgentConfig(smartctl = AgentConfig.SmartctlConfig(scan = true), deviceIdentity = AgentConfig.DeviceIdentityConfig(namespaceSalt = "")) to emptyMap<String, String>(),
+            AgentConfig(smartctl = AgentConfig.SmartctlConfig(scan = true)) to
+                mapOf("COCOADISKINFO_AGENT_DEVICE_IDENTITY_NAMESPACE_SALT" to ""),
         ).forEach { (config, environment) ->
             assertFailsWith<AgentConfigValidationException> {
                 AgentConfigResolver.resolveOneshot(config = config, environment = environment)
@@ -109,6 +120,9 @@ class AgentConfigResolverTest {
             AgentConfig(smartctl = AgentConfig.SmartctlConfig(scan = true), http = AgentConfig.HttpConfig(port = 70000)) to emptyMap<String, String>(),
             AgentConfig(smartctl = AgentConfig.SmartctlConfig(scan = true), output = AgentConfig.OutputConfig(mode = "xml")) to emptyMap<String, String>(),
             AgentConfig(smartctl = AgentConfig.SmartctlConfig(scan = true), storage = AgentConfig.StorageConfig(jdbcUrl = "")) to emptyMap<String, String>(),
+            AgentConfig(smartctl = AgentConfig.SmartctlConfig(scan = true), deviceIdentity = AgentConfig.DeviceIdentityConfig(namespaceSalt = "")) to emptyMap<String, String>(),
+            AgentConfig(smartctl = AgentConfig.SmartctlConfig(scan = true)) to
+                mapOf("COCOADISKINFO_AGENT_DEVICE_IDENTITY_NAMESPACE_SALT" to ""),
         ).forEach { (config, environment) ->
             assertFailsWith<AgentConfigValidationException> {
                 AgentConfigResolver.resolveStandalone(config = config, environment = environment)

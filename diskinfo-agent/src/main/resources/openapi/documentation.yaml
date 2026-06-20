@@ -19,6 +19,7 @@ paths:
         - name: "deviceKey"
           in: "path"
           required: true
+          description: "Opaque stable device identity. This is not an OS device path or raw serial number."
           schema:
             type: "string"
         - name: "limit"
@@ -78,6 +79,7 @@ paths:
         - name: "deviceKey"
           in: "path"
           required: true
+          description: "Opaque stable device identity. This is not an OS device path or raw serial number."
           schema:
             type: "string"
       responses:
@@ -164,6 +166,7 @@ components:
           $ref: "#/components/schemas/Instant"
         deviceKey:
           type: "string"
+          description: "Opaque stable device identity. Clients should not parse it as an OS path or raw serial number."
         path:
           type: "string"
         model:
@@ -240,6 +243,7 @@ components:
           type: "string"
         deviceKey:
           type: "string"
+          description: "Opaque stable device identity for the selected node/device pair."
         snapshots:
           type: "array"
           items:

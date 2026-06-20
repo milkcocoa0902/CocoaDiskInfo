@@ -1,13 +1,14 @@
 package com.milkcocoa.info.sapphire.agent.smartctl.converter
 
+import com.milkcocoa.info.sapphire.agent.identity.DeviceKeyDeriver
+import com.milkcocoa.info.sapphire.agent.smartctl.model.NvmeSmartctlSnapshot
 import com.milkcocoa.info.sapphire.core.snapshot.DiskHealth
 import com.milkcocoa.info.sapphire.core.snapshot.DiskSnapshot
 import com.milkcocoa.info.sapphire.core.snapshot.MetricsSnapshot
 import com.milkcocoa.info.sapphire.core.snapshot.UniversalMetrics
-import com.milkcocoa.info.sapphire.agent.smartctl.model.NvmeSmartctlSnapshot
 import kotlin.time.Instant
 
-fun NvmeSmartctlSnapshot.toDiskSnapshot(): DiskSnapshot {
+fun NvmeSmartctlSnapshot.toDiskSnapshot(deviceKeyDeriver: DeviceKeyDeriver): DiskSnapshot {
     val universal = UniversalMetrics(
         temperatureCelsius = this.temperature.current,
         powerOnHours = this.powerOnTime.hours.toLong(),
@@ -20,7 +21,7 @@ fun NvmeSmartctlSnapshot.toDiskSnapshot(): DiskSnapshot {
 
     return DiskSnapshot(
         timestamp = Instant.fromEpochSeconds(this.localTime.time),
-        deviceKey = this.serialNumber,
+        deviceKey = deviceKeyDeriver.deriveFromSerial(this.serialNumber),
         path = this.device.name,
         model = this.modelName,
         serial = this.serialNumber,

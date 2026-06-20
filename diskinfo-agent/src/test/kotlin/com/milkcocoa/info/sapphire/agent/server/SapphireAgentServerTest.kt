@@ -21,16 +21,19 @@ private val TestJson = Json { ignoreUnknownKeys = true }
 
 @OptIn(ExperimentalUuidApi::class)
 class SapphireAgentServerTest {
+    private val deviceKeyA = "b25b5b07-5629-5c33-89ba-1ef17c03cc0c"
+    private val deviceKeyB = "36a2c1b1-8b7e-5f99-8ad9-bc6ecd2662f2"
+
     @Test
     fun `history endpoint returns selected node device snapshots`() = testApplication {
         connectDiskSnapshotTestDatabase()
         val nodeId = testNodeId(1)
         val otherNodeId = testNodeId(2)
-        val deviceKey = "serial-a"
+        val deviceKey = deviceKeyA
 
         insertDiskSnapshot(nodeId, "node-a", testDiskSnapshot(deviceKey, timestampMillis = 1_000))
         insertDiskSnapshot(nodeId, "node-a", testDiskSnapshot(deviceKey, timestampMillis = 2_000))
-        insertDiskSnapshot(nodeId, "node-a", testDiskSnapshot("serial-b", timestampMillis = 3_000))
+        insertDiskSnapshot(nodeId, "node-a", testDiskSnapshot(deviceKeyB, timestampMillis = 3_000))
         insertDiskSnapshot(otherNodeId, "node-b", testDiskSnapshot(deviceKey, timestampMillis = 4_000))
 
         application {
@@ -78,14 +81,14 @@ class SapphireAgentServerTest {
         }
 
         val invalidUrls = listOf(
-            "/api/v1/nodes/not-a-uuid/devices/serial-a/snapshots",
-            "/api/v1/nodes/$nodeId/devices/serial-a/snapshots?limit=0",
-            "/api/v1/nodes/$nodeId/devices/serial-a/snapshots?limit=1001",
-            "/api/v1/nodes/$nodeId/devices/serial-a/snapshots?limit=abc",
-            "/api/v1/nodes/$nodeId/devices/serial-a/snapshots?from=not-a-time",
-            "/api/v1/nodes/$nodeId/devices/serial-a/snapshots?to=not-a-time",
-            "/api/v1/nodes/$nodeId/devices/serial-a/snapshots?order=sideways",
-            "/api/v1/nodes/$nodeId/devices/serial-a/snapshots?from=1970-01-01T00:00:03Z&to=1970-01-01T00:00:02Z",
+            "/api/v1/nodes/not-a-uuid/devices/$deviceKeyA/snapshots",
+            "/api/v1/nodes/$nodeId/devices/$deviceKeyA/snapshots?limit=0",
+            "/api/v1/nodes/$nodeId/devices/$deviceKeyA/snapshots?limit=1001",
+            "/api/v1/nodes/$nodeId/devices/$deviceKeyA/snapshots?limit=abc",
+            "/api/v1/nodes/$nodeId/devices/$deviceKeyA/snapshots?from=not-a-time",
+            "/api/v1/nodes/$nodeId/devices/$deviceKeyA/snapshots?to=not-a-time",
+            "/api/v1/nodes/$nodeId/devices/$deviceKeyA/snapshots?order=sideways",
+            "/api/v1/nodes/$nodeId/devices/$deviceKeyA/snapshots?from=1970-01-01T00:00:03Z&to=1970-01-01T00:00:02Z",
         )
 
         invalidUrls.forEach { url ->

@@ -38,6 +38,7 @@ internal fun testNodeId(seed: Long): Uuid = Uuid.fromLongs(0L, seed)
 internal fun testDiskSnapshot(
     deviceKey: String,
     timestampMillis: Long,
+    serial: String = "serial-$deviceKey",
     temperatureCelsius: Int = 30,
     health: DiskHealth = DiskHealth.GOOD,
 ): DiskSnapshot {
@@ -55,9 +56,9 @@ internal fun testDiskSnapshot(
     return DiskSnapshot(
         timestamp = Instant.fromEpochMilliseconds(timestampMillis),
         deviceKey = deviceKey,
-        path = "/dev/$deviceKey",
+        path = "/dev/test-${deviceKey.take(8)}",
         model = "Test Drive $deviceKey",
-        serial = deviceKey,
+        serial = serial,
         capacityBytes = 1_000_000_000_000,
         temperatureCelsius = temperatureCelsius,
         powerOnHours = universal.powerOnHours,

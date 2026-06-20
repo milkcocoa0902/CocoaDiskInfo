@@ -2,8 +2,10 @@ package com.milkcocoa.info.sapphire.agent
 
 import com.milkcocoa.info.colotok.core.logger.Colotok
 import com.milkcocoa.info.colotok.core.logger.ColotokLoggerContext
+import com.milkcocoa.info.sapphire.agent.collector.SmartctlCollector
 import com.milkcocoa.info.sapphire.agent.datastore.DiskSnapshotRepository
 import com.milkcocoa.info.sapphire.agent.exec.SapphireExecutor
+import com.milkcocoa.info.sapphire.agent.identity.UuidV5DeviceKeyDeriver
 import com.milkcocoa.info.sapphire.agent.server.SapphireAgentServer
 import com.milkcocoa.info.sapphire.agent.sink.ColotokSnapshotSink
 import com.milkcocoa.info.sapphire.agent.sink.CompositeSnapshotSink
@@ -19,6 +21,7 @@ internal sealed interface SapphireCommandRequest {
         val outputMode: OutputMode,
         val persist: Boolean,
         val dbUrl: String,
+        val deviceIdentityNamespaceSalt: String,
     ) : SapphireCommandRequest
 
     data class Standalone(
@@ -28,6 +31,7 @@ internal sealed interface SapphireCommandRequest {
         val host: String,
         val port: Int,
         val dbUrl: String,
+        val deviceIdentityNamespaceSalt: String,
     ) : SapphireCommandRequest
 
     data class DbMigrate(
@@ -63,6 +67,7 @@ internal object ProductionSapphireCommandRuntime : SapphireCommandRuntime {
         runExecutor(
             SapphireExecutor.Oneshot(
                 device = request.target,
+                collector = createCollector(request.deviceIdentityNamespaceSalt),
                 sink = createSnapshotSink(repository),
             ),
         )
@@ -77,6 +82,7 @@ internal object ProductionSapphireCommandRuntime : SapphireCommandRuntime {
             SapphireExecutor.Standalone(
                 device = request.target,
                 collectionInterval = request.intervalSeconds.seconds,
+                collector = createCollector(request.deviceIdentityNamespaceSalt),
                 sink = createSnapshotSink(repository),
                 server = SapphireAgentServer(
                     repository = repository,
@@ -105,6 +111,12 @@ internal object ProductionSapphireCommandRuntime : SapphireCommandRuntime {
 
     private fun connectDatabase(jdbcUrl: String) {
         Database.connect(jdbcUrl, "org.sqlite.JDBC")
+    }
+
+    private fun createCollector(namespaceSalt: String): SmartctlCollector {
+        return SmartctlCollector(
+            deviceKeyDeriver = UuidV5DeviceKeyDeriver(namespaceSalt),
+        )
     }
 
     private fun createSnapshotSink(repository: DiskSnapshotRepository?): SnapshotSink {
