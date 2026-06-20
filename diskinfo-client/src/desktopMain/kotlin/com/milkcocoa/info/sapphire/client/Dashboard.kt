@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.milkcocoa.info.sapphire.core.api.NodeDeviceHistoryPayload
 import com.milkcocoa.info.sapphire.core.api.NodeSnapshot
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -111,8 +112,16 @@ internal fun Dashboard(agentApiClient: AgentApiClient) {
         }
         DeviceContent(
             uiState = uiState,
+            agentUrl = agentUrl,
             selectedNodeId = selectedNodeId,
             selectedDeviceKey = selectedDeviceKey,
+            loadDeviceHistory = { nodeId, deviceKey ->
+                agentApiClient.fetchDeviceHistory(
+                    baseUrl = agentUrl,
+                    nodeId = nodeId,
+                    deviceKey = deviceKey,
+                )
+            },
             onSelectDevice = { nodeId, deviceKey ->
                 selectedNodeId = nodeId
                 selectedDeviceKey = deviceKey
@@ -205,3 +214,5 @@ internal data class DeviceListState(
     val nodes: List<NodeSnapshot> = emptyList(),
     val message: String? = null,
 )
+
+internal typealias DeviceHistoryLoader = suspend (String, String) -> NodeDeviceHistoryPayload

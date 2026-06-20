@@ -2,8 +2,8 @@ package com.milkcocoa.info.sapphire.client
 
 import com.milkcocoa.info.sapphire.core.api.ApiError
 import com.milkcocoa.info.sapphire.core.api.LatestSnapshotsPayload
+import com.milkcocoa.info.sapphire.core.api.NodeDeviceHistoryPayload
 import com.milkcocoa.info.sapphire.core.api.NodeSnapshot
-import com.milkcocoa.info.sapphire.core.snapshot.DiskSnapshot
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.cio.CIO
@@ -45,9 +45,45 @@ class AgentApiClient(
         return response.body<LatestSnapshotsResponse>().payload.nodes
     }
 
+    suspend fun fetchDeviceHistory(
+        baseUrl: String,
+        nodeId: String,
+        deviceKey: String,
+        limit: Int = 100,
+    ): NodeDeviceHistoryPayload {
+        val response = httpClient.get(deviceHistoryUrl(baseUrl, nodeId, deviceKey, limit))
+
+        if (response.status != HttpStatusCode.OK) {
+            val body = response.bodyAsText()
+            val errorMessage = runCatching {
+                AgentJson.decodeFromString<FailureResponse>(body).error.message
+            }.getOrElse {
+                body.ifBlank { response.status.description }
+            }
+            throw AgentApiException("Agent request failed: ${response.status.value} $errorMessage")
+        }
+
+        return response.body<DeviceHistoryResponse>().payload
+    }
+
     private fun latestSnapshotsUrl(baseUrl: String): String {
         return URLBuilder(baseUrl.trim().trimEnd('/'))
             .appendPathSegments("api", "v1", "snapshots", "latest")
+            .buildString()
+    }
+
+    private fun deviceHistoryUrl(
+        baseUrl: String,
+        nodeId: String,
+        deviceKey: String,
+        limit: Int,
+    ): String {
+        return URLBuilder(baseUrl.trim().trimEnd('/'))
+            .appendPathSegments("api", "v1", "nodes", nodeId, "devices", deviceKey, "snapshots")
+            .apply {
+                parameters.append("limit", limit.toString())
+                parameters.append("order", "desc")
+            }
             .buildString()
     }
 }
@@ -57,6 +93,11 @@ class AgentApiException(message: String) : RuntimeException(message)
 @Serializable
 private data class LatestSnapshotsResponse(
     val payload: LatestSnapshotsPayload,
+)
+
+@Serializable
+private data class DeviceHistoryResponse(
+    val payload: NodeDeviceHistoryPayload,
 )
 
 @Serializable

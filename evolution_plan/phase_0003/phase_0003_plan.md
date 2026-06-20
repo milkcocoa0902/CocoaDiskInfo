@@ -36,4 +36,4 @@
 
 ## Implementation Status
 - Phase 3A done: bounded history payload、Repository query、Server route/query validation、OpenAPI、Repository/route testsを追加した。
-- Phase 3B pending: Client history tab、history API client、summary/timeline UIは未着手。
+- Phase 3B done: Client history API method、`Current | History` tab、history loading/error/empty state、summary/timeline UIを追加した。

@@ -11,7 +11,11 @@ internal fun List<DiskSnapshot>.countWarnings(): Int {
 }
 
 internal fun List<DiskSnapshot>.latestTimestamp(): String {
-    return maxByOrNull { it.timestamp }?.timestamp?.toString()?.substringBefore('.') ?: "--"
+    return maxByOrNull { it.timestamp }?.timestampLabel() ?: "--"
+}
+
+internal fun DiskSnapshot.timestampLabel(): String {
+    return timestamp.toString().substringBefore('.')
 }
 
 internal fun DiskSnapshot.protocolName(): String {

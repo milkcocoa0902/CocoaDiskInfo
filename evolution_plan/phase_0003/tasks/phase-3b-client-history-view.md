@@ -18,13 +18,23 @@ Phase 3Bでは独立したNode選択画面を新設しない。既存のnode gro
 - Hubのpartial/stale/error metadata UIはPhase 5まで扱わない。
 - Client側でunbounded history取得を行わない。
 
-## Current State
+## Baseline Before Implementation
 - `AgentApiClient` は `fetchLatestNodes(baseUrl)` だけを持つ。
 - `Dashboard` がlatest nodesを周期refreshし、選択node/deviceを管理している。
 - Client stateにはすでに `selectedNodeId` と `selectedDeviceKey` があり、左ペインのdevice選択で両方を更新している。
 - `DeviceContent` は `DeviceDetailPane` に選択nodeとlatest snapshotを渡す。
 - `DeviceDetailPane` はCurrent専用で、header、focus tiles、detail tableを表示している。
+- Phase 3Aのhistory APIは実装済みで、`GET /api/v1/nodes/{nodeId}/devices/{deviceKey}/snapshots` が `NodeDeviceHistoryPayload` を返す。
+- Phase 3Aのquery validationでは、`from` / `to` は `1970-01-01T00:00:00Z` のようなISO-8601 instantを受ける。初期UIではまだ `from` / `to` を使わない。
 - history用のclient model、loading/error/empty state、tab UIはまだない。
+
+## Implementation Status
+- Done: `AgentApiClient.fetchDeviceHistory(...)` を追加した。
+- Done: `Dashboard` / `DeviceContent` / `DeviceDetailPane` にhistory loaderを通した。
+- Done: `DeviceDetailPane` に `Current | History` tabを追加し、Current既存表示を維持した。
+- Done: History tab内にloading/error/empty stateを追加した。
+- Done: `DeviceHistoryPane` でsummary tilesとtimeline rowsを表示する。
+- Done: 初期UIでは `limit=100`, `order=desc` のbounded readだけを行い、`from` / `to` は送らない。
 
 ## Boundary Decision
 - Owner boundary: `Client`
@@ -42,6 +52,8 @@ Phase 3Bでは独立したNode選択画面を新設しない。既存のnode gro
     - `fetchDeviceHistory(baseUrl, nodeId, deviceKey, limit = 100)` を追加する。
     - URLは `/api/v1/nodes/{nodeId}/devices/{deviceKey}/snapshots` を組み立てる。
     - `limit`, `order` は初期UIでは `limit=100`, `order=desc` に固定してよい。
+    - `from` / `to` は送らない。
+    - `200` + empty `snapshots` は成功として扱い、empty stateへ渡す。
     - non-200 responseは既存latest取得と同じ方針で `AgentApiException` にする。
 - Validation:
     - `./gradlew :diskinfo-client:compileKotlinDesktop`
@@ -100,16 +112,16 @@ Phase 3Bでは独立したNode選択画面を新設しない。既存のnode gro
         - temperature
         - lifetime remaining or percentage used
         - critical warning count
-        - protocol
     - Empty state:
         - history APIが空の `snapshots` を返した場合、Current表示は維持しつつHistory tab内にempty messageを出す。
     - Error state:
-        - history API失敗はHistory tab内に表示し、latest polling全体を失敗扱いにしない。
+        - history APIのnon-200 responseや通信失敗はHistory tab内に表示し、latest polling全体を失敗扱いにしない。
 - Validation:
     - compile check。
     - 手動でhistoryあり/なし/agent停止時を確認する。
 - Notes:
-    - 既存の `healthColor`, `temperatureColor`, `wearColor`, `warningColor`, `protocolName` を再利用する。
+    - TimelineではCurrent tabから自明なprotocol列を持たず、時間変化する指標を優先して表示する。
+    - 既存の `healthColor`, `temperatureColor`, `wearColor`, `warningColor` を再利用する。
     - 文字列整形は `SnapshotUiFormat.kt` に寄せ、UI内に重複ロジックを増やしすぎない。
 
 ## CLI/API Compatibility
@@ -121,6 +133,7 @@ Phase 3Bでは独立したNode選択画面を新設しない。既存のnode gro
 - Client側はDBに直接触らない。
 - `limit=100` のbounded readだけを行う。
 - `from` / `to` filterは初期UIでは未使用。
+- APIから返る空 `snapshots` は正常なempty stateであり、Client側でerror扱いしない。
 
 ## Validation Plan
 ```text

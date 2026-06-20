@@ -11,8 +11,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PrimaryTabRow
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -26,13 +33,89 @@ import com.milkcocoa.info.sapphire.core.snapshot.DiskSnapshot
 internal fun DeviceDetailPane(
     node: NodeSnapshot,
     snapshot: DiskSnapshot,
+    historySourceKey: String,
+    loadDeviceHistory: DeviceHistoryLoader,
+    modifier: Modifier = Modifier,
+) {
+    var selectedTab by remember { mutableStateOf(DeviceDetailTab.Current) }
+    var historyState by remember(node.nodeId, snapshot.deviceKey, historySourceKey) {
+        mutableStateOf<DeviceHistoryState>(DeviceHistoryState.Idle)
+    }
+
+    LaunchedEffect(selectedTab, node.nodeId, snapshot.deviceKey, historySourceKey) {
+        if (selectedTab == DeviceDetailTab.History) {
+            historyState = DeviceHistoryState.Loading
+            historyState = runCatching {
+                DeviceHistoryState.Loaded(
+                    loadDeviceHistory(node.nodeId, snapshot.deviceKey),
+                )
+            }.getOrElse {
+                DeviceHistoryState.Error(it.message ?: "Failed to load device history.")
+            }
+        }
+    }
+
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        DetailHeader(node, snapshot)
+        DetailTabs(
+            selectedTab = selectedTab,
+            onSelectTab = { selectedTab = it },
+        )
+        when (selectedTab) {
+            DeviceDetailTab.Current -> CurrentDeviceDetail(
+                node = node,
+                snapshot = snapshot,
+                modifier = Modifier.weight(1f),
+            )
+
+            DeviceDetailTab.History -> DeviceHistoryPane(
+                state = historyState,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+private enum class DeviceDetailTab(
+    val label: String,
+) {
+    Current("Current"),
+    History("History"),
+}
+
+@Composable
+private fun DetailTabs(
+    selectedTab: DeviceDetailTab,
+    onSelectTab: (DeviceDetailTab) -> Unit,
+) {
+    PrimaryTabRow(
+        selectedTabIndex = DeviceDetailTab.entries.indexOf(selectedTab),
+        containerColor = Color.Transparent,
+        contentColor = Color(0xFFE7E9EB),
+    ) {
+        DeviceDetailTab.entries.forEach { tab ->
+            Tab(
+                selected = selectedTab == tab,
+                onClick = { onSelectTab(tab) },
+                text = { Text(tab.label) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun CurrentDeviceDetail(
+    node: NodeSnapshot,
+    snapshot: DiskSnapshot,
     modifier: Modifier = Modifier,
 ) {
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        DetailHeader(node, snapshot)
         FocusMetrics(node, snapshot)
         DetailInfoList(
             snapshot = snapshot,

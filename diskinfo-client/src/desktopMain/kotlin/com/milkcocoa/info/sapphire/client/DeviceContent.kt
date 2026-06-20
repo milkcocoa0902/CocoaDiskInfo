@@ -13,16 +13,20 @@ import com.milkcocoa.info.sapphire.core.api.NodeSnapshot
 @Composable
 internal fun DeviceContent(
     uiState: DeviceListState,
+    agentUrl: String,
     selectedNodeId: String?,
     selectedDeviceKey: String?,
+    loadDeviceHistory: DeviceHistoryLoader,
     onSelectDevice: (String, String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     when {
         uiState.nodes.isNotEmpty() -> DeviceSnapshotContent(
             nodes = uiState.nodes,
+            agentUrl = agentUrl,
             selectedNodeId = selectedNodeId,
             selectedDeviceKey = selectedDeviceKey,
+            loadDeviceHistory = loadDeviceHistory,
             onSelectDevice = onSelectDevice,
             modifier = modifier,
         )
@@ -45,8 +49,10 @@ internal fun DeviceContent(
 @Composable
 private fun DeviceSnapshotContent(
     nodes: List<NodeSnapshot>,
+    agentUrl: String,
     selectedNodeId: String?,
     selectedDeviceKey: String?,
+    loadDeviceHistory: DeviceHistoryLoader,
     onSelectDevice: (String, String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -79,6 +85,8 @@ private fun DeviceSnapshotContent(
             DeviceDetailPane(
                 node = selectedNode,
                 snapshot = selectedSnapshot,
+                historySourceKey = agentUrl,
+                loadDeviceHistory = loadDeviceHistory,
                 modifier = Modifier
                     .weight(0.55f)
                     .fillMaxHeight(),
