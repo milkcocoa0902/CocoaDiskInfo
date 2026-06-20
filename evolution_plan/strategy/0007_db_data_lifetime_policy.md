@@ -93,6 +93,8 @@ DBに保存するデータは、すべて同じ寿命で扱わない。
     - inactive device tombstone: 180日を初期候補
 - 方針:
     - device pathは変わる可能性があるため、device identityと表示pathを分ける。
+    - `deviceKey` はpathではなくopaque stable device identityとして扱う。Phase 3Cではserial-based UUIDv5 derived keyを使う。
+    - `serial` は表示・照合用のraw valueであり、露出制御対象として扱う。
     - 一定期間見えなくなったデバイスは即削除せず、inactiveとして扱う。
     - tombstone保持により、履歴UIで「過去に存在したデバイス」を説明できるようにする。
 

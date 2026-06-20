@@ -7,7 +7,7 @@
 
 ## Document Layout
 - `master.md`: agent evolutionの上位方針、用語、境界、判断ルール。
-- `strategy/`: API、Hub、DB cleanup、実行モード、履歴UI/API、データライフタイムなどの補助strategy。
+- `strategy/`: API、Hub、DB cleanup、実行モード、履歴UI/API、device identity、データライフタイムなどの補助strategy。
 - `phase_000N/phase_000N_plan.md`: phase単位の目的、範囲、実装順。
 - `phase_000N/tasks/`: phase内で実装・検証可能な作業単位。
 
@@ -85,6 +85,7 @@ default < config file < environment variables < CLI arguments
 
 設定ファイルで扱う候補:
 - node identity: `nodeId`, `nodeName`
+- device identity: `namespaceSalt`
 - smartctl: `smartctlPath`, `devices`, `scan`
 - runtime: `mode`, `interval`, `retentionDays`
 - HTTP: `host`, `port`, `baseUrl`
@@ -122,7 +123,9 @@ DBごとに次の差分があるため、storage層に閉じ込める。
     - low latency、bounded response、history/cache-first
 - device history:
     - `GET /api/v1/nodes/{nodeId}/devices/{deviceKey}/snapshots`
-    - `nodeId` と `deviceKey` の組で履歴対象を一意にする。Hub構成では複数Node Agentに `/dev/sda` や `nvme0n1` 相当のdevice keyが存在し得るため、device key単体で履歴を指定しない。
+    - `deviceKey` はpathではなくopaque stable device identityとして扱う。`path` は表示・診断用であり、履歴identityには使わない。
+    - `nodeId` と `deviceKey` の組で履歴対象を一意にする。Hub構成では複数Node Agentに同じdevice keyが存在し得るため、device key単体で履歴を指定しない。
+    - Phase 3Cでは `deviceKey` をserial-based UUIDv5 derived keyに移行する。詳細は `strategy/0008_device_identity_strategy.md` に従う。
     - `limit`, `from`, `to`, `order` を持つ
     - unbounded responseは禁止
 - ingest:

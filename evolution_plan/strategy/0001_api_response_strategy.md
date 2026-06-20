@@ -41,6 +41,8 @@ GET /api/v1/nodes/{nodeId}/devices/{deviceKey}/snapshots
 
 履歴APIは `nodeId` と `deviceKey` の組で対象を指定する。Standaloneではnodeが実質1つなので冗長に見えるが、Hub構成では複数Node Agentに同じdevice keyが存在し得るため、device key単体では履歴対象を一意にできない。
 
+`deviceKey` はpathではなくopaque stable device identityとして扱う。Phase 3Cではserial-based UUIDv5 derived keyへ移行する。API利用者は `deviceKey` の中身を解釈せず、latest APIで受け取った値をhistory APIへ渡す。詳細は `0008_device_identity_strategy.md` に従う。
+
 将来の明示live取得候補:
 
 ```text

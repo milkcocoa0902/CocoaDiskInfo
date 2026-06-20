@@ -6,6 +6,7 @@
 - Supporting: `../../strategy/0001_api_response_strategy.md`
 - Supporting: `../../strategy/0005_device_history_ui_api_strategy.md`
 - Supporting: `../../strategy/0007_db_data_lifetime_policy.md`
+- Supporting: `../../strategy/0008_device_identity_strategy.md`
 
 ## Goal
 現在状態APIを維持したまま、StandaloneのSQLite historyからnode/device単位のbounded history APIを追加する。
@@ -16,7 +17,7 @@
 GET /api/v1/nodes/{nodeId}/devices/{deviceKey}/snapshots
 ```
 
-`nodeId` をURIに含める目的は、Hub化後も履歴対象のdeviceを一意に指定するためである。Standaloneではnodeが1つなので冗長に見えるが、複数Node Agent構成では `/dev/sda` や `nvme0n1` 相当のdevice keyが各マシンで競合し得るため、履歴APIは `(nodeId, deviceKey)` をdevice history identityとして扱う。
+`nodeId` をURIに含める目的は、Hub化後も履歴対象のdeviceを一意に指定するためである。`deviceKey` はpathではなくopaque stable device identityとして扱う。Standaloneではnodeが1つなので冗長に見えるが、複数Node Agent構成では同じdevice keyが別nodeに存在し得るため、履歴APIは `(nodeId, deviceKey)` をdevice history identityとして扱う。
 
 Query:
 
@@ -133,7 +134,8 @@ NodeDeviceHistoryPayload(
 - `GET /api/v1/snapshots/latest` はcurrent-state optimized APIとして維持する。
 - `GET /api/v1/devices/{deviceKey}/snapshots/latest` は既存互換のlatest device endpointとして維持する。
 - 新APIはbounded history専用とし、`source=live` queryは追加しない。
-- history APIでは `(nodeId, deviceKey)` を必須にし、Hub構成でdevice keyが競合してもAPI shapeを変えずに扱えるようにする。
+- history APIでは `(nodeId, deviceKey)` を必須にし、Hub構成で同じdevice keyが別nodeに存在してもAPI shapeを変えずに扱えるようにする。
+- `deviceKey` の導出方式はPhase 3Cで `0008_device_identity_strategy.md` に従って更新する。
 
 ## Data and Persistence Impact
 - 既存 `disk_snapshot` を読むだけでschema変更は不要。

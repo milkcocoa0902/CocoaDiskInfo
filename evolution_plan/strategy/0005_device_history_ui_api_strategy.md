@@ -36,7 +36,9 @@ Client should expose history because disk health is trend-oriented. The default 
     - Returns `LatestSnapshotsPayload(nodes=[...devices...])`.
 - Add a device history endpoint:
     - `GET /api/v1/nodes/{nodeId}/devices/{deviceKey}/snapshots`
-    - `nodeId` is part of the URI because device keys such as `/dev/sda` or `nvme0n1` can collide across Node Agents after Hub aggregation.
+    - `deviceKey` is an opaque stable device identity, not an OS device path.
+    - `nodeId` is part of the URI because the same opaque device key can still appear under different Node Agents after Hub aggregation.
+    - Device key derivation follows `0008_device_identity_strategy.md`.
     - Query:
         - `limit`: default `100`, max `1000`
         - `from`: optional ISO-8601 timestamp
@@ -88,7 +90,6 @@ Client should expose history because disk health is trend-oriented. The default 
     - temperature
     - percentage used
     - critical warnings
-    - protocol
 
 ### Chart Follow-up
 After the history API and tab flow are stable, add charts for:
