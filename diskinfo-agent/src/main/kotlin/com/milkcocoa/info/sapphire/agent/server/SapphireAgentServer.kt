@@ -32,7 +32,7 @@ import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
 class SapphireAgentServer(
-    private val repository: DiskSnapshotRepository = DiskSnapshotRepository(),
+    private val repository: DiskSnapshotRepository,
     private val host: String = "127.0.0.1",
     private val port: Int = 14631,
 ) {
@@ -53,7 +53,7 @@ class SapphireAgentServer(
 
 @OptIn(ExperimentalUuidApi::class)
 fun Application.installSapphireAgentApi(
-    repository: DiskSnapshotRepository = DiskSnapshotRepository(),
+    repository: DiskSnapshotRepository,
 ) {
     install(ContentNegotiation) {
         json(Json)

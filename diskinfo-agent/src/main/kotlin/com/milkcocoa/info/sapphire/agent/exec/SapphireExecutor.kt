@@ -37,7 +37,7 @@ sealed interface SapphireExecutor {
         private val collectionInterval: Duration = 60.seconds,
         private val collector: DiskSnapshotCollector = SmartctlCollector(),
         private val sink: SnapshotSink = ColotokSnapshotSink(),
-        private val server: SapphireAgentServer = SapphireAgentServer(),
+        private val server: SapphireAgentServer,
     ) : SapphireExecutor {
         override suspend fun execute() {
             val oneshot = Oneshot(

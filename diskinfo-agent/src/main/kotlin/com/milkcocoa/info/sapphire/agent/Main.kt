@@ -21,6 +21,7 @@ import com.milkcocoa.info.sapphire.agent.config.AgentConfigValidationException
 import com.milkcocoa.info.sapphire.agent.config.EffectiveDbMigrateConfig
 import com.milkcocoa.info.sapphire.agent.config.EffectiveOneshotConfig
 import com.milkcocoa.info.sapphire.agent.config.EffectiveStandaloneConfig
+import com.milkcocoa.info.sapphire.agent.datastore.ExposedDiskSnapshotRepository
 import java.nio.file.Path
 import java.nio.file.Paths
 import kotlin.io.path.absolutePathString
@@ -30,7 +31,7 @@ class SapphireAgent : CliktCommand(name = "cocoadiskinfo-agent") {
 }
 
 internal fun createSapphireAgentCommand(
-    runtime: SapphireCommandRuntime = ProductionSapphireCommandRuntime,
+    runtime: SapphireCommandRuntime = createProductionSapphireCommandRuntime(),
     environment: Map<String, String> = System.getenv(),
     defaultConfigPath: Path? = Paths.get(AgentConfigDefaults.DEFAULT_CONFIG_PATH),
 ): CliktCommand = SapphireAgent()
@@ -39,6 +40,14 @@ internal fun createSapphireAgentCommand(
         StandaloneCommand(runtime, environment, defaultConfigPath),
         DbCommand().subcommands(DbMigrateCommand(runtime, environment, defaultConfigPath)),
     )
+
+private fun createProductionSapphireCommandRuntime(): SapphireCommandRuntime {
+    return ProductionSapphireCommandRuntime(
+        repositoryFactory = DiskSnapshotRepositoryFactory {
+            ExposedDiskSnapshotRepository()
+        },
+    )
+}
 
 private abstract class ConfiguredCommand(
     name: String,

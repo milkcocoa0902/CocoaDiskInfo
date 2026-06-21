@@ -39,3 +39,4 @@ SQLiteを基準実装としてRepository interfaceを固め、後続のPostgreSQ
 ## Implementation Status
 - Planning updated: Phase 4 task documentsを独立ファイルへ分割し、HikariCPは4A、Flyway移行は4C、pg_partman/partition interval判断は4Eへ配置した。
 - Phase 4A implemented: storage設定拡張、backend推定、HikariCP-backed connection factory、runtime接続境界を追加した。PostgreSQL driver dependencyはPhase 4Eへ残す。
+- Phase 4B implemented: `DiskSnapshotRepository`をinterface化し、Exposed-backed SQLite実装を`ExposedDiskSnapshotRepository`へ分離した。Server/Executorは具体Repositoryを生成せず、production assemblyがSQLite基準実装を注入する。SQLite baselineとしてinsert/latest/history queryのテストを固定した。

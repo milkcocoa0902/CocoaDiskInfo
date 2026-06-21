@@ -11,9 +11,53 @@ import kotlin.test.assertEquals
 import kotlin.uuid.ExperimentalUuidApi
 
 @OptIn(ExperimentalUuidApi::class)
-class DiskSnapshotRepositoryTest {
+class ExposedDiskSnapshotRepositoryTest {
     private val deviceKeyA = "b25b5b07-5629-5c33-89ba-1ef17c03cc0c"
     private val deviceKeyB = "36a2c1b1-8b7e-5f99-8ad9-bc6ecd2662f2"
+
+    @Test
+    fun `insert persists snapshot and findLatestByDeviceKey returns newest snapshot`() {
+        connectDiskSnapshotTestDatabase()
+        val repository = ExposedDiskSnapshotRepository()
+
+        repository.insert(testDiskSnapshot(deviceKeyA, timestampMillis = 1_000, temperatureCelsius = 31))
+        repository.insert(testDiskSnapshot(deviceKeyA, timestampMillis = 2_000, temperatureCelsius = 32))
+
+        val latest = repository.findLatestByDeviceKey(deviceKeyA)
+
+        assertEquals(2_000L, latest?.timestamp?.toEpochMilliseconds())
+        assertEquals(32, latest?.temperatureCelsius)
+        assertEquals(deviceKeyA, latest?.deviceKey)
+    }
+
+    @Test
+    fun `findLatestNodes returns latest snapshot per node and device`() {
+        connectDiskSnapshotTestDatabase()
+        val nodeA = testNodeId(1)
+        val nodeB = testNodeId(2)
+
+        insertDiskSnapshot(nodeA, "node-a", testDiskSnapshot(deviceKeyA, timestampMillis = 1_000))
+        insertDiskSnapshot(nodeA, "node-a", testDiskSnapshot(deviceKeyA, timestampMillis = 2_000))
+        insertDiskSnapshot(nodeA, "node-a", testDiskSnapshot(deviceKeyB, timestampMillis = 3_000))
+        insertDiskSnapshot(nodeB, "node-b", testDiskSnapshot(deviceKeyA, timestampMillis = 4_000))
+
+        val nodes = ExposedDiskSnapshotRepository().findLatestNodes()
+
+        assertEquals(listOf("node-a", "node-b"), nodes.map { it.nodeName })
+        assertEquals(listOf(deviceKeyB, deviceKeyA), nodes[0].devices.map { it.deviceKey })
+        assertEquals(listOf(3_000L, 2_000L), nodes[0].devices.map { it.timestamp.toEpochMilliseconds() })
+        assertEquals(listOf(deviceKeyA), nodes[1].devices.map { it.deviceKey })
+        assertEquals(listOf(4_000L), nodes[1].devices.map { it.timestamp.toEpochMilliseconds() })
+    }
+
+    @Test
+    fun `findLatestByDeviceKey returns null for unknown device`() {
+        connectDiskSnapshotTestDatabase()
+
+        val latest = ExposedDiskSnapshotRepository().findLatestByDeviceKey("missing")
+
+        assertEquals(null, latest)
+    }
 
     @Test
     fun `findHistory returns bounded snapshots for selected node and device in descending order`() {
@@ -27,7 +71,7 @@ class DiskSnapshotRepositoryTest {
         insertDiskSnapshot(selectedNodeId, "node-a", testDiskSnapshot(deviceKeyB, timestampMillis = 3_000))
         insertDiskSnapshot(otherNodeId, "node-b", testDiskSnapshot(deviceKey, timestampMillis = 4_000))
 
-        val payload = DiskSnapshotRepository().findHistory(
+        val payload = ExposedDiskSnapshotRepository().findHistory(
             nodeId = selectedNodeId,
             deviceKey = deviceKey,
             query = HistoryQuery(limit = 10),
@@ -50,7 +94,7 @@ class DiskSnapshotRepositoryTest {
         insertDiskSnapshot(nodeId, "node-a", testDiskSnapshot(deviceKey, timestampMillis = 3_000))
         insertDiskSnapshot(nodeId, "node-a", testDiskSnapshot(deviceKey, timestampMillis = 4_000))
 
-        val payload = DiskSnapshotRepository().findHistory(
+        val payload = ExposedDiskSnapshotRepository().findHistory(
             nodeId = nodeId,
             deviceKey = deviceKey,
             query = HistoryQuery(
@@ -67,7 +111,7 @@ class DiskSnapshotRepositoryTest {
     @Test
     fun `findHistory returns empty payload for unknown node and device`() {
         connectDiskSnapshotTestDatabase()
-        val payload = DiskSnapshotRepository().findHistory(
+        val payload = ExposedDiskSnapshotRepository().findHistory(
             nodeId = testNodeId(1),
             deviceKey = "missing",
             query = HistoryQuery(),

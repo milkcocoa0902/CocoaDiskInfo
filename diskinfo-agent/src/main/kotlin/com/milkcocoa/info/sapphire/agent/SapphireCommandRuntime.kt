@@ -87,7 +87,13 @@ internal interface SapphireCommandRuntime {
     fun run(request: SapphireCommandRequest)
 }
 
-internal object ProductionSapphireCommandRuntime : SapphireCommandRuntime {
+internal fun interface DiskSnapshotRepositoryFactory {
+    fun create(storage: StorageSettings): DiskSnapshotRepository
+}
+
+internal class ProductionSapphireCommandRuntime(
+    private val repositoryFactory: DiskSnapshotRepositoryFactory,
+) : SapphireCommandRuntime {
     override fun run(request: SapphireCommandRequest) {
         when (request) {
             is SapphireCommandRequest.Oneshot -> runOneshot(request)
@@ -103,11 +109,13 @@ internal object ProductionSapphireCommandRuntime : SapphireCommandRuntime {
 
         if (request.persist) {
             StorageConnectionFactory.connect(request.storage).use {
+                val repository = repositoryFactory.create(request.storage)
+
                 runExecutor(
                     SapphireExecutor.Oneshot(
                         device = request.target,
                         collector = createCollector(request.deviceIdentityNamespaceSalt),
-                        sink = createSnapshotSink(DiskSnapshotRepository()),
+                        sink = createSnapshotSink(repository),
                     ),
                 )
             }
@@ -125,7 +133,7 @@ internal object ProductionSapphireCommandRuntime : SapphireCommandRuntime {
     private fun runStandalone(request: SapphireCommandRequest.Standalone) {
         setupConsoleOutput(request.outputMode)
         StorageConnectionFactory.connect(request.storage).use {
-            val repository = DiskSnapshotRepository()
+            val repository = repositoryFactory.create(request.storage)
 
             runExecutor(
                 SapphireExecutor.Standalone(

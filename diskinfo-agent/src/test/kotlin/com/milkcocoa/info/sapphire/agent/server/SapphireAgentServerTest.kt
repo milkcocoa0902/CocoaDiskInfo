@@ -1,12 +1,14 @@
 package com.milkcocoa.info.sapphire.agent.server
 
-import com.milkcocoa.info.sapphire.agent.connectDiskSnapshotTestDatabase
 import com.milkcocoa.info.sapphire.agent.datastore.DiskSnapshotRepository
-import com.milkcocoa.info.sapphire.agent.insertDiskSnapshot
+import com.milkcocoa.info.sapphire.agent.datastore.HistoryOrder
+import com.milkcocoa.info.sapphire.agent.datastore.HistoryQuery
 import com.milkcocoa.info.sapphire.agent.testDiskSnapshot
 import com.milkcocoa.info.sapphire.agent.testNodeId
 import com.milkcocoa.info.sapphire.core.api.ApiError
 import com.milkcocoa.info.sapphire.core.api.NodeDeviceHistoryPayload
+import com.milkcocoa.info.sapphire.core.api.NodeSnapshot
+import com.milkcocoa.info.sapphire.core.snapshot.DiskSnapshot
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
@@ -16,28 +18,32 @@ import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 private val TestJson = Json { ignoreUnknownKeys = true }
 
 @OptIn(ExperimentalUuidApi::class)
 class SapphireAgentServerTest {
     private val deviceKeyA = "b25b5b07-5629-5c33-89ba-1ef17c03cc0c"
-    private val deviceKeyB = "36a2c1b1-8b7e-5f99-8ad9-bc6ecd2662f2"
 
     @Test
     fun `history endpoint returns selected node device snapshots`() = testApplication {
-        connectDiskSnapshotTestDatabase()
         val nodeId = testNodeId(1)
-        val otherNodeId = testNodeId(2)
         val deviceKey = deviceKeyA
-
-        insertDiskSnapshot(nodeId, "node-a", testDiskSnapshot(deviceKey, timestampMillis = 1_000))
-        insertDiskSnapshot(nodeId, "node-a", testDiskSnapshot(deviceKey, timestampMillis = 2_000))
-        insertDiskSnapshot(nodeId, "node-a", testDiskSnapshot(deviceKeyB, timestampMillis = 3_000))
-        insertDiskSnapshot(otherNodeId, "node-b", testDiskSnapshot(deviceKey, timestampMillis = 4_000))
+        val repository = FakeDiskSnapshotRepository(
+            historyPayload = NodeDeviceHistoryPayload(
+                nodeId = nodeId.toString(),
+                nodeName = "node-a",
+                deviceKey = deviceKey,
+                snapshots = listOf(
+                    testDiskSnapshot(deviceKey, timestampMillis = 1_000),
+                    testDiskSnapshot(deviceKey, timestampMillis = 2_000),
+                ),
+            ),
+        )
 
         application {
-            installSapphireAgentApi(DiskSnapshotRepository())
+            installSapphireAgentApi(repository)
         }
 
         val response = client.get(
@@ -50,15 +56,26 @@ class SapphireAgentServerTest {
         assertEquals("node-a", payload.nodeName)
         assertEquals(deviceKey, payload.deviceKey)
         assertEquals(listOf(1_000L, 2_000L), payload.snapshots.map { it.timestamp.toEpochMilliseconds() })
+        assertEquals(
+            listOf(HistoryRequest(nodeId.toString(), deviceKey, HistoryQuery(limit = 2, order = HistoryOrder.ASC))),
+            repository.historyRequests,
+        )
     }
 
     @Test
     fun `history endpoint returns empty snapshots for unknown node device`() = testApplication {
-        connectDiskSnapshotTestDatabase()
         val nodeId = testNodeId(1)
+        val repository = FakeDiskSnapshotRepository(
+            historyPayload = NodeDeviceHistoryPayload(
+                nodeId = nodeId.toString(),
+                nodeName = "",
+                deviceKey = "missing",
+                snapshots = emptyList(),
+            ),
+        )
 
         application {
-            installSapphireAgentApi(DiskSnapshotRepository())
+            installSapphireAgentApi(repository)
         }
 
         val response = client.get("/api/v1/nodes/$nodeId/devices/missing/snapshots")
@@ -73,11 +90,11 @@ class SapphireAgentServerTest {
 
     @Test
     fun `history endpoint rejects invalid path and query values`() = testApplication {
-        connectDiskSnapshotTestDatabase()
         val nodeId = testNodeId(1)
+        val repository = FakeDiskSnapshotRepository()
 
         application {
-            installSapphireAgentApi(DiskSnapshotRepository())
+            installSapphireAgentApi(repository)
         }
 
         val invalidUrls = listOf(
@@ -97,6 +114,7 @@ class SapphireAgentServerTest {
             assertEquals(HttpStatusCode.BadRequest, response.status, "Expected 400 for $url")
             TestJson.decodeFromString<FailureResponse>(response.bodyAsText())
         }
+        assertEquals(emptyList(), repository.historyRequests)
     }
 }
 
@@ -109,3 +127,40 @@ private data class HistorySuccessResponse(
 private data class FailureResponse(
     val error: ApiError,
 )
+
+private data class HistoryRequest(
+    val nodeId: String,
+    val deviceKey: String,
+    val query: HistoryQuery,
+)
+
+private class FakeDiskSnapshotRepository(
+    private val historyPayload: NodeDeviceHistoryPayload = NodeDeviceHistoryPayload(
+        nodeId = "",
+        nodeName = "",
+        deviceKey = "",
+        snapshots = emptyList(),
+    ),
+) : DiskSnapshotRepository {
+    val historyRequests = mutableListOf<HistoryRequest>()
+
+    override fun insert(snapshot: DiskSnapshot) = Unit
+
+    override fun findLatestNodes(): List<NodeSnapshot> = emptyList()
+
+    override fun findLatestByDeviceKey(deviceKey: String): DiskSnapshot? = null
+
+    @OptIn(ExperimentalUuidApi::class)
+    override fun findHistory(
+        nodeId: Uuid,
+        deviceKey: String,
+        query: HistoryQuery,
+    ): NodeDeviceHistoryPayload {
+        historyRequests += HistoryRequest(
+            nodeId = nodeId.toString(),
+            deviceKey = deviceKey,
+            query = query,
+        )
+        return historyPayload
+    }
+}
