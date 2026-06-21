@@ -39,6 +39,13 @@ dependencies {
     implementation("com.zaxxer:HikariCP:7.1.0")
     runtimeOnly("org.slf4j:slf4j-nop:2.0.18")
 
+    // Source: https://mvnrepository.com/artifact/org.flywaydb/flyway-core
+    implementation("org.flywaydb:flyway-core:12.9.0")
+    // Source: https://mvnrepository.com/artifact/org.flywaydb/flyway-database-nc-sqlite
+    implementation("org.flywaydb:flyway-database-nc-sqlite:12.9.0")
+    // Source: https://mvnrepository.com/artifact/org.flywaydb/flyway-database-postgresql
+    implementation("org.flywaydb:flyway-database-postgresql:12.9.0")
+
     testImplementation(kotlin("test"))
     testImplementation("io.ktor:ktor-server-test-host:3.5.0")
 }
@@ -57,6 +64,8 @@ application {
 
 tasks.shadowJar {
     archiveClassifier.set("all")
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
+    mergeServiceFiles()
     manifest {
         attributes["Main-Class"] = "com.milkcocoa.info.sapphire.agent.MainKt"
     }

@@ -19,6 +19,8 @@ PostgreSQL backendを追加し、SQLiteと同じRepository contractでinsert/lat
 - storage connectionはSQLite固定。
 - Flyway移行はPhase 4Cで先に行う想定。
 - cleanup contractはPhase 4Dで先に固定する想定。
+- Phase 4CではSQLite互換性を優先し、`TransactionRunner.readOnly`はJDBC `Connection.setReadOnly(true)`を使わない。
+- SQLiteは同一DBファイルへ複数connectionを張れるが、Phase 4C時点ではHikariCP `maximumPoolSize = 1`、WAL mode未導入、`busy_timeout`未整理の保守運用に留めている。
 
 ## Boundary Decision
 - Owner boundary: Repository / Storage Backend
@@ -44,7 +46,28 @@ PostgreSQL backendを追加し、SQLiteと同じRepository contractでinsert/lat
   - URL/backend判定test。
   - local PostgreSQLがある場合のmanual `db migrate`。
 
-### Task 2: PostgreSQL Flyway migrationを追加する
+### Task 2: Connection pool and transaction semanticsを見直す
+- Objective:
+  - PostgreSQL対応に合わせて、backend別のconnection pool、read-only transaction、SQLite並行性方針を整理する。
+- Affected modules/files:
+  - storage connection factory
+  - transaction runner
+  - config resolver / storage settings
+  - integration tests
+- Expected behavior:
+  - PostgreSQLでは小さめのpoolを使い、必要なら`readOnly` transactionでJDBC `Connection.setReadOnly(true)`またはPostgreSQL向けtransaction optionを有効化できる。
+  - SQLiteでは引き続きpool size 1を維持するか、WAL modeと`busy_timeout`を設定した上でpool拡張するかを明示的に決める。
+  - `TransactionRunner.readOnly`/`readWrite`のinterfaceは維持し、JDBC read-only flagを有効化するかはbackend別実装詳細に閉じ込める。
+  - SQLiteでread-only flagを再導入しない限り、`Cannot change read-only flag after establishing a connection`が再発しない。
+- Validation:
+  - SQLite regression test: `readOnly` queryがSQLiteで成功すること。
+  - PostgreSQL integration test: `readOnly` queryと`readWrite` insertが同じRepository contractで動くこと。
+  - PostgreSQLでread-only transactionを有効化する場合、write queryが拒否されることを確認する。
+- Notes:
+  - SQLiteは複数connectionを張れるが、同時writeは直列化される。WALなしでpoolだけ増やす判断は避ける。
+  - PostgreSQL/RR構成を入れる場合も、Phase 4Eではまずsingle PostgreSQL backendのtransaction semanticsを固める。
+
+### Task 3: PostgreSQL Flyway migrationを追加する
 - Objective:
   - 現行`disk_snapshot` schemaをPostgreSQL SQLとして定義する。
 - Affected modules/files:
@@ -59,7 +82,7 @@ PostgreSQL backendを追加し、SQLiteと同じRepository contractでinsert/lat
   - local PostgreSQLで`db migrate`が成功すること。
   - insert/latest/history repository integration check。
 
-### Task 3: pg_partman採用判断を行う
+### Task 4: pg_partman採用判断を行う
 - Objective:
   - raw snapshot historyのpartition管理をpg_partmanに任せるか決める。
 - Expected behavior:
@@ -81,7 +104,7 @@ retention = "30 days"
   - pg_partman disabledでPostgreSQL backendが動くこと。
   - pg_partman enabledでextension不在時のerrorが明確であること。
 
-### Task 4: partition intervalを決める
+### Task 5: partition intervalを決める
 - Objective:
   - 7日、14日、1ヶ月の候補から初期値を決める。
 - Decision:
@@ -98,7 +121,7 @@ retention = "30 days"
 - Validation:
   - partition intervalとretentionから、保持され得る最大期間をdoc/testで説明する。
 
-### Task 5: pg_partman maintenanceとcleanup contractを接続する
+### Task 6: pg_partman maintenanceとcleanup contractを接続する
 - Objective:
   - Phase 4Dの`db cleanup` semanticsをPostgreSQL partitioningでも説明できるようにする。
 - Expected behavior:
@@ -147,3 +170,5 @@ Optional pg_partman:
 - PostgreSQL partitioned tables have uniqueness/primary key constraints that must include the partition key; `snapshot_id` design must be checked before finalizing migration.
 - pg_partman retention drops/detaches whole partitions. It is not identical to row-level `collect_time < cutoff` deletion.
 - If pg_partman is enabled after data already exists in a plain table, migration becomes more complex. Phase 4E should prefer clear initial choice over automatic conversion.
+- PostgreSQL対応時に、`TransactionRunner.readOnly`を本当にDB read-only transactionへ落とすかを決める。SQLiteでは接続確立後のread-only flag変更がruntime errorになったため、backend別に扱う。
+- SQLiteのpool sizeを1より大きくする場合は、WAL mode、`busy_timeout`、write直列化、shutdown時のDataSource closeを同時に検証する。

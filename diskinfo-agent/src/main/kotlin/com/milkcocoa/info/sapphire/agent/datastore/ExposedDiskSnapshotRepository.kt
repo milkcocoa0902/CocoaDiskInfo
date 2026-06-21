@@ -13,7 +13,6 @@ import org.jetbrains.exposed.v1.core.greaterEq
 import org.jetbrains.exposed.v1.core.lessEq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.Instant
 import java.time.OffsetDateTime
 import java.time.ZoneId
@@ -26,59 +25,57 @@ class ExposedDiskSnapshotRepository : DiskSnapshotRepository {
         val nodeId = NodeIdentity.nodeId
         val nodeName = NodeIdentity.nodeName
 
-        transaction {
-            DiskSnapshotTable.insert {
-                it[DiskSnapshotTable.nodeId] = nodeId
-                it[DiskSnapshotTable.nodeName] = nodeName
-                it[DiskSnapshotTable.collectTimeStamp] = OffsetDateTime.ofInstant(
-                    Instant.ofEpochMilli(snapshot.timestamp.toEpochMilliseconds()),
-                    ZoneId.systemDefault(),
-                )
-                it[DiskSnapshotTable.deviceKey] = snapshot.deviceKey
-                it[DiskSnapshotTable.deviceSerialName] = snapshot.serial
-                it[DiskSnapshotTable.connectionProtocol] = snapshot.metricsSnapshot.protocol.name
-                it[DiskSnapshotTable.deviceModel] = snapshot.model
-                it[DiskSnapshotTable.devicePath] = snapshot.path
-                it[DiskSnapshotTable.temperatureCelsius] = snapshot.temperatureCelsius?.toBigDecimal()
-                it[DiskSnapshotTable.powerOnCycles] = snapshot.metricsSnapshot.universal.powerCycleCount
-                it[DiskSnapshotTable.powerOnHours] = snapshot.powerOnHours
+        DiskSnapshotTable.insert {
+            it[DiskSnapshotTable.nodeId] = nodeId
+            it[DiskSnapshotTable.nodeName] = nodeName
+            it[DiskSnapshotTable.collectTimeStamp] = OffsetDateTime.ofInstant(
+                Instant.ofEpochMilli(snapshot.timestamp.toEpochMilliseconds()),
+                ZoneId.systemDefault(),
+            )
+            it[DiskSnapshotTable.deviceKey] = snapshot.deviceKey
+            it[DiskSnapshotTable.deviceSerialName] = snapshot.serial
+            it[DiskSnapshotTable.connectionProtocol] = snapshot.metricsSnapshot.protocol.name
+            it[DiskSnapshotTable.deviceModel] = snapshot.model
+            it[DiskSnapshotTable.devicePath] = snapshot.path
+            it[DiskSnapshotTable.temperatureCelsius] = snapshot.temperatureCelsius?.toBigDecimal()
+            it[DiskSnapshotTable.powerOnCycles] = snapshot.metricsSnapshot.universal.powerCycleCount
+            it[DiskSnapshotTable.powerOnHours] = snapshot.powerOnHours
 
-                when (val metrics = snapshot.metricsSnapshot) {
-                    is MetricsSnapshot.AtaMetricsSnapshot -> {
-                        it[DiskSnapshotTable.ataReallocatedSectorCount] =
-                            metrics.attributes.find { attribute ->
-                                attribute.id == AtaSmartAttributeId.ReallocatedSectorCt
-                            }?.value
-                        it[DiskSnapshotTable.ataCurrentPendingSectorCount] =
-                            metrics.attributes.find { attribute ->
-                                attribute.id == AtaSmartAttributeId.CurrentPendingSector
-                            }?.value
-                        it[DiskSnapshotTable.ataOfflineUncorrectableCount] =
-                            metrics.attributes.find { attribute ->
-                                attribute.id == AtaSmartAttributeId.OfflineUncorrectable
-                            }?.value
-                        it[DiskSnapshotTable.ataUdmaCrcErrorCount] =
-                            metrics.attributes.find { attribute ->
-                                attribute.id == AtaSmartAttributeId.UdmaCrcErrorCount
-                            }?.value
-                    }
-
-                    is MetricsSnapshot.NvmeMetricsSnapshot -> {
-                        it[DiskSnapshotTable.nvmePercentageUsed] = metrics.percentageUsed
-                        it[DiskSnapshotTable.nvmeAvailableSpare] = metrics.availableSpare
-                        it[DiskSnapshotTable.nvmeMediaErrorCount] = metrics.mediaErrors
-                        it[DiskSnapshotTable.nvmeDataUnitsWritten] = metrics.dataUnitsWritten
-                        it[DiskSnapshotTable.nvmeDataUnitsRead] = metrics.dataUnitsRead
-                    }
+            when (val metrics = snapshot.metricsSnapshot) {
+                is MetricsSnapshot.AtaMetricsSnapshot -> {
+                    it[DiskSnapshotTable.ataReallocatedSectorCount] =
+                        metrics.attributes.find { attribute ->
+                            attribute.id == AtaSmartAttributeId.ReallocatedSectorCt
+                        }?.value
+                    it[DiskSnapshotTable.ataCurrentPendingSectorCount] =
+                        metrics.attributes.find { attribute ->
+                            attribute.id == AtaSmartAttributeId.CurrentPendingSector
+                        }?.value
+                    it[DiskSnapshotTable.ataOfflineUncorrectableCount] =
+                        metrics.attributes.find { attribute ->
+                            attribute.id == AtaSmartAttributeId.OfflineUncorrectable
+                        }?.value
+                    it[DiskSnapshotTable.ataUdmaCrcErrorCount] =
+                        metrics.attributes.find { attribute ->
+                            attribute.id == AtaSmartAttributeId.UdmaCrcErrorCount
+                        }?.value
                 }
 
-                it[DiskSnapshotTable.snapshotJson] = snapshot
+                is MetricsSnapshot.NvmeMetricsSnapshot -> {
+                    it[DiskSnapshotTable.nvmePercentageUsed] = metrics.percentageUsed
+                    it[DiskSnapshotTable.nvmeAvailableSpare] = metrics.availableSpare
+                    it[DiskSnapshotTable.nvmeMediaErrorCount] = metrics.mediaErrors
+                    it[DiskSnapshotTable.nvmeDataUnitsWritten] = metrics.dataUnitsWritten
+                    it[DiskSnapshotTable.nvmeDataUnitsRead] = metrics.dataUnitsRead
+                }
             }
+
+            it[DiskSnapshotTable.snapshotJson] = snapshot
         }
     }
 
     @OptIn(ExperimentalUuidApi::class)
-    override fun findLatestNodes(): List<NodeSnapshot> = transaction {
+    override fun findLatestNodes(): List<NodeSnapshot> =
         DiskSnapshotTable
             .selectAll()
             .orderBy(DiskSnapshotTable.collectTimeStamp to SortOrder.DESC)
@@ -94,9 +91,8 @@ class ExposedDiskSnapshotRepository : DiskSnapshotRepository {
                 )
             }
             .sortedBy { it.nodeName }
-    }
 
-    override fun findLatestByDeviceKey(deviceKey: String): DiskSnapshot? = transaction {
+    override fun findLatestByDeviceKey(deviceKey: String): DiskSnapshot? =
         DiskSnapshotTable
             .selectAll()
             .where { DiskSnapshotTable.deviceKey eq deviceKey }
@@ -104,14 +100,13 @@ class ExposedDiskSnapshotRepository : DiskSnapshotRepository {
             .limit(1)
             .singleOrNull()
             ?.get(DiskSnapshotTable.snapshotJson)
-    }
 
     @OptIn(ExperimentalUuidApi::class)
     override fun findHistory(
         nodeId: Uuid,
         deviceKey: String,
         query: HistoryQuery,
-    ): NodeDeviceHistoryPayload = transaction {
+    ): NodeDeviceHistoryPayload {
         var condition: Op<Boolean> =
             (DiskSnapshotTable.nodeId eq nodeId) and (DiskSnapshotTable.deviceKey eq deviceKey)
 
@@ -134,7 +129,7 @@ class ExposedDiskSnapshotRepository : DiskSnapshotRepository {
             .limit(query.limit)
             .toList()
 
-        NodeDeviceHistoryPayload(
+        return NodeDeviceHistoryPayload(
             nodeId = nodeId.toString(),
             nodeName = rows.firstOrNull()?.get(DiskSnapshotTable.nodeName).orEmpty(),
             deviceKey = deviceKey,

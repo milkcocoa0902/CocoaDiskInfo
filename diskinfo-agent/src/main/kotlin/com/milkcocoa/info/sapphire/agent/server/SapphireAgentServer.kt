@@ -1,10 +1,10 @@
 package com.milkcocoa.info.sapphire.agent.server
 
 import com.milkcocoa.info.sapphire.agent.datastore.DEFAULT_HISTORY_LIMIT
-import com.milkcocoa.info.sapphire.agent.datastore.DiskSnapshotRepository
 import com.milkcocoa.info.sapphire.agent.datastore.HistoryOrder
 import com.milkcocoa.info.sapphire.agent.datastore.HistoryQuery
 import com.milkcocoa.info.sapphire.agent.datastore.MAX_HISTORY_LIMIT
+import com.milkcocoa.info.sapphire.agent.usecase.SnapshotUseCase
 import com.milkcocoa.info.sapphire.core.api.ApiError
 import com.milkcocoa.info.sapphire.core.api.ApiResponse
 import com.milkcocoa.info.sapphire.core.api.LatestSnapshotsPayload
@@ -32,7 +32,7 @@ import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
 class SapphireAgentServer(
-    private val repository: DiskSnapshotRepository,
+    private val snapshotUseCase: SnapshotUseCase,
     private val host: String = "127.0.0.1",
     private val port: Int = 14631,
 ) {
@@ -45,7 +45,7 @@ class SapphireAgentServer(
             host = host,
             port = port,
         ) {
-            installSapphireAgentApi(repository)
+            installSapphireAgentApi(snapshotUseCase)
             module()
         }.start(wait = wait)
     }
@@ -53,7 +53,7 @@ class SapphireAgentServer(
 
 @OptIn(ExperimentalUuidApi::class)
 fun Application.installSapphireAgentApi(
-    repository: DiskSnapshotRepository,
+    snapshotUseCase: SnapshotUseCase,
 ) {
     install(ContentNegotiation) {
         json(Json)
@@ -65,7 +65,7 @@ fun Application.installSapphireAgentApi(
             call.respond(
                 ApiResponse.Success(
                     LatestSnapshotsPayload(
-                        nodes = repository.findLatestNodes(),
+                        nodes = snapshotUseCase.findLatestNodes(),
                     ),
                 ),
             )
@@ -86,7 +86,7 @@ fun Application.installSapphireAgentApi(
             }
 
             val deviceKey = resource.deviceKey
-            val snapshot = repository.findLatestByDeviceKey(deviceKey)
+            val snapshot = snapshotUseCase.findLatestByDeviceKey(deviceKey)
             if (snapshot == null) {
                 call.respond(
                     HttpStatusCode.NotFound,
@@ -126,7 +126,7 @@ fun Application.installSapphireAgentApi(
 
             call.respond(
                 ApiResponse.Success(
-                    repository.findHistory(
+                    snapshotUseCase.findHistory(
                         nodeId = nodeId,
                         deviceKey = resource.deviceKey,
                         query = query,

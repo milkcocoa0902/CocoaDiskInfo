@@ -3,7 +3,7 @@ package com.milkcocoa.info.sapphire.agent
 import com.milkcocoa.info.colotok.core.logger.Colotok
 import com.milkcocoa.info.colotok.core.logger.ColotokLoggerContext
 import com.milkcocoa.info.sapphire.agent.collector.SmartctlCollector
-import com.milkcocoa.info.sapphire.agent.datastore.DiskSnapshotRepository
+import com.milkcocoa.info.sapphire.agent.datastore.StorageConnection
 import com.milkcocoa.info.sapphire.agent.datastore.StorageConnectionFactory
 import com.milkcocoa.info.sapphire.agent.datastore.StorageSettings
 import com.milkcocoa.info.sapphire.agent.exec.SapphireExecutor
@@ -13,6 +13,7 @@ import com.milkcocoa.info.sapphire.agent.sink.ColotokSnapshotSink
 import com.milkcocoa.info.sapphire.agent.sink.CompositeSnapshotSink
 import com.milkcocoa.info.sapphire.agent.sink.RepositorySnapshotSink
 import com.milkcocoa.info.sapphire.agent.sink.SnapshotSink
+import com.milkcocoa.info.sapphire.agent.usecase.SnapshotUseCase
 import kotlinx.coroutines.runBlocking
 import kotlin.time.Duration.Companion.seconds
 
@@ -87,12 +88,12 @@ internal interface SapphireCommandRuntime {
     fun run(request: SapphireCommandRequest)
 }
 
-internal fun interface DiskSnapshotRepositoryFactory {
-    fun create(storage: StorageSettings): DiskSnapshotRepository
+internal fun interface SnapshotUseCaseFactory {
+    fun create(connection: StorageConnection): SnapshotUseCase
 }
 
 internal class ProductionSapphireCommandRuntime(
-    private val repositoryFactory: DiskSnapshotRepositoryFactory,
+    private val snapshotUseCaseFactory: SnapshotUseCaseFactory,
 ) : SapphireCommandRuntime {
     override fun run(request: SapphireCommandRequest) {
         when (request) {
@@ -108,14 +109,14 @@ internal class ProductionSapphireCommandRuntime(
         setupConsoleOutput(request.outputMode)
 
         if (request.persist) {
-            StorageConnectionFactory.connect(request.storage).use {
-                val repository = repositoryFactory.create(request.storage)
+            StorageConnectionFactory.connect(request.storage).use { connection ->
+                val snapshotUseCase = snapshotUseCaseFactory.create(connection)
 
                 runExecutor(
                     SapphireExecutor.Oneshot(
                         device = request.target,
                         collector = createCollector(request.deviceIdentityNamespaceSalt),
-                        sink = createSnapshotSink(repository),
+                        sink = createSnapshotSink(snapshotUseCase),
                     ),
                 )
             }
@@ -124,7 +125,7 @@ internal class ProductionSapphireCommandRuntime(
                 SapphireExecutor.Oneshot(
                     device = request.target,
                     collector = createCollector(request.deviceIdentityNamespaceSalt),
-                    sink = createSnapshotSink(repository = null),
+                    sink = createSnapshotSink(snapshotUseCase = null),
                 ),
             )
         }
@@ -132,17 +133,17 @@ internal class ProductionSapphireCommandRuntime(
 
     private fun runStandalone(request: SapphireCommandRequest.Standalone) {
         setupConsoleOutput(request.outputMode)
-        StorageConnectionFactory.connect(request.storage).use {
-            val repository = repositoryFactory.create(request.storage)
+        StorageConnectionFactory.connect(request.storage).use { connection ->
+            val snapshotUseCase = snapshotUseCaseFactory.create(connection)
 
             runExecutor(
                 SapphireExecutor.Standalone(
                     device = request.target,
                     collectionInterval = request.intervalSeconds.seconds,
                     collector = createCollector(request.deviceIdentityNamespaceSalt),
-                    sink = createSnapshotSink(repository),
+                    sink = createSnapshotSink(snapshotUseCase),
                     server = SapphireAgentServer(
-                        repository = repository,
+                        snapshotUseCase = snapshotUseCase,
                         host = request.host,
                         port = request.port,
                     ),
@@ -173,14 +174,14 @@ internal class ProductionSapphireCommandRuntime(
         )
     }
 
-    private fun createSnapshotSink(repository: DiskSnapshotRepository?): SnapshotSink {
+    private fun createSnapshotSink(snapshotUseCase: SnapshotUseCase?): SnapshotSink {
         val outputSink = ColotokSnapshotSink()
-        return if (repository == null) {
+        return if (snapshotUseCase == null) {
             outputSink
         } else {
             CompositeSnapshotSink(
                 outputSink,
-                RepositorySnapshotSink(repository),
+                RepositorySnapshotSink(snapshotUseCase),
             )
         }
     }

@@ -21,7 +21,9 @@ import com.milkcocoa.info.sapphire.agent.config.AgentConfigValidationException
 import com.milkcocoa.info.sapphire.agent.config.EffectiveDbMigrateConfig
 import com.milkcocoa.info.sapphire.agent.config.EffectiveOneshotConfig
 import com.milkcocoa.info.sapphire.agent.config.EffectiveStandaloneConfig
+import com.milkcocoa.info.sapphire.agent.datastore.ExposedTransactionRunner
 import com.milkcocoa.info.sapphire.agent.datastore.ExposedDiskSnapshotRepository
+import com.milkcocoa.info.sapphire.agent.usecase.TransactionalSnapshotUseCase
 import java.nio.file.Path
 import java.nio.file.Paths
 import kotlin.io.path.absolutePathString
@@ -43,8 +45,11 @@ internal fun createSapphireAgentCommand(
 
 private fun createProductionSapphireCommandRuntime(): SapphireCommandRuntime {
     return ProductionSapphireCommandRuntime(
-        repositoryFactory = DiskSnapshotRepositoryFactory {
-            ExposedDiskSnapshotRepository()
+        snapshotUseCaseFactory = SnapshotUseCaseFactory { connection ->
+            TransactionalSnapshotUseCase(
+                repository = ExposedDiskSnapshotRepository(),
+                transactionRunner = ExposedTransactionRunner(connection.database),
+            )
         },
     )
 }

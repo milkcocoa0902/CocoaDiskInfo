@@ -4,6 +4,7 @@ import com.milkcocoa.info.sapphire.agent.connectDiskSnapshotTestDatabase
 import com.milkcocoa.info.sapphire.agent.insertDiskSnapshot
 import com.milkcocoa.info.sapphire.agent.testDiskSnapshot
 import com.milkcocoa.info.sapphire.agent.testNodeId
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import kotlin.test.Test
@@ -20,10 +21,11 @@ class ExposedDiskSnapshotRepositoryTest {
         connectDiskSnapshotTestDatabase()
         val repository = ExposedDiskSnapshotRepository()
 
-        repository.insert(testDiskSnapshot(deviceKeyA, timestampMillis = 1_000, temperatureCelsius = 31))
-        repository.insert(testDiskSnapshot(deviceKeyA, timestampMillis = 2_000, temperatureCelsius = 32))
-
-        val latest = repository.findLatestByDeviceKey(deviceKeyA)
+        val latest = transaction {
+            repository.insert(testDiskSnapshot(deviceKeyA, timestampMillis = 1_000, temperatureCelsius = 31))
+            repository.insert(testDiskSnapshot(deviceKeyA, timestampMillis = 2_000, temperatureCelsius = 32))
+            repository.findLatestByDeviceKey(deviceKeyA)
+        }
 
         assertEquals(2_000L, latest?.timestamp?.toEpochMilliseconds())
         assertEquals(32, latest?.temperatureCelsius)
@@ -41,7 +43,9 @@ class ExposedDiskSnapshotRepositoryTest {
         insertDiskSnapshot(nodeA, "node-a", testDiskSnapshot(deviceKeyB, timestampMillis = 3_000))
         insertDiskSnapshot(nodeB, "node-b", testDiskSnapshot(deviceKeyA, timestampMillis = 4_000))
 
-        val nodes = ExposedDiskSnapshotRepository().findLatestNodes()
+        val nodes = transaction {
+            ExposedDiskSnapshotRepository().findLatestNodes()
+        }
 
         assertEquals(listOf("node-a", "node-b"), nodes.map { it.nodeName })
         assertEquals(listOf(deviceKeyB, deviceKeyA), nodes[0].devices.map { it.deviceKey })
@@ -54,7 +58,9 @@ class ExposedDiskSnapshotRepositoryTest {
     fun `findLatestByDeviceKey returns null for unknown device`() {
         connectDiskSnapshotTestDatabase()
 
-        val latest = ExposedDiskSnapshotRepository().findLatestByDeviceKey("missing")
+        val latest = transaction {
+            ExposedDiskSnapshotRepository().findLatestByDeviceKey("missing")
+        }
 
         assertEquals(null, latest)
     }
@@ -71,11 +77,13 @@ class ExposedDiskSnapshotRepositoryTest {
         insertDiskSnapshot(selectedNodeId, "node-a", testDiskSnapshot(deviceKeyB, timestampMillis = 3_000))
         insertDiskSnapshot(otherNodeId, "node-b", testDiskSnapshot(deviceKey, timestampMillis = 4_000))
 
-        val payload = ExposedDiskSnapshotRepository().findHistory(
-            nodeId = selectedNodeId,
-            deviceKey = deviceKey,
-            query = HistoryQuery(limit = 10),
-        )
+        val payload = transaction {
+            ExposedDiskSnapshotRepository().findHistory(
+                nodeId = selectedNodeId,
+                deviceKey = deviceKey,
+                query = HistoryQuery(limit = 10),
+            )
+        }
 
         assertEquals(selectedNodeId.toString(), payload.nodeId)
         assertEquals("node-a", payload.nodeName)
@@ -94,16 +102,18 @@ class ExposedDiskSnapshotRepositoryTest {
         insertDiskSnapshot(nodeId, "node-a", testDiskSnapshot(deviceKey, timestampMillis = 3_000))
         insertDiskSnapshot(nodeId, "node-a", testDiskSnapshot(deviceKey, timestampMillis = 4_000))
 
-        val payload = ExposedDiskSnapshotRepository().findHistory(
-            nodeId = nodeId,
-            deviceKey = deviceKey,
-            query = HistoryQuery(
-                limit = 2,
-                from = OffsetDateTime.ofInstant(java.time.Instant.ofEpochMilli(2_000), ZoneOffset.UTC),
-                to = OffsetDateTime.ofInstant(java.time.Instant.ofEpochMilli(4_000), ZoneOffset.UTC),
-                order = HistoryOrder.ASC,
-            ),
-        )
+        val payload = transaction {
+            ExposedDiskSnapshotRepository().findHistory(
+                nodeId = nodeId,
+                deviceKey = deviceKey,
+                query = HistoryQuery(
+                    limit = 2,
+                    from = OffsetDateTime.ofInstant(java.time.Instant.ofEpochMilli(2_000), ZoneOffset.UTC),
+                    to = OffsetDateTime.ofInstant(java.time.Instant.ofEpochMilli(4_000), ZoneOffset.UTC),
+                    order = HistoryOrder.ASC,
+                ),
+            )
+        }
 
         assertEquals(listOf(2_000L, 3_000L), payload.snapshots.map { it.timestamp.toEpochMilliseconds() })
     }
@@ -111,11 +121,13 @@ class ExposedDiskSnapshotRepositoryTest {
     @Test
     fun `findHistory returns empty payload for unknown node and device`() {
         connectDiskSnapshotTestDatabase()
-        val payload = ExposedDiskSnapshotRepository().findHistory(
-            nodeId = testNodeId(1),
-            deviceKey = "missing",
-            query = HistoryQuery(),
-        )
+        val payload = transaction {
+            ExposedDiskSnapshotRepository().findHistory(
+                nodeId = testNodeId(1),
+                deviceKey = "missing",
+                query = HistoryQuery(),
+            )
+        }
 
         assertEquals(testNodeId(1).toString(), payload.nodeId)
         assertEquals("", payload.nodeName)

@@ -1,10 +1,10 @@
 package com.milkcocoa.info.sapphire.agent.server
 
-import com.milkcocoa.info.sapphire.agent.datastore.DiskSnapshotRepository
 import com.milkcocoa.info.sapphire.agent.datastore.HistoryOrder
 import com.milkcocoa.info.sapphire.agent.datastore.HistoryQuery
 import com.milkcocoa.info.sapphire.agent.testDiskSnapshot
 import com.milkcocoa.info.sapphire.agent.testNodeId
+import com.milkcocoa.info.sapphire.agent.usecase.SnapshotUseCase
 import com.milkcocoa.info.sapphire.core.api.ApiError
 import com.milkcocoa.info.sapphire.core.api.NodeDeviceHistoryPayload
 import com.milkcocoa.info.sapphire.core.api.NodeSnapshot
@@ -30,7 +30,7 @@ class SapphireAgentServerTest {
     fun `history endpoint returns selected node device snapshots`() = testApplication {
         val nodeId = testNodeId(1)
         val deviceKey = deviceKeyA
-        val repository = FakeDiskSnapshotRepository(
+        val snapshotUseCase = FakeSnapshotUseCase(
             historyPayload = NodeDeviceHistoryPayload(
                 nodeId = nodeId.toString(),
                 nodeName = "node-a",
@@ -43,7 +43,7 @@ class SapphireAgentServerTest {
         )
 
         application {
-            installSapphireAgentApi(repository)
+            installSapphireAgentApi(snapshotUseCase)
         }
 
         val response = client.get(
@@ -58,14 +58,14 @@ class SapphireAgentServerTest {
         assertEquals(listOf(1_000L, 2_000L), payload.snapshots.map { it.timestamp.toEpochMilliseconds() })
         assertEquals(
             listOf(HistoryRequest(nodeId.toString(), deviceKey, HistoryQuery(limit = 2, order = HistoryOrder.ASC))),
-            repository.historyRequests,
+            snapshotUseCase.historyRequests,
         )
     }
 
     @Test
     fun `history endpoint returns empty snapshots for unknown node device`() = testApplication {
         val nodeId = testNodeId(1)
-        val repository = FakeDiskSnapshotRepository(
+        val snapshotUseCase = FakeSnapshotUseCase(
             historyPayload = NodeDeviceHistoryPayload(
                 nodeId = nodeId.toString(),
                 nodeName = "",
@@ -75,7 +75,7 @@ class SapphireAgentServerTest {
         )
 
         application {
-            installSapphireAgentApi(repository)
+            installSapphireAgentApi(snapshotUseCase)
         }
 
         val response = client.get("/api/v1/nodes/$nodeId/devices/missing/snapshots")
@@ -91,10 +91,10 @@ class SapphireAgentServerTest {
     @Test
     fun `history endpoint rejects invalid path and query values`() = testApplication {
         val nodeId = testNodeId(1)
-        val repository = FakeDiskSnapshotRepository()
+        val snapshotUseCase = FakeSnapshotUseCase()
 
         application {
-            installSapphireAgentApi(repository)
+            installSapphireAgentApi(snapshotUseCase)
         }
 
         val invalidUrls = listOf(
@@ -114,7 +114,7 @@ class SapphireAgentServerTest {
             assertEquals(HttpStatusCode.BadRequest, response.status, "Expected 400 for $url")
             TestJson.decodeFromString<FailureResponse>(response.bodyAsText())
         }
-        assertEquals(emptyList(), repository.historyRequests)
+        assertEquals(emptyList(), snapshotUseCase.historyRequests)
     }
 }
 
@@ -134,24 +134,24 @@ private data class HistoryRequest(
     val query: HistoryQuery,
 )
 
-private class FakeDiskSnapshotRepository(
+private class FakeSnapshotUseCase(
     private val historyPayload: NodeDeviceHistoryPayload = NodeDeviceHistoryPayload(
         nodeId = "",
         nodeName = "",
         deviceKey = "",
         snapshots = emptyList(),
     ),
-) : DiskSnapshotRepository {
+) : SnapshotUseCase {
     val historyRequests = mutableListOf<HistoryRequest>()
 
-    override fun insert(snapshot: DiskSnapshot) = Unit
+    override suspend fun saveSnapshot(snapshot: DiskSnapshot) = Unit
 
-    override fun findLatestNodes(): List<NodeSnapshot> = emptyList()
+    override suspend fun findLatestNodes(): List<NodeSnapshot> = emptyList()
 
-    override fun findLatestByDeviceKey(deviceKey: String): DiskSnapshot? = null
+    override suspend fun findLatestByDeviceKey(deviceKey: String): DiskSnapshot? = null
 
     @OptIn(ExperimentalUuidApi::class)
-    override fun findHistory(
+    override suspend fun findHistory(
         nodeId: Uuid,
         deviceKey: String,
         query: HistoryQuery,

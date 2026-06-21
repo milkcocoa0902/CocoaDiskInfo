@@ -78,6 +78,7 @@ SQLite固定のDB接続処理を、storage設定からDB接続を作る境界へ
   - `oneshot --scan`は`--persist`なしでstorage factoryを呼ばないこと。
 - Notes:
   - HikariCPはJDBC poolとして採用価値が高いが、SQLiteではpoolが大きいと逆効果になり得るため制限する。
+  - SQLiteは同一DBファイルへ複数connectionを張れるが、同時writeは直列化される。Phase 4A/4Cでは安全側に倒してSQLite `maximumPoolSize = 1`を維持し、WAL mode、`busy_timeout`、SQLite pool拡張はPostgreSQL backend追加時の比較材料として再検討する。
   - PostgreSQLではTCP keepaliveやconnection lifetimeの設定を将来のoperations taskで詰める。
 
 ## CLI/API Compatibility
@@ -108,3 +109,4 @@ SQLite固定のDB接続処理を、storage設定からDB接続を作る境界へ
 - Implemented: `storage.type` is optional and inferred from JDBC URL when omitted.
 - Implemented: HikariCP-backed storage connection factory is used by persisted `oneshot`, `standalone`, and `db migrate`.
 - Deferred: PostgreSQL JDBC driver dependency remains Phase 4E scope.
+- Deferred: SQLite multi-connection tuning remains out of Phase 4A/4C scope. Revisit WAL, `busy_timeout`, and pool size when Phase 4E compares SQLite and PostgreSQL connection behavior.

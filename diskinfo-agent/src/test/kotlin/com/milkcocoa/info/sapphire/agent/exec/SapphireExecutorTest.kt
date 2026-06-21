@@ -9,22 +9,30 @@ import kotlin.test.assertTrue
 
 class SapphireExecutorTest {
     @Test
-    fun `migrate creates disk snapshot table in temporary sqlite database`() {
+    fun `migrate creates disk snapshot table in temporary sqlite database and is idempotent`() {
         val databaseFile = createTempFile()
         val jdbcUrl = "jdbc:sqlite:${databaseFile.absolutePathString()}"
 
         runBlocking {
             SapphireExecutor.Migrate(jdbcUrl = jdbcUrl).execute()
+            SapphireExecutor.Migrate(jdbcUrl = jdbcUrl).execute()
         }
 
-        DriverManager.getConnection(jdbcUrl).use { connection ->
-            connection.createStatement().use { statement ->
-                statement.executeQuery(
-                    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'disk_snapshot'",
-                ).use { result ->
-                    assertTrue(result.next(), "disk_snapshot table should exist after migration.")
-                }
+        assertTrue(tableExists(jdbcUrl, "disk_snapshot"), "disk_snapshot table should exist after migration.")
+        assertTrue(tableExists(jdbcUrl, "flyway_schema_history"), "Flyway history table should exist after migration.")
+    }
+}
+
+private fun tableExists(
+    jdbcUrl: String,
+    tableName: String,
+): Boolean =
+    DriverManager.getConnection(jdbcUrl).use { connection ->
+        connection.createStatement().use { statement ->
+            statement.executeQuery(
+                "SELECT name FROM sqlite_master WHERE type = 'table' AND name = '$tableName'",
+            ).use { result ->
+                result.next()
             }
         }
     }
-}

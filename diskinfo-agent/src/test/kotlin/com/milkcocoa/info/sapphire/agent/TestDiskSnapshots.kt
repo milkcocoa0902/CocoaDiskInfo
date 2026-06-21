@@ -1,6 +1,8 @@
 package com.milkcocoa.info.sapphire.agent
 
 import com.milkcocoa.info.sapphire.agent.datastore.DiskSnapshotTable
+import com.milkcocoa.info.sapphire.agent.datastore.StorageSettings
+import com.milkcocoa.info.sapphire.agent.datastore.createStorageMigratorFactory
 import com.milkcocoa.info.sapphire.core.snapshot.DiskHealth
 import com.milkcocoa.info.sapphire.core.snapshot.DiskSnapshot
 import com.milkcocoa.info.sapphire.core.snapshot.MetricsSnapshot
@@ -8,7 +10,6 @@ import com.milkcocoa.info.sapphire.core.snapshot.UniversalMetrics
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import org.jetbrains.exposed.v1.migration.jdbc.MigrationUtils
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import kotlin.io.path.absolutePathString
@@ -20,14 +21,10 @@ import kotlin.uuid.Uuid
 internal fun connectDiskSnapshotTestDatabase(): String {
     val databaseFile = createTempFile()
     val jdbcUrl = "jdbc:sqlite:${databaseFile.absolutePathString()}"
+    val storage = StorageSettings.fromJdbcUrl(jdbcUrl)
 
+    createStorageMigratorFactory().create(storage).migrate(storage)
     Database.connect(jdbcUrl, "org.sqlite.JDBC")
-    transaction {
-        exec("DROP TABLE IF EXISTS disk_snapshot")
-        MigrationUtils
-            .statementsRequiredForDatabaseMigration(DiskSnapshotTable, withLogs = true)
-            .forEach { exec(it) }
-    }
 
     return jdbcUrl
 }
@@ -80,6 +77,9 @@ internal fun insertDiskSnapshot(
     nodeName: String,
     snapshot: DiskSnapshot,
 ) {
+    // FIXME:
+    //  Tx開始ポリシーはUseCaseのため、一見すると違反しているように見える。
+    //  Test Helperのため、一時的に許容する。
     transaction {
         DiskSnapshotTable.insert {
             it[DiskSnapshotTable.nodeId] = nodeId
