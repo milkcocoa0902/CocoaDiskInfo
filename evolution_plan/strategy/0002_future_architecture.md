@@ -12,9 +12,38 @@
 ## Core Direction
 - Hubの通常応答はcache-firstにする。
 - Node AgentはHubへ自己登録または初回snapshot送信で識別される。
+- Phase 5では、HubとNode Agentの分散ingest経路をmTLSで相互認証する。
+- 初期分散構成ではHubをCA/信頼anchorとして扱う。
+- Hub側が短命・単回利用を基本とするjoin tokenを発行し、Node Agent側がHub URL、join token、Hub CA検証情報を指定して参加する。
+- Node Agent principalとClient principalを分ける。Client principalは「SMART情報を応答してよい相手」を表し、公式Client判定ではない。
+- Hub-lessなClient-to-Agent直接接続は単一ノード構成として残す。このときAgent processはsmartctl実行者であると同時にlocal Hub roleを内包し、ClientはAgentへ直接接続する。
+- Hub-less構成でもClient-to-Agent認証は必要であり、認証なしの例外扱いにはしない。
 - 一部Node Agent障害時も、Hubは前回cache、stale metadata、errorsで部分成功を返す。
 - freshness metadataをAPI応答に含められる形にする。
 - 初期Hubではlive同期問い合わせを必須にしない。
+
+## Authentication Direction
+Phase 5の分散構成では、HubとNode AgentがmTLSで相互認証する。
+
+初期実装ではHubをCAとする。Node Agentは任意の初回Hub応答を既定で信頼しない。bootstrapはkubeadmに近いモデルにする。
+
+1. Hub operatorがjoin tokenを作成する。
+2. HubがCA certificateまたは `sha256` CA fingerprintのようなHub CA検証materialを表示または返す。
+3. Node Agentはprivate keyをローカル生成し、join token付きでCSRを送る。
+4. Hubはtokenを検証し、Node Agent principalを作成または有効化し、CSRへ署名してclient certificateとCA chainを返す。
+5. Node Agentは発行されたclient certificateでingestとheartbeatを行う。
+
+HubはNode Agentのprivate keyを生成せず、CSRへ署名する。
+
+初期に強制するrule:
+
+- Hub modeの `POST /api/v1/snapshots` はactiveな `NODE_AGENT` principalだけを受け付ける。
+
+Client認証は同じprincipal vocabularyを再利用する。ただしClientの意味は変えない。Client principalは、callerがSMART dataを読んでよいことを表す。公式CocoaDiskInfo Client executableであることは証明しない。Client read APIの第一候補はclient certificateによるmTLS principal extractionとする。
+
+CRL、OCSP、renewal、rotation、emergency revocation procedureは別のoperations topicとする。それらが未実装でも、HubはTLS peer verification後にdisabled principalをapplication layerで拒否できる。
+
+Hub-lessなClient-to-Agent直接接続はsupported topologyとして残す。このmodeの正体は、Agent processがHub roleとsmartctl実行者roleを同時に持つ構成である。ClientはAgentに直接接続するが、read APIは認証なしの例外ではない。Hub CA materialを要求する代わりに、Agent process内のlocal Hub roleがClient certificate、Client principal、local trust materialを扱う。
 
 ## Minimal Hub Model
 候補モデル:
@@ -53,6 +82,7 @@ POST /api/v1/snapshots
 Node Agent登録/heartbeat候補:
 
 ```text
+POST /api/v1/node-agents/join
 POST /api/v1/node-agents/register
 POST /api/v1/node-agents/heartbeat
 ```
@@ -65,6 +95,13 @@ Node Agent向け管理APIのpathは未確定である。候補は次のどちら
 
 この命名はPhase 5 task作成時に決める。現時点では `collector` pathへ戻さないことだけを固定する。
 
+認証/証明書運用の未確定事項:
+
+- CRL/OCSPを採用するか、短命証明書 + renewal + Hub principal disableを基本にするか。
+- Node Agent certificateの初期TTL。
+- renewal endpointとrotation timing。
+- Hub-less Client-to-Agent認証で使うlocal trust sourceとClient certificate発行/登録方法。
+
 ## Test Plan
 - 複数Node AgentのsnapshotをHubへingestできること。
 - 集約APIがnode/device単位でlatest snapshotを返すこと。
@@ -75,4 +112,5 @@ Node Agent向け管理APIのpathは未確定である。候補は次のどちら
 ## Assumptions
 - 初期はcache-first固定で運用する。
 - stale判定閾値は収集周期の2倍を初期候補にする。
-- 認証/認可は後続フェーズで導入する。
+- Hub/Node Agentの分散ingest認証はPhase 5で扱う。
+- Client-to-Hub/Client-to-Agent認証の詳細と証明書失効運用はPhase 5 taskで分割して具体化する。
