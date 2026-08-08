@@ -12,7 +12,7 @@ Phase 4Dで作ったcleanup contractをstandalone modeの起動時/定期mainten
 ## Non-Goals
 - `oneshot`に自動cleanupを追加しない。
 - Hub modeのcleanupはPhase 5以降で扱う。
-- pg_partman固有の設定追加はPhase 4Eで扱う。
+- pg_partman固有の設定追加は、運用要件が具体化した後続taskで扱う。
 
 ## Current State
 - `standalone`は定期collectionとHTTP serverを動かす。
@@ -62,12 +62,14 @@ Phase 4Fの実装前に、次の3案を比較して決める。
   - cleanup entrypointが2つに見えるため、共通runnerを作らないとログ/エラー処理が重複しやすい。
 
 ### Initial Recommendation
-初期候補はOption Cとする。
+Option Cを採用する。
 
 - `cleanupOnStartup = true`の場合、standalone assemblyでHTTP server開始前に一度だけcleanupを実行する。
 - periodic cleanupはKtor lifecycle moduleにする。
 - Ktor moduleはcleanupの業務判断を持たず、`StandaloneMaintenanceRunner`のようなserviceを起動/停止するだけにする。
 - collection loopも可能なら同じ方針でKtor lifecycle上のlong-running jobとして整理する。ただしPhase 4Fではcleanupに必要な最小変更に留める。
+- cleanup失敗はwarningとして記録し、standalone processは継続する。`CancellationException`は伝播する。
+- standalone専用のcleanup CLI flagは追加せず、config/environmentで制御する。
 
 Reference:
 - Ktor application monitoring: `https://ktor.io/docs/server-events.html`
@@ -86,8 +88,10 @@ Reference:
   - `[maintenance].cleanupIntervalHours` defaultは24。
   - `[maintenance].vacuumAfterCleanup` defaultはfalse。
   - intervalは正の値だけ許可する。
+  - standalone専用CLI flagは追加しない。
 - Validation:
-  - config/env/CLI precedence tests。
+  - config/environment precedence tests。
+  - standalone CLIにcleanup専用flagが増えていないことを既存CLI testで確認する。
 
 ### Task 2: standalone起動時cleanupを追加する
 - Objective:
@@ -97,7 +101,7 @@ Reference:
   - `SapphireExecutor.kt`
 - Expected behavior:
   - `cleanupOnStartup = true`ならHTTP server/collection開始前にcleanupを実行する。
-  - cleanup失敗時にprocessを止めるか警告にするかを明示する。初期候補は警告継続。
+  - cleanup失敗時はwarningを出してprocessを継続する。
   - 結果をログに出す。
 - Validation:
   - executor testで起動時cleanupが呼ばれること。
@@ -150,7 +154,20 @@ Reference:
 ```
 
 ## Risks and Open Questions
-- cleanup失敗をfatalにするかwarningにするか。初期候補はwarning継続。
-- pg_partman enabled時のmaintenanceをCocoaDiskInfoから呼ぶか、PostgreSQL側BGW/cronに任せるか。Phase 4Eの判断に従う。
+- cleanup失敗はwarning継続とする。ただしcoroutine cancellationは握りつぶさない。
+- Phase 4Eはplain PostgreSQLを採用するため、SQLite/PostgreSQLともapplication側maintenance use caseを呼ぶ。
 - periodic cleanupをKtor lifecycleに載せる場合、HTTP serverが起動しない環境ではcleanup loopも起動しない。standaloneではHTTP APIがmode要件なので許容する。
-- 起動時cleanupを`ApplicationStarting`/`ApplicationStarted`で行うか、server start前にexecutorで行うか。初期候補は順序保証を優先してexecutorで行う。
+- 起動時cleanupは順序保証を優先してserver start前にexecutorで行う。
+
+## Implementation Order
+1. `cleanupOnStartup`と`cleanupIntervalHours`をconfig/environmentから解決する。
+2. 起動時/定期実行で共有する`StandaloneMaintenanceRunner`を追加し、warning継続と多重実行guardを実装する。
+3. standalone executorでHTTP server開始前のstartup cleanupを実行する。
+4. Ktor lifecycleへperiodic cleanup jobのstart/cancelを接続する。
+5. config precedence、起動順序、定期実行、重複防止、cancellation、既存CLI互換をテストする。
+
+## Implementation Status
+- Implemented: `cleanupOnStartup`と`cleanupIntervalHours`をconfig/environmentから解決し、既存standalone CLIは変更しなかった。
+- Implemented: startup cleanupをserver開始前に同期実行し、periodic cleanupをKtorのstart/stop lifecycleへ接続した。
+- Implemented: 共通runnerで多重実行をskipし、通常の失敗はwarning継続、`CancellationException`は伝播する。
+- Verified: config resolution、startup順序、cleanup無効化、複数回の定期実行と停止、多重実行guard、失敗/cancellationをtestで確認した。

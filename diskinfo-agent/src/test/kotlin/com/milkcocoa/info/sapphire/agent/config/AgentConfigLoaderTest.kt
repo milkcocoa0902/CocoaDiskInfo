@@ -25,6 +25,10 @@ class AgentConfigLoaderTest {
         assertNull(config.storage.password)
         assertNull(config.http.host)
         assertNull(config.http.port)
+        assertNull(config.retention.rawSnapshotDays)
+        assertNull(config.maintenance.cleanupOnStartup)
+        assertNull(config.maintenance.cleanupIntervalHours)
+        assertNull(config.maintenance.vacuumAfterCleanup)
     }
 
     @Test
@@ -44,7 +48,7 @@ class AgentConfigLoaderTest {
     }
 
     @Test
-    fun `loads supported phase 2b config values`() {
+    fun `loads supported agent config values`() {
         val file = createTempFile().apply {
             writeText(
                 """
@@ -71,6 +75,14 @@ class AgentConfigLoaderTest {
                 [http]
                 host = "127.0.0.1"
                 port = 14631
+
+                [retention]
+                rawSnapshotDays = 14
+
+                [maintenance]
+                cleanupOnStartup = false
+                cleanupIntervalHours = 12
+                vacuumAfterCleanup = true
                 """.trimIndent(),
             )
         }
@@ -89,6 +101,10 @@ class AgentConfigLoaderTest {
         assertEquals("storage-password", config.storage.password)
         assertEquals("127.0.0.1", config.http.host)
         assertEquals(14631, config.http.port)
+        assertEquals(14, config.retention.rawSnapshotDays)
+        assertEquals(false, config.maintenance.cleanupOnStartup)
+        assertEquals(12, config.maintenance.cleanupIntervalHours)
+        assertEquals(true, config.maintenance.vacuumAfterCleanup)
     }
 
     @Test
@@ -136,6 +152,19 @@ class AgentConfigLoaderTest {
             AgentConfigLoader.load(path = unknownKey, defaultPath = null)
         }
         assertMessageContains(unknownKeyError, "unknown key unknown")
+
+        val unknownMaintenanceKey = createTempFile().apply {
+            writeText(
+                """
+                [maintenance]
+                unknown = true
+                """.trimIndent(),
+            )
+        }
+        val unknownMaintenanceKeyError = assertFailsWith<AgentConfigParseException> {
+            AgentConfigLoader.load(path = unknownMaintenanceKey, defaultPath = null)
+        }
+        assertMessageContains(unknownMaintenanceKeyError, "unknown key unknown")
     }
 
     @Test

@@ -15,7 +15,7 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import java.time.Instant
 import java.time.OffsetDateTime
-import java.time.ZoneId
+import java.time.ZoneOffset
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -30,7 +30,7 @@ class ExposedDiskSnapshotRepository : DiskSnapshotRepository {
             it[DiskSnapshotTable.nodeName] = nodeName
             it[DiskSnapshotTable.collectTimeStamp] = OffsetDateTime.ofInstant(
                 Instant.ofEpochMilli(snapshot.timestamp.toEpochMilliseconds()),
-                ZoneId.systemDefault(),
+                ZoneOffset.UTC,
             )
             it[DiskSnapshotTable.deviceKey] = snapshot.deviceKey
             it[DiskSnapshotTable.deviceSerialName] = snapshot.serial

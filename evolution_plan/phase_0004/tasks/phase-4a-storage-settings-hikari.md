@@ -71,7 +71,8 @@ SQLite固定のDB接続処理を、storage設定からDB接続を作る境界へ
   - HikariCPを採用する場合、ExposedはDataSource経由で接続する。
   - SQLite defaultは`maximumPoolSize = 1`を初期候補にする。
   - PostgreSQL defaultは小さめのpool、例: `maximumPoolSize = 5`を初期候補にする。
-  - `db migrate`/`db cleanup`のような短命コマンドでもDataSourceを確実にcloseする。
+  - `db cleanup`のような短命runtime commandでもHikari DataSourceを確実にcloseする。
+  - `db migrate`はruntime query用poolを作らず、Flywayがmigration用DataSourceを直接所有・closeする。
   - `standalone`ではprocess lifecycleに合わせてpoolをcloseする。
 - Validation:
   - DB command後にDataSource closeが呼ばれることをtest doubleで確認する。
@@ -100,13 +101,21 @@ SQLite固定のDB接続処理を、storage設定からDB接続を作る境界へ
 ```
 
 ## Risks and Open Questions
-- HikariCPを全DB commandに使うか、long-running modeだけに使うか。
+- HikariCPは通常のRepository/maintenance接続に使い、`db migrate`はFlyway管理のDataSourceを使う。
 - passwordをTOMLで許可する場合、Phase 7 packagingでconfig file permissionを明文化する必要がある。
 - PostgreSQL driver dependencyをこのtaskで入れるか、Phase 4Eまで遅らせるか。
 
 ## Implementation Status
 - Implemented: storage settings now resolve `type`, `jdbcUrl`, `username`, and `password`.
 - Implemented: `storage.type` is optional and inferred from JDBC URL when omitted.
-- Implemented: HikariCP-backed storage connection factory is used by persisted `oneshot`, `standalone`, and `db migrate`.
+- Implemented: HikariCP-backed storage connection factory is used by persisted `oneshot`, `standalone`, and `db cleanup`.
+- Implemented: `db migrate` delegates connection ownership directly to Flyway and does not create a Hikari runtime pool.
 - Deferred: PostgreSQL JDBC driver dependency remains Phase 4E scope.
 - Deferred: SQLite multi-connection tuning remains out of Phase 4A/4C scope. Revisit WAL, `busy_timeout`, and pool size when Phase 4E compares SQLite and PostgreSQL connection behavior.
+
+## Implementation Order
+1. storage configとenvironment/CLI overrideを`StorageSettings`へ集約する。
+2. JDBC URLからbackendを明示または推定し、validation testを追加する。
+3. backend別DataSource生成を`StorageConnectionFactory`へ閉じ込める。
+4. persisted oneshot、standalone、DB commandの接続境界をruntime assemblyへ接続する。
+5. SQLite pool size 1とDataSource lifecycleをtest/compileで確認する。

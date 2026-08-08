@@ -3,6 +3,7 @@ package com.milkcocoa.info.sapphire.agent.datastore
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import org.jetbrains.exposed.v1.jdbc.Database
+import java.sql.Connection
 
 class StorageConnection internal constructor(
     val settings: StorageSettings,
@@ -15,6 +16,9 @@ class StorageConnection internal constructor(
     override fun close() {
         dataSource.close()
     }
+
+    internal fun <T> useJdbcConnection(block: (Connection) -> T): T =
+        dataSource.connection.use(block)
 }
 
 object StorageConnectionFactory {

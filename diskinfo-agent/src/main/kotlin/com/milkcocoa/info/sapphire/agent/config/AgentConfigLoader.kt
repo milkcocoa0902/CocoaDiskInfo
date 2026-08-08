@@ -39,6 +39,14 @@ object AgentConfigLoader {
                 host = entries.string("http", "host"),
                 port = entries.int("http", "port"),
             ),
+            retention = AgentConfig.RetentionConfig(
+                rawSnapshotDays = entries.int("retention", "rawSnapshotDays"),
+            ),
+            maintenance = AgentConfig.MaintenanceConfig(
+                cleanupOnStartup = entries.boolean("maintenance", "cleanupOnStartup"),
+                cleanupIntervalHours = entries.long("maintenance", "cleanupIntervalHours"),
+                vacuumAfterCleanup = entries.boolean("maintenance", "vacuumAfterCleanup"),
+            ),
         )
     }
 }
@@ -51,6 +59,8 @@ private object MinimalTomlParser {
         "runtime" to setOf("persist", "intervalSeconds"),
         "storage" to setOf("type", "jdbcUrl", "username", "password"),
         "http" to setOf("host", "port"),
+        "retention" to setOf("rawSnapshotDays"),
+        "maintenance" to setOf("cleanupOnStartup", "cleanupIntervalHours", "vacuumAfterCleanup"),
     )
 
     fun parse(path: Path): TomlEntries {

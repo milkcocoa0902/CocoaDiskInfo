@@ -91,3 +91,15 @@
 - `findLatestNodes()`のin-memory `distinctBy`は動作維持を優先する。SQL最適化はPostgreSQL query plan確認後に別taskで扱う。
 - interface名を`DiskSnapshotRepository`として維持し、具体実装をrenameするかどうか。
 - DI framework導入はこのtaskでは行わない。backend選択は小さなrepository factoryで扱い、PostgreSQL backend追加時にfactoryの分岐を拡張する。
+
+## Implementation Order
+1. `DiskSnapshotRepository` interfaceを抽出し、既存Exposed実装を具体classへ分離する。
+2. SQLiteのinsert/latest/history contractをrepository testで固定する。
+3. Server/Executorから具体Repository生成を除き、runtime assemblyから注入する。
+4. server routeをrepository fakeで検証し、CLI/API互換とcompileを確認する。
+
+## Implementation Status
+- Implemented: `DiskSnapshotRepository` interfaceと`ExposedDiskSnapshotRepository`を分離した。
+- Implemented: production assemblyがSQLite基準実装を注入し、Server/Executorは具体Repositoryを生成しない。
+- Superseded by Phase 4C: Server/SinkはRepository直接依存から`SnapshotUseCase`依存へ進化し、route testsもUseCase fakeを使う。
+- Verified: SQLite insert/latest/historyとlatest/history server route contractをtestで固定し、CLI/API互換を維持した。
