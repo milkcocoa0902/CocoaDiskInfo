@@ -34,6 +34,8 @@ dependencies {
     implementation("org.jetbrains.exposed:exposed-migration-core:1.2.0")
     implementation("org.jetbrains.exposed:exposed-migration-jdbc:1.2.0")
     implementation("org.xerial:sqlite-jdbc:3.45.3.0")
+    // Source: https://jdbc.postgresql.org/download/
+    implementation("org.postgresql:postgresql:42.7.12")
 
     // Source: https://mvnrepository.com/artifact/com.zaxxer/HikariCP
     implementation("com.zaxxer:HikariCP:7.1.0")

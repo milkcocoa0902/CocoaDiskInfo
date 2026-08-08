@@ -27,6 +27,7 @@ class CliCommandTest {
             listOf("oneshot", "--help"),
             listOf("standalone", "--help"),
             listOf("db", "migrate", "--help"),
+            listOf("db", "cleanup", "--help"),
         ).forEach { args ->
             val result = command().test(args)
 
@@ -224,12 +225,114 @@ class CliCommandTest {
     }
 
     @Test
+    fun `db cleanup assembles defaults and CLI overrides without device settings`() {
+        val defaultRuntime = RecordingRuntime()
+        val defaultResult = command(defaultRuntime).test(listOf("db", "cleanup"))
+
+        assertEquals(0, defaultResult.statusCode, defaultResult.output)
+        assertEquals(
+            SapphireCommandRequest.DbCleanup(
+                dbUrl = AgentConfigDefaults.JDBC_URL,
+                rawSnapshotDays = AgentConfigDefaults.DEFAULT_RAW_SNAPSHOT_DAYS,
+                dryRun = false,
+                vacuumAfterCleanup = AgentConfigDefaults.DEFAULT_VACUUM_AFTER_CLEANUP,
+            ),
+            defaultRuntime.singleRequest(),
+        )
+
+        val cliRuntime = RecordingRuntime()
+        val dbUrl = "jdbc:sqlite:/tmp/cocoadiskinfo-cli-cleanup.db"
+        val cliResult = command(cliRuntime).test(
+            "db",
+            "cleanup",
+            "--db-url",
+            dbUrl,
+            "--raw-snapshot-days",
+            "14",
+            "--dry-run",
+            "--vacuum",
+        )
+
+        assertEquals(0, cliResult.statusCode, cliResult.output)
+        assertEquals(
+            SapphireCommandRequest.DbCleanup(
+                dbUrl = dbUrl,
+                rawSnapshotDays = 14,
+                dryRun = true,
+                vacuumAfterCleanup = true,
+            ),
+            cliRuntime.singleRequest(),
+        )
+    }
+
+    @Test
+    fun `db cleanup rejects retention outside allowed range`() {
+        listOf("0", "366").forEach { rawSnapshotDays ->
+            val runtime = RecordingRuntime()
+            val result = command(runtime).test(
+                "db",
+                "cleanup",
+                "--raw-snapshot-days",
+                rawSnapshotDays,
+                "--dry-run",
+            )
+
+            assertTrue(result.statusCode != 0, result.output)
+            assertContains(result.output, "between 1 and 365")
+            assertEquals(emptyList(), runtime.requests)
+        }
+    }
+
+    @Test
+    fun `db cleanup CLI overrides environment and config`() {
+        val config = createTempFile().apply {
+            writeText(
+                """
+                [retention]
+                rawSnapshotDays = 60
+
+                [maintenance]
+                vacuumAfterCleanup = false
+                """.trimIndent(),
+            )
+        }
+        val runtime = RecordingRuntime()
+        val result = command(
+            runtime = runtime,
+            environment = mapOf(
+                "COCOADISKINFO_AGENT_RETENTION_RAW_SNAPSHOT_DAYS" to "45",
+                "COCOADISKINFO_AGENT_MAINTENANCE_VACUUM_AFTER_CLEANUP" to "false",
+            ),
+        ).test(
+            "db",
+            "cleanup",
+            "--config",
+            config.absolutePathString(),
+            "--raw-snapshot-days",
+            "14",
+            "--vacuum",
+        )
+
+        assertEquals(0, result.statusCode, result.output)
+        assertEquals(
+            SapphireCommandRequest.DbCleanup(
+                dbUrl = AgentConfigDefaults.JDBC_URL,
+                rawSnapshotDays = 14,
+                dryRun = false,
+                vacuumAfterCleanup = true,
+            ),
+            runtime.singleRequest(),
+        )
+    }
+
+    @Test
     fun `db alone prints help without running runtime`() {
         val runtime = RecordingRuntime()
         val result = command(runtime).test("db")
 
         assertEquals(0, result.statusCode, result.output)
         assertContains(result.output, "migrate")
+        assertContains(result.output, "cleanup")
         assertEquals(emptyList(), runtime.requests)
     }
 

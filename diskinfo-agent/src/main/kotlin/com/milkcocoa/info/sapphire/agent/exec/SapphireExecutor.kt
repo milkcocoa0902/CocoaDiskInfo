@@ -6,9 +6,13 @@ import com.milkcocoa.info.sapphire.agent.collector.SmartctlCollector
 import com.milkcocoa.info.sapphire.agent.datastore.StorageMigratorFactory
 import com.milkcocoa.info.sapphire.agent.datastore.StorageSettings
 import com.milkcocoa.info.sapphire.agent.datastore.createStorageMigratorFactory
-import com.milkcocoa.info.sapphire.agent.server.SapphireAgentServer
+import com.milkcocoa.info.sapphire.agent.maintenance.StandaloneMaintenanceRunner
+import com.milkcocoa.info.sapphire.agent.server.SapphireServer
+import com.milkcocoa.info.sapphire.agent.server.installStandaloneMaintenance
 import com.milkcocoa.info.sapphire.agent.sink.ColotokSnapshotSink
 import com.milkcocoa.info.sapphire.agent.sink.SnapshotSink
+import com.milkcocoa.info.sapphire.agent.usecase.SnapshotCleanupRequest
+import com.milkcocoa.info.sapphire.agent.usecase.SnapshotMaintenanceUseCase
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -35,15 +39,26 @@ sealed interface SapphireExecutor {
         private val collectionInterval: Duration = 60.seconds,
         private val collector: DiskSnapshotCollector = SmartctlCollector(),
         private val sink: SnapshotSink = ColotokSnapshotSink(),
-        private val server: SapphireAgentServer,
+        private val server: SapphireServer,
+        private val maintenanceRunner: StandaloneMaintenanceRunner,
+        private val cleanupOnStartup: Boolean,
+        private val cleanupInterval: Duration,
     ) : SapphireExecutor {
         override suspend fun execute() {
+            if (cleanupOnStartup) {
+                maintenanceRunner.runCleanup()
+            }
+
             val oneshot = Oneshot(
                 device = device,
                 collector = collector,
                 sink = sink,
             )
             server.start(wait = true) {
+                installStandaloneMaintenance(
+                    runner = maintenanceRunner,
+                    cleanupInterval = cleanupInterval,
+                )
                 launch {
                     while (isActive) {
                         launch {
@@ -65,6 +80,27 @@ sealed interface SapphireExecutor {
         override suspend fun execute() {
             migratorFactory.create(storage).migrate(storage)
             println("Migration completed.")
+        }
+    }
+
+    class Cleanup(
+        private val request: SnapshotCleanupRequest,
+        private val maintenanceUseCase: SnapshotMaintenanceUseCase,
+    ) : SapphireExecutor {
+        override suspend fun execute() {
+            val result = maintenanceUseCase.cleanup(request)
+            println("Snapshot cleanup completed.")
+            println("  cutoff: ${result.cutoff}")
+            println("  dryRun: ${result.dryRun}")
+            result.tables.forEach { table ->
+                println(
+                    "  table: ${table.tableName}, matchedRows: ${table.matchedRowCount}, deletedRows: ${table.deletedRowCount}",
+                )
+            }
+            println(
+                "  vacuum: requested=${result.vacuum.requested}, executed=${result.vacuum.executed}" +
+                    (result.vacuum.skippedReason?.let { ", skippedReason=$it" } ?: ""),
+            )
         }
     }
 }

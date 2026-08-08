@@ -9,6 +9,8 @@ data class AgentConfig(
     val runtime: RuntimeConfig = RuntimeConfig(),
     val storage: StorageConfig = StorageConfig(),
     val http: HttpConfig = HttpConfig(),
+    val retention: RetentionConfig = RetentionConfig(),
+    val maintenance: MaintenanceConfig = MaintenanceConfig(),
 ) {
     data class SmartctlConfig(
         val scan: Boolean? = null,
@@ -39,6 +41,16 @@ data class AgentConfig(
         val host: String? = null,
         val port: Int? = null,
     )
+
+    data class RetentionConfig(
+        val rawSnapshotDays: Int? = null,
+    )
+
+    data class MaintenanceConfig(
+        val cleanupOnStartup: Boolean? = null,
+        val cleanupIntervalHours: Long? = null,
+        val vacuumAfterCleanup: Boolean? = null,
+    )
 }
 
 object AgentConfigDefaults {
@@ -48,4 +60,9 @@ object AgentConfigDefaults {
     const val HTTP_PORT = 14631
     const val COLLECTION_INTERVAL_SECONDS = 60L
     const val DEVICE_IDENTITY_NAMESPACE_SALT = DeviceIdentityDefaults.NAMESPACE_SALT
+
+    const val DEFAULT_RAW_SNAPSHOT_DAYS = 30
+    const val DEFAULT_CLEANUP_ON_STARTUP = true
+    const val DEFAULT_CLEANUP_INTERVAL_HOURS = 24L
+    const val DEFAULT_VACUUM_AFTER_CLEANUP = false
 }

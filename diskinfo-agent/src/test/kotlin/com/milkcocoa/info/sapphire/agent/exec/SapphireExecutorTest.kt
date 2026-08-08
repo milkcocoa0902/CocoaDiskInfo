@@ -1,13 +1,86 @@
 package com.milkcocoa.info.sapphire.agent.exec
 
+import com.milkcocoa.info.sapphire.agent.TargetDevice
+import com.milkcocoa.info.sapphire.agent.maintenance.StandaloneMaintenanceRunner
+import com.milkcocoa.info.sapphire.agent.server.SapphireServer
+import com.milkcocoa.info.sapphire.agent.usecase.SnapshotCleanupRequest
+import com.milkcocoa.info.sapphire.agent.usecase.SnapshotCleanupResult
+import com.milkcocoa.info.sapphire.agent.usecase.SnapshotCleanupTableResult
+import com.milkcocoa.info.sapphire.agent.usecase.SnapshotCleanupVacuumResult
+import com.milkcocoa.info.sapphire.agent.usecase.SnapshotCleanupVacuumSkippedReason
+import com.milkcocoa.info.sapphire.agent.usecase.SnapshotMaintenanceUseCase
+import io.ktor.server.application.Application
 import kotlinx.coroutines.runBlocking
 import java.sql.DriverManager
+import java.time.OffsetDateTime
 import kotlin.io.path.absolutePathString
 import kotlin.io.path.createTempFile
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.hours
 
 class SapphireExecutorTest {
+    @Test
+    fun `standalone startup cleanup completes before server start`() = runBlocking {
+        val events = mutableListOf<String>()
+        val runner = StandaloneMaintenanceRunner(
+            maintenanceUseCase = object : SnapshotMaintenanceUseCase {
+                override suspend fun cleanup(request: SnapshotCleanupRequest): SnapshotCleanupResult {
+                    events += "cleanup"
+                    return executorCleanupResult()
+                }
+            },
+            rawSnapshotDays = 30,
+            vacuumAfterCleanup = false,
+        )
+        val server = object : SapphireServer {
+            override fun start(wait: Boolean, module: Application.() -> Unit) {
+                events += "server"
+            }
+        }
+
+        SapphireExecutor.Standalone(
+            device = TargetDevice.Scan,
+            server = server,
+            maintenanceRunner = runner,
+            cleanupOnStartup = true,
+            cleanupInterval = 24.hours,
+        ).execute()
+
+        assertEquals(listOf("cleanup", "server"), events)
+    }
+
+    @Test
+    fun `standalone skips startup cleanup when disabled`() = runBlocking {
+        val events = mutableListOf<String>()
+        val runner = StandaloneMaintenanceRunner(
+            maintenanceUseCase = object : SnapshotMaintenanceUseCase {
+                override suspend fun cleanup(request: SnapshotCleanupRequest): SnapshotCleanupResult {
+                    events += "cleanup"
+                    return executorCleanupResult()
+                }
+            },
+            rawSnapshotDays = 30,
+            vacuumAfterCleanup = false,
+        )
+        val server = object : SapphireServer {
+            override fun start(wait: Boolean, module: Application.() -> Unit) {
+                events += "server"
+            }
+        }
+
+        SapphireExecutor.Standalone(
+            device = TargetDevice.Scan,
+            server = server,
+            maintenanceRunner = runner,
+            cleanupOnStartup = false,
+            cleanupInterval = 24.hours,
+        ).execute()
+
+        assertEquals(listOf("server"), events)
+    }
+
     @Test
     fun `migrate creates disk snapshot table in temporary sqlite database and is idempotent`() {
         val databaseFile = createTempFile()
@@ -22,6 +95,17 @@ class SapphireExecutorTest {
         assertTrue(tableExists(jdbcUrl, "flyway_schema_history"), "Flyway history table should exist after migration.")
     }
 }
+
+private fun executorCleanupResult() = SnapshotCleanupResult(
+    cutoff = OffsetDateTime.parse("2026-01-01T00:00:00Z"),
+    tables = listOf(SnapshotCleanupTableResult("disk_snapshot", 0, 0)),
+    dryRun = false,
+    vacuum = SnapshotCleanupVacuumResult(
+        requested = false,
+        executed = false,
+        skippedReason = SnapshotCleanupVacuumSkippedReason.NOT_REQUESTED,
+    ),
+)
 
 private fun tableExists(
     jdbcUrl: String,

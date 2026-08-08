@@ -61,6 +61,12 @@ class AgentConfigResolverTest {
                     password = "config-password",
                 ),
                 http = AgentConfig.HttpConfig(host = "127.0.0.1", port = 14631),
+                retention = AgentConfig.RetentionConfig(rawSnapshotDays = 60),
+                maintenance = AgentConfig.MaintenanceConfig(
+                    cleanupOnStartup = false,
+                    cleanupIntervalHours = 48,
+                    vacuumAfterCleanup = false,
+                ),
             ),
             environment = mapOf(
                 "COCOADISKINFO_AGENT_OUTPUT_MODE" to "json",
@@ -71,6 +77,10 @@ class AgentConfigResolverTest {
                 "COCOADISKINFO_AGENT_HTTP_HOST" to "192.0.2.10",
                 "COCOADISKINFO_AGENT_HTTP_PORT" to "15000",
                 "COCOADISKINFO_AGENT_DEVICE_IDENTITY_NAMESPACE_SALT" to "env-salt",
+                "COCOADISKINFO_AGENT_RETENTION_RAW_SNAPSHOT_DAYS" to "45",
+                "COCOADISKINFO_AGENT_MAINTENANCE_CLEANUP_ON_STARTUP" to "true",
+                "COCOADISKINFO_AGENT_MAINTENANCE_CLEANUP_INTERVAL_HOURS" to "12",
+                "COCOADISKINFO_AGENT_MAINTENANCE_VACUUM_AFTER_CLEANUP" to "true",
             ),
             cli = AgentConfigOverrides(
                 outputMode = OutputMode.CBOR,
@@ -89,6 +99,10 @@ class AgentConfigResolverTest {
         assertEquals("0.0.0.0", resolved.host)
         assertEquals(15000, resolved.port)
         assertEquals("env-salt", resolved.deviceIdentityNamespaceSalt)
+        assertEquals(45, resolved.rawSnapshotDays)
+        assertEquals(true, resolved.cleanupOnStartup)
+        assertEquals(12, resolved.cleanupIntervalHours)
+        assertEquals(true, resolved.vacuumAfterCleanup)
     }
 
     @Test
@@ -112,6 +126,68 @@ class AgentConfigResolverTest {
         )
 
         assertEquals("jdbc:sqlite:/tmp/config.db", resolved.jdbcUrl)
+    }
+
+    @Test
+    fun `db cleanup resolves defaults and config environment cli precedence`() {
+        val defaults = AgentConfigResolver.resolveDbCleanup(
+            config = AgentConfig(),
+            environment = emptyMap(),
+        )
+        assertEquals(30, defaults.rawSnapshotDays)
+        assertEquals(false, defaults.vacuumAfterCleanup)
+
+        val config = AgentConfig(
+            storage = AgentConfig.StorageConfig(jdbcUrl = "jdbc:sqlite:/tmp/config.db"),
+            retention = AgentConfig.RetentionConfig(rawSnapshotDays = 60),
+            maintenance = AgentConfig.MaintenanceConfig(vacuumAfterCleanup = false),
+        )
+        val fromConfig = AgentConfigResolver.resolveDbCleanup(
+            config = config,
+            environment = emptyMap(),
+        )
+        assertEquals(60, fromConfig.rawSnapshotDays)
+        assertEquals(false, fromConfig.vacuumAfterCleanup)
+
+        val fromEnvironment = AgentConfigResolver.resolveDbCleanup(
+            config = config,
+            environment = mapOf(
+                "COCOADISKINFO_AGENT_RETENTION_RAW_SNAPSHOT_DAYS" to "45",
+                "COCOADISKINFO_AGENT_MAINTENANCE_VACUUM_AFTER_CLEANUP" to "true",
+            ),
+        )
+        assertEquals(45, fromEnvironment.rawSnapshotDays)
+        assertEquals(true, fromEnvironment.vacuumAfterCleanup)
+
+        val fromCli = AgentConfigResolver.resolveDbCleanup(
+            config = config,
+            environment = mapOf(
+                "COCOADISKINFO_AGENT_RETENTION_RAW_SNAPSHOT_DAYS" to "45",
+                "COCOADISKINFO_AGENT_MAINTENANCE_VACUUM_AFTER_CLEANUP" to "true",
+            ),
+            cli = AgentConfigOverrides(
+                rawSnapshotDays = 14,
+                vacuumAfterCleanup = false,
+            ),
+        )
+
+        assertEquals("jdbc:sqlite:/tmp/config.db", fromCli.jdbcUrl)
+        assertEquals(14, fromCli.rawSnapshotDays)
+        assertEquals(false, fromCli.vacuumAfterCleanup)
+    }
+
+    @Test
+    fun `db cleanup rejects retention outside allowed range`() {
+        listOf(0, 366).forEach { rawSnapshotDays ->
+            assertFailsWith<AgentConfigValidationException> {
+                AgentConfigResolver.resolveDbCleanup(
+                    config = AgentConfig(
+                        retention = AgentConfig.RetentionConfig(rawSnapshotDays = rawSnapshotDays),
+                    ),
+                    environment = emptyMap(),
+                )
+            }
+        }
     }
 
     @Test
@@ -142,8 +218,12 @@ class AgentConfigResolverTest {
             AgentConfig(smartctl = AgentConfig.SmartctlConfig(scan = true), output = AgentConfig.OutputConfig(mode = "xml")) to emptyMap<String, String>(),
             AgentConfig(smartctl = AgentConfig.SmartctlConfig(scan = true), storage = AgentConfig.StorageConfig(jdbcUrl = "")) to emptyMap<String, String>(),
             AgentConfig(smartctl = AgentConfig.SmartctlConfig(scan = true), deviceIdentity = AgentConfig.DeviceIdentityConfig(namespaceSalt = "")) to emptyMap<String, String>(),
+            AgentConfig(smartctl = AgentConfig.SmartctlConfig(scan = true), retention = AgentConfig.RetentionConfig(rawSnapshotDays = 366)) to emptyMap<String, String>(),
+            AgentConfig(smartctl = AgentConfig.SmartctlConfig(scan = true), maintenance = AgentConfig.MaintenanceConfig(cleanupIntervalHours = 0)) to emptyMap<String, String>(),
             AgentConfig(smartctl = AgentConfig.SmartctlConfig(scan = true)) to
                 mapOf("COCOADISKINFO_AGENT_DEVICE_IDENTITY_NAMESPACE_SALT" to ""),
+            AgentConfig(smartctl = AgentConfig.SmartctlConfig(scan = true)) to
+                mapOf("COCOADISKINFO_AGENT_MAINTENANCE_CLEANUP_ON_STARTUP" to "sometimes"),
         ).forEach { (config, environment) ->
             assertFailsWith<AgentConfigValidationException> {
                 AgentConfigResolver.resolveStandalone(config = config, environment = environment)

@@ -23,5 +23,13 @@ jdbcUrl = "jdbc:sqlite:./sapphire.db"
 host = "127.0.0.1"
 port = 14631
 
+[retention]
+rawSnapshotDays = 30
+
+[maintenance]
+cleanupOnStartup = true
+cleanupIntervalHours = 24
+vacuumAfterCleanup = false
+
 [output]
 mode = "text"
