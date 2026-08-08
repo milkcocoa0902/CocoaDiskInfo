@@ -218,7 +218,9 @@ cleanupIntervalHours = 24
 vacuumAfterCleanup = false
 ```
 
-初期実装では、すべての項目を同時に実装する必要はない。まず `rawSnapshotDays`, `cleanupOnStartup`, `cleanupIntervalHours` から始める。
+初期実装では、すべての項目を同時に実装する必要はない。raw snapshot retentionとmanual cleanup contractを先に固定し、その後にstandalone/hubの自動cleanup設定へ広げる。
+
+Phase 4では、まずPhase 4Dで手動cleanupに必要な`rawSnapshotDays`と`vacuumAfterCleanup`を追加し、Phase 4Fで`cleanupOnStartup`と`cleanupIntervalHours`を追加する。これにより、削除contractとCLI検証を固定してから、long-running modeの自動実行へ進む。
 
 ## Migration Implications
 DBライフタイム方針を導入する際は、次を確認する。
@@ -247,3 +249,5 @@ DBライフタイム方針を導入する際は、次を確認する。
 6. cleanup結果をログに出す。
 
 集約履歴、inventory tombstone、event tableは後続でよい。
+
+Phase 4のtask分割では、1、2、5、6をPhase 4Dで扱い、3、4をPhase 4Fで扱う。
