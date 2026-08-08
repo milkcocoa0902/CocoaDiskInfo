@@ -7,18 +7,18 @@
 - Supporting: `../../strategy/0007_db_data_lifetime_policy.md`
 
 ## Goal
-PostgreSQL backendを追加し、SQLiteと同じRepository contractでinsert/latest/history/cleanupを動かす。あわせて、raw snapshot historyにpg_partmanを使うか判断し、使う場合のpartition intervalとmigration方針を固定する。
+PostgreSQL backendを追加し、SQLiteと同じRepository contractでinsert/latest/history/cleanupを動かす。raw snapshot historyへのpg_partman採用可否を判断し、Phase 4ではplain PostgreSQLを基準実装として固定する。
 
 ## Non-Goals
 - MySQL backendは追加しない。
 - Hub/Node Agentのingest APIはPhase 5で扱う。
-- pg_partmanを必須依存にしない。PostgreSQL backendはpg_partmanなしでも動く必要がある。
+- pg_partman integrationは実装しない。必要な運用規模が見えた段階の独立taskで扱う。
 
 ## Current State
-- PostgreSQL driver dependencyは未追加。
-- storage connectionはSQLite固定。
-- Flyway移行はPhase 4Cで先に行う想定。
-- cleanup contractはPhase 4Dで先に固定する想定。
+- PostgreSQL JDBC driver dependencyは未追加。
+- storage backend判定、HikariCP connection、PostgreSQL用Flyway location selectionは実装済み。
+- PostgreSQL用Flyway migration SQLは未追加。
+- cleanup contractはPhase 4Dで先に固定する。
 - Phase 4CではSQLite互換性を優先し、`TransactionRunner.readOnly`はJDBC `Connection.setReadOnly(true)`を使わない。
 - SQLiteは同一DBファイルへ複数connectionを張れるが、Phase 4C時点ではHikariCP `maximumPoolSize = 1`、WAL mode未導入、`busy_timeout`未整理の保守運用に留めている。
 
@@ -28,7 +28,7 @@ PostgreSQL backendを追加し、SQLiteと同じRepository contractでinsert/lat
 - Cross-boundary impact:
   - `storage.type = "postgresql"`または`jdbc:postgresql://...`でPostgreSQL backendを選択する。
   - Repository interfaceはSQLiteと同一。
-  - pg_partman有無はstorage設定とmigration/maintenanceで閉じる。
+  - Phase 4ではplain PostgreSQLを採用し、partitioning設定は追加しない。
 
 ## Task Breakdown
 ### Task 1: PostgreSQL driver and connectionを追加する
@@ -82,33 +82,25 @@ PostgreSQL backendを追加し、SQLiteと同じRepository contractでinsert/lat
   - local PostgreSQLで`db migrate`が成功すること。
   - insert/latest/history repository integration check。
 
-### Task 4: pg_partman採用判断を行う
+### Task 4: pg_partman採用判断を記録する
 - Objective:
-  - raw snapshot historyのpartition管理をpg_partmanに任せるか決める。
+  - raw snapshot historyのpartition管理をPhase 4でpg_partmanに任せるか決める。
+- Decision:
+  - Phase 4ではpg_partmanを採用しない。
+  - plain PostgreSQL + row-level DELETE cleanupを基準実装にする。
+  - pg_partmanはデータ量、運用環境、extension version、maintenance ownerが具体化した時点の独立taskへ延期する。
 - Expected behavior:
-  - pg_partmanなしのplain PostgreSQL backendを必ず動作可能にする。
-  - pg_partman利用は明示設定にする。候補:
-
-```toml
-[storage.postgresql.partitioning]
-enabled = false
-manager = "pg_partman"
-interval = "7 days"
-premake = 4
-retention = "30 days"
-```
-
-  - extensionがない環境ではactionableなerrorにするか、plain tableへfallbackするかを決める。
-  - fallbackする場合は、fallbackした事実をログ/出力に残す。
+  - PostgreSQL backendはextensionなしで動作する。
+  - partitioning configやschema分岐をPhase 4では追加しない。
+  - Phase 4Dの厳密な`collect_time < cutoff` semanticsを維持する。
 - Validation:
-  - pg_partman disabledでPostgreSQL backendが動くこと。
-  - pg_partman enabledでextension不在時のerrorが明確であること。
+  - extensionなしのplain PostgreSQLでrepository/cleanup contractが動くこと。
 
-### Task 5: partition intervalを決める
+### Deferred: pg_partman partition interval
 - Objective:
   - 7日、14日、1ヶ月の候補から初期値を決める。
-- Decision:
-  - 初期候補は7日。
+- Deferred decision candidate:
+  - 将来採用する場合の初期候補は7日。
 - Rationale:
   - default raw snapshot retentionが30日のため、7日partitionなら過剰保持が最大でもおおむね1partition分に収まる。
   - 14日はpartition数を減らせるが、30日retentionに対する過剰保持が大きくなる。
@@ -121,14 +113,12 @@ retention = "30 days"
 - Validation:
   - partition intervalとretentionから、保持され得る最大期間をdoc/testで説明する。
 
-### Task 6: pg_partman maintenanceとcleanup contractを接続する
+### Deferred: pg_partman maintenanceとcleanup contract
 - Objective:
-  - Phase 4Dの`db cleanup` semanticsをPostgreSQL partitioningでも説明できるようにする。
+  - 将来のpg_partman taskでPhase 4Dの`db cleanup` semanticsとの差を説明できるようにする。
 - Expected behavior:
-  - plain tableではDELETE based cleanup。
-  - pg_partman enabledではpg_partman retention/maintenanceを使う。
-  - dry-runでは、削除予定partitionまたはretention対象を表示する。
-  - `--vacuum`はpg_partman partition dropとは別のoperationとして扱う。
+  - Phase 4ではplain tableのDELETE based cleanupだけを実装する。
+  - partition drop/detach、partition dry-run result、BGW/cron ownershipは後続taskで扱う。
 - Validation:
   - local pg_partman環境がある場合のmanual check。
   - extensionなし環境ではplain PostgreSQL testを優先する。
@@ -140,8 +130,8 @@ retention = "30 days"
 
 ## Data and Persistence Impact
 - PostgreSQLではschema差分が出るが、Repository contractは同じにする。
-- pg_partmanを使う場合、`disk_snapshot`はpartitioned parent tableになる。
-- pg_partman有効化は後からplain tableをpartitioned tableへ変換するより初期migration時に決めるほうが安全。既存PostgreSQL DBからの移行は別migration taskに分ける。
+- Phase 4の`disk_snapshot`はplain tableとする。
+- 将来pg_partmanを導入する場合、plain tableからpartitioned tableへの変換は独立migration taskに分ける。
 
 ## Validation Plan
 Default:
@@ -158,17 +148,22 @@ Optional local PostgreSQL:
 ./gradlew :diskinfo-agent:run --args='db cleanup --db-url jdbc:postgresql://localhost:5432/cocoadiskinfo --dry-run'
 ```
 
-Optional pg_partman:
-
-```text
-./gradlew :diskinfo-agent:run --args='db migrate --config ./local-postgres-partman.toml'
-```
-
 ## Risks and Open Questions
-- pg_partman requires extension availability and operational setup. Some environments will not allow it.
-- pg_partman background worker requires PostgreSQL server configuration. CocoaDiskInfo should not require BGW for basic operation.
-- PostgreSQL partitioned tables have uniqueness/primary key constraints that must include the partition key; `snapshot_id` design must be checked before finalizing migration.
-- pg_partman retention drops/detaches whole partitions. It is not identical to row-level `collect_time < cutoff` deletion.
-- If pg_partman is enabled after data already exists in a plain table, migration becomes more complex. Phase 4E should prefer clear initial choice over automatic conversion.
-- PostgreSQL対応時に、`TransactionRunner.readOnly`を本当にDB read-only transactionへ落とすかを決める。SQLiteでは接続確立後のread-only flag変更がruntime errorになったため、backend別に扱う。
+- pg_partmanはPhase 4で非採用とする。extension version、partition keyを含む主キー、migration分岐、maintenance owner、row cleanupとの差は後続taskの判断事項として残す。
+- `TransactionRunner.readOnly`はPhase 4ではapplication intentのまま維持する。DB-level read-only transactionはreader/writer接続設計と合わせた後続taskで扱う。
 - SQLiteのpool sizeを1より大きくする場合は、WAL mode、`busy_timeout`、write直列化、shutdown時のDataSource closeを同時に検証する。
+
+## Implementation Order
+1. PostgreSQL JDBC driverを追加する。
+2. plain PostgreSQL用Flyway migrationを追加し、SQLiteとの差分をmigration location内に閉じる。
+3. Phase 4Dのmaintenance contractをplain PostgreSQLのrow-level DELETEへ接続する。
+4. PostgreSQL実DBでmigrateの冪等性とinsert/latest/history/cleanup contractを検証する。
+5. pg_partman非採用判断と後続taskへ残す条件をphase planへ反映する。
+
+## Implementation Status
+- Implemented: PostgreSQL JDBC driverとplain PostgreSQL用Flyway migrationを追加した。
+- Implemented: PostgreSQLではUUID、TIMESTAMPTZ、JSONBを使い、SQLiteと同じRepository/cleanup contractを維持した。
+- Implemented: PostgreSQLのoptional maintenanceはrow-level DELETE後、transaction外で`VACUUM (ANALYZE)`を実行する。
+- Implemented: PostgreSQLの単一V1 migrationにrow-level cleanup用`collect_time` indexを含めた。
+- Decision recorded: pg_partmanはPhase 4では採用せず、partition移行とmaintenance ownershipは運用要件が具体化した後続taskへ延期する。
+- Verified: PostgreSQL 17実DBでmigrationの二重実行、insert/latest/history、UUID/JSONB/TIMESTAMPTZ、count/delete、`VACUUM (ANALYZE)`を確認した。

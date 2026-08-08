@@ -3,6 +3,7 @@ package com.milkcocoa.info.sapphire.agent.sink
 import com.milkcocoa.info.colotok.core.logger.Colotok
 import com.milkcocoa.info.sapphire.agent.usecase.SnapshotUseCase
 import com.milkcocoa.info.sapphire.core.snapshot.DiskSnapshot
+import kotlinx.coroutines.CancellationException
 
 interface SnapshotSink {
     suspend fun write(snapshot: DiskSnapshot)
@@ -18,9 +19,11 @@ class RepositorySnapshotSink(
     private val snapshotUseCase: SnapshotUseCase,
 ) : SnapshotSink {
     override suspend fun write(snapshot: DiskSnapshot) {
-        runCatching {
+        try {
             snapshotUseCase.saveSnapshot(snapshot)
-        }.getOrElse { error ->
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
             Colotok.warn(
                 msg = "Failed to persist disk snapshot.",
                 attr = mapOf(

@@ -4,9 +4,11 @@ import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.UsageError
 import com.github.ajalt.clikt.core.main
 import com.github.ajalt.clikt.core.subcommands
+import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.help
 import com.github.ajalt.clikt.parameters.options.nullableFlag
 import com.github.ajalt.clikt.parameters.options.option
+import com.github.ajalt.clikt.parameters.options.validate
 import com.github.ajalt.clikt.parameters.types.enum
 import com.github.ajalt.clikt.parameters.types.int
 import com.github.ajalt.clikt.parameters.types.long
@@ -18,11 +20,15 @@ import com.milkcocoa.info.sapphire.agent.config.AgentConfigOverrides
 import com.milkcocoa.info.sapphire.agent.config.AgentConfigParseException
 import com.milkcocoa.info.sapphire.agent.config.AgentConfigResolver
 import com.milkcocoa.info.sapphire.agent.config.AgentConfigValidationException
+import com.milkcocoa.info.sapphire.agent.config.EffectiveDbCleanupConfig
 import com.milkcocoa.info.sapphire.agent.config.EffectiveDbMigrateConfig
 import com.milkcocoa.info.sapphire.agent.config.EffectiveOneshotConfig
 import com.milkcocoa.info.sapphire.agent.config.EffectiveStandaloneConfig
 import com.milkcocoa.info.sapphire.agent.datastore.ExposedTransactionRunner
 import com.milkcocoa.info.sapphire.agent.datastore.ExposedDiskSnapshotRepository
+import com.milkcocoa.info.sapphire.agent.datastore.ExposedSnapshotMaintenanceRepository
+import com.milkcocoa.info.sapphire.agent.datastore.createStorageMaintenanceOperation
+import com.milkcocoa.info.sapphire.agent.usecase.TransactionalSnapshotMaintenanceUseCase
 import com.milkcocoa.info.sapphire.agent.usecase.TransactionalSnapshotUseCase
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -40,7 +46,10 @@ internal fun createSapphireAgentCommand(
     .subcommands(
         OneshotCommand(runtime, environment, defaultConfigPath),
         StandaloneCommand(runtime, environment, defaultConfigPath),
-        DbCommand().subcommands(DbMigrateCommand(runtime, environment, defaultConfigPath)),
+        DbCommand().subcommands(
+            DbMigrateCommand(runtime, environment, defaultConfigPath),
+            DbCleanupCommand(runtime, environment, defaultConfigPath),
+        ),
     )
 
 private fun createProductionSapphireCommandRuntime(): SapphireCommandRuntime {
@@ -49,6 +58,13 @@ private fun createProductionSapphireCommandRuntime(): SapphireCommandRuntime {
             TransactionalSnapshotUseCase(
                 repository = ExposedDiskSnapshotRepository(),
                 transactionRunner = ExposedTransactionRunner(connection.database),
+            )
+        },
+        snapshotMaintenanceUseCaseFactory = SnapshotMaintenanceUseCaseFactory { connection ->
+            TransactionalSnapshotMaintenanceUseCase(
+                repository = ExposedSnapshotMaintenanceRepository(),
+                transactionRunner = ExposedTransactionRunner(connection.database),
+                storageMaintenance = createStorageMaintenanceOperation(connection),
             )
         },
     )
@@ -101,6 +117,15 @@ private abstract class ConfiguredCommand(
         }
     }
 
+    protected fun resolveDbCleanupConfig(overrides: AgentConfigOverrides): EffectiveDbCleanupConfig {
+        return resolveUsageErrors {
+            AgentConfigResolver.resolveDbCleanup(
+                config = loadConfig(),
+                environment = environment,
+                cli = overrides,
+            )
+        }
+    }
     private fun <T> resolveUsageErrors(block: () -> T): T {
         return try {
             block()
@@ -225,6 +250,10 @@ private class StandaloneCommand(
                 port = effective.port,
                 storage = effective.storage,
                 deviceIdentityNamespaceSalt = effective.deviceIdentityNamespaceSalt,
+                rawSnapshotDays = effective.rawSnapshotDays,
+                cleanupOnStartup = effective.cleanupOnStartup,
+                cleanupIntervalHours = effective.cleanupIntervalHours,
+                vacuumAfterCleanup = effective.vacuumAfterCleanup,
             ),
         )
     }
@@ -252,6 +281,47 @@ private class DbMigrateCommand(
         runtime.run(
             SapphireCommandRequest.DbMigrate(
                 storage = effective.storage,
+            ),
+        )
+    }
+}
+
+private class DbCleanupCommand(
+    runtime: SapphireCommandRuntime,
+    environment: Map<String, String>,
+    defaultConfigPath: Path?,
+): ConfiguredCommand("cleanup", runtime, environment, defaultConfigPath) {
+    private val dbUrl: String? by option("--db-url")
+        .help("JDBC URL for local history storage")
+
+    private val rawSnapshotDays: Int? by option("--raw-snapshot-days")
+        .int()
+        .help("Raw snapshot retention in days")
+        .validate { require(it in 1..365) { "Raw snapshot days must be between 1 and 365" } }
+
+    private val vacuum: Boolean? by option("--vacuum")
+        .nullableFlag("--no-vacuum")
+        .help("Run backend vacuum after cleanup")
+
+    private val dryRun: Boolean by option("--dry-run")
+        .flag(default = false)
+        .help("Show cleanup targets without deleting snapshots")
+
+    override fun run() {
+        val effective = resolveDbCleanupConfig(
+            AgentConfigOverrides(
+                jdbcUrl = dbUrl,
+                rawSnapshotDays = rawSnapshotDays,
+                vacuumAfterCleanup = vacuum,
+            ),
+        )
+
+        runtime.run(
+            SapphireCommandRequest.DbCleanup(
+                storage = effective.storage,
+                rawSnapshotDays = effective.rawSnapshotDays,
+                dryRun = dryRun,
+                vacuumAfterCleanup = effective.vacuumAfterCleanup,
             ),
         )
     }

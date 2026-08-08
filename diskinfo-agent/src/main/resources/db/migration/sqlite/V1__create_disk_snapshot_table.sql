@@ -65,3 +65,8 @@ create table disk_snapshot
 -- collect_time.
 create index disk_snapshot_node_id_device_key_collect_time
     on disk_snapshot (node_id, device_key, collect_time);
+
+-- Retention cleanup filters the whole table by collect_time only. The
+-- node/device/time index cannot efficiently serve this access path.
+create index disk_snapshot_collect_time
+    on disk_snapshot (collect_time);

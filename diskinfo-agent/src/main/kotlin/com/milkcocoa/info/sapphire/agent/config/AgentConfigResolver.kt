@@ -20,6 +20,8 @@ data class AgentConfigOverrides(
     val storagePassword: String? = null,
     val host: String? = null,
     val port: Int? = null,
+    val rawSnapshotDays: Int? = null,
+    val vacuumAfterCleanup: Boolean? = null,
 )
 
 data class EffectiveOneshotConfig(
@@ -41,6 +43,10 @@ data class EffectiveStandaloneConfig(
     val host: String,
     val port: Int,
     val deviceIdentityNamespaceSalt: String,
+    val rawSnapshotDays: Int,
+    val cleanupOnStartup: Boolean,
+    val cleanupIntervalHours: Long,
+    val vacuumAfterCleanup: Boolean,
 ) {
     val jdbcUrl: String
         get() = storage.jdbcUrl
@@ -48,6 +54,15 @@ data class EffectiveStandaloneConfig(
 
 data class EffectiveDbMigrateConfig(
     val storage: StorageSettings,
+) {
+    val jdbcUrl: String
+        get() = storage.jdbcUrl
+}
+
+data class EffectiveDbCleanupConfig(
+    val storage: StorageSettings,
+    val rawSnapshotDays: Int,
+    val vacuumAfterCleanup: Boolean,
 ) {
     val jdbcUrl: String
         get() = storage.jdbcUrl
@@ -130,9 +145,23 @@ object AgentConfigResolver {
             ?: config.http.port
             ?: AgentConfigDefaults.HTTP_PORT
         val deviceIdentityNamespaceSalt = resolveDeviceIdentityNamespaceSalt(config, environment)
+        val rawSnapshotDays = environment.int("COCOADISKINFO_AGENT_RETENTION_RAW_SNAPSHOT_DAYS")
+            ?: config.retention.rawSnapshotDays
+            ?: AgentConfigDefaults.DEFAULT_RAW_SNAPSHOT_DAYS
+        val cleanupOnStartup = environment.boolean("COCOADISKINFO_AGENT_MAINTENANCE_CLEANUP_ON_STARTUP")
+            ?: config.maintenance.cleanupOnStartup
+            ?: AgentConfigDefaults.DEFAULT_CLEANUP_ON_STARTUP
+        val cleanupIntervalHours = environment.long("COCOADISKINFO_AGENT_MAINTENANCE_CLEANUP_INTERVAL_HOURS")
+            ?: config.maintenance.cleanupIntervalHours
+            ?: AgentConfigDefaults.DEFAULT_CLEANUP_INTERVAL_HOURS
+        val vacuumAfterCleanup = environment.boolean("COCOADISKINFO_AGENT_MAINTENANCE_VACUUM_AFTER_CLEANUP")
+            ?: config.maintenance.vacuumAfterCleanup
+            ?: AgentConfigDefaults.DEFAULT_VACUUM_AFTER_CLEANUP
 
         validateInterval(intervalSeconds)
         validatePort(port)
+        validateRawSnapshotDays(rawSnapshotDays)
+        validateCleanupInterval(cleanupIntervalHours)
 
         return EffectiveStandaloneConfig(
             target = requireTarget(scan == true, device),
@@ -142,6 +171,10 @@ object AgentConfigResolver {
             host = host,
             port = port,
             deviceIdentityNamespaceSalt = deviceIdentityNamespaceSalt,
+            rawSnapshotDays = rawSnapshotDays,
+            cleanupOnStartup = cleanupOnStartup,
+            cleanupIntervalHours = cleanupIntervalHours,
+            vacuumAfterCleanup = vacuumAfterCleanup,
         )
     }
 
@@ -152,6 +185,29 @@ object AgentConfigResolver {
     ): EffectiveDbMigrateConfig {
         return EffectiveDbMigrateConfig(
             storage = resolveStorageSettings(config, environment, cli),
+        )
+    }
+
+    fun resolveDbCleanup(
+        config: AgentConfig,
+        environment: Map<String, String> = System.getenv(),
+        cli: AgentConfigOverrides = AgentConfigOverrides(),
+    ): EffectiveDbCleanupConfig {
+        val rawSnapshotDays = listOfNotNull(
+            cli.rawSnapshotDays,
+            environment.int("COCOADISKINFO_AGENT_RETENTION_RAW_SNAPSHOT_DAYS"),
+            config.retention.rawSnapshotDays,
+        ).firstOrNull() ?: AgentConfigDefaults.DEFAULT_RAW_SNAPSHOT_DAYS
+        validateRawSnapshotDays(rawSnapshotDays)
+
+        return EffectiveDbCleanupConfig(
+            storage = resolveStorageSettings(config, environment, cli),
+            rawSnapshotDays = rawSnapshotDays,
+            vacuumAfterCleanup = listOfNotNull(
+                cli.vacuumAfterCleanup,
+                environment.boolean("COCOADISKINFO_AGENT_MAINTENANCE_VACUUM_AFTER_CLEANUP"),
+                config.maintenance.vacuumAfterCleanup,
+            ).firstOrNull() ?: AgentConfigDefaults.DEFAULT_VACUUM_AFTER_CLEANUP,
         )
     }
 
@@ -243,6 +299,20 @@ object AgentConfigResolver {
     private fun validateInterval(intervalSeconds: Long) {
         if (intervalSeconds <= 0) {
             throw AgentConfigValidationException("[runtime].intervalSeconds must be greater than 0 seconds.")
+        }
+    }
+
+    private fun validateRawSnapshotDays(rawSnapshotDays: Int) {
+        if (rawSnapshotDays !in 1..365) {
+            throw AgentConfigValidationException("[retention].rawSnapshotDays must be between 1 and 365 days.")
+        }
+    }
+
+    private fun validateCleanupInterval(cleanupIntervalHours: Long) {
+        if (cleanupIntervalHours <= 0) {
+            throw AgentConfigValidationException(
+                "[maintenance].cleanupIntervalHours must be greater than 0 hours.",
+            )
         }
     }
 

@@ -31,14 +31,21 @@ import java.util.UUID
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
+interface SapphireServer {
+    fun start(
+        wait: Boolean = true,
+        module: Application.() -> Unit = {},
+    )
+}
+
 class SapphireAgentServer(
     private val snapshotUseCase: SnapshotUseCase,
     private val host: String = "127.0.0.1",
     private val port: Int = 14631,
-) {
-    fun start(
-        wait: Boolean = true,
-        module: Application.() -> Unit = {},
+) : SapphireServer {
+    override fun start(
+        wait: Boolean,
+        module: Application.() -> Unit,
     ) {
         embeddedServer(
             factory = CIO,

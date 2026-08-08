@@ -40,6 +40,7 @@
   - `SapphireExecutor.kt`
 - Expected behavior:
   - `db migrate`はFlyway `migrate`を実行する。
+  - migration時のconnection/DataSource lifecycleはFlywayが直接管理し、Hikari runtime poolを経由しない。
   - migration scriptはversion controlに置く。
   - empty DBでは`V1__create_disk_snapshot...`が適用される。
   - `flyway_schema_history`で適用済みmigrationを管理する。
@@ -128,6 +129,7 @@ interface TransactionRunner {
 - Flyway history tableが追加される。
 - 初期migrationは現行`disk_snapshot` schemaを再現する。
 - Flyway管理外の既存DBに対する自動baselineは行わない。
+- 利用者がいないpre-release期間は、未公開migrationをSQLite/PostgreSQLそれぞれ単一V1へsquashしてよい。既存の開発DBは再作成する。
 
 ## Validation Plan
 ```text

@@ -5,6 +5,7 @@ import com.milkcocoa.info.sapphire.agent.insertDiskSnapshot
 import com.milkcocoa.info.sapphire.agent.testDiskSnapshot
 import com.milkcocoa.info.sapphire.agent.testNodeId
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import java.sql.DriverManager
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import kotlin.test.Test
@@ -30,6 +31,29 @@ class ExposedDiskSnapshotRepositoryTest {
         assertEquals(2_000L, latest?.timestamp?.toEpochMilliseconds())
         assertEquals(32, latest?.temperatureCelsius)
         assertEquals(deviceKeyA, latest?.deviceKey)
+    }
+
+    @Test
+    fun `insert stores collect time with canonical UTC offset`() {
+        val jdbcUrl = connectDiskSnapshotTestDatabase()
+        val repository = ExposedDiskSnapshotRepository()
+
+        transaction {
+            repository.insert(testDiskSnapshot(deviceKeyA, timestampMillis = 1_000))
+        }
+
+        val storedCollectTime = DriverManager.getConnection(jdbcUrl).use { connection ->
+            connection.createStatement().use { statement ->
+                statement.executeQuery("SELECT collect_time FROM disk_snapshot").use { rows ->
+                    check(rows.next())
+                    rows.getString(1)
+                }
+            }
+        }
+        assertEquals(
+            ZoneOffset.UTC,
+            OffsetDateTime.parse(storedCollectTime.replace(' ', 'T')).offset,
+        )
     }
 
     @Test
