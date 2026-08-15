@@ -7,10 +7,24 @@ import com.milkcocoa.info.sapphire.agent.config.AgentConfigDefaults
 import com.milkcocoa.info.sapphire.agent.datastore.StorageConnection
 import com.milkcocoa.info.sapphire.agent.datastore.StorageConnectionFactory
 import com.milkcocoa.info.sapphire.agent.datastore.StorageSettings
+import com.milkcocoa.info.sapphire.agent.datastore.BootstrapTokenType
+import com.milkcocoa.info.sapphire.agent.datastore.ExposedBootstrapTokenRepository
+import com.milkcocoa.info.sapphire.agent.datastore.ExposedHubIdentityRepository
+import com.milkcocoa.info.sapphire.agent.datastore.ExposedNodeAgentRegistryRepository
+import com.milkcocoa.info.sapphire.agent.datastore.ExposedSecurityPrincipalRepository
+import com.milkcocoa.info.sapphire.agent.datastore.ExposedTransactionRunner
+import com.milkcocoa.info.sapphire.agent.datastore.FlywayStorageSchemaValidator
+import com.milkcocoa.info.sapphire.agent.datastore.HubIdentity
+import com.milkcocoa.info.sapphire.agent.datastore.StorageSchemaValidator
 import com.milkcocoa.info.sapphire.agent.exec.SapphireExecutor
 import com.milkcocoa.info.sapphire.agent.identity.UuidV5DeviceKeyDeriver
 import com.milkcocoa.info.sapphire.agent.maintenance.StandaloneMaintenanceRunner
 import com.milkcocoa.info.sapphire.agent.server.SapphireAgentServer
+import com.milkcocoa.info.sapphire.agent.server.StandaloneAuthDependencies
+import com.milkcocoa.info.sapphire.agent.auth.AuthorizedNonceIssuer
+import com.milkcocoa.info.sapphire.agent.auth.BootstrapRegistrationService
+import com.milkcocoa.info.sapphire.agent.auth.InMemoryNonceStore
+import com.milkcocoa.info.sapphire.agent.auth.SignedRequestVerifier
 import com.milkcocoa.info.sapphire.agent.sink.ColotokSnapshotSink
 import com.milkcocoa.info.sapphire.agent.sink.CompositeSnapshotSink
 import com.milkcocoa.info.sapphire.agent.sink.RepositorySnapshotSink
@@ -18,9 +32,13 @@ import com.milkcocoa.info.sapphire.agent.sink.SnapshotSink
 import com.milkcocoa.info.sapphire.agent.usecase.SnapshotUseCase
 import com.milkcocoa.info.sapphire.agent.usecase.SnapshotCleanupRequest
 import com.milkcocoa.info.sapphire.agent.usecase.SnapshotMaintenanceUseCase
+import com.milkcocoa.info.sapphire.agent.usecase.StandaloneLatestSnapshotsQueryService
 import kotlinx.coroutines.runBlocking
+import java.time.Instant
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.seconds
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 internal sealed interface SapphireCommandRequest {
     data class Oneshot(
@@ -91,6 +109,60 @@ internal sealed interface SapphireCommandRequest {
             get() = storage.jdbcUrl
     }
 
+    data class Hub(
+        val host: String,
+        val port: Int,
+        val publicEndpointBaseUrl: String,
+        val storage: StorageSettings,
+        val nonceTtlSeconds: Long,
+        val maxRequestBodyBytes: Long,
+        val rawSnapshotDays: Int,
+        val cleanupOnStartup: Boolean,
+        val cleanupIntervalHours: Long,
+        val vacuumAfterCleanup: Boolean,
+    ) : SapphireCommandRequest
+
+    data class BootstrapTokenCreate(
+        val tokenType: BootstrapTokenType,
+        val storage: StorageSettings,
+        val publicEndpointBaseUrl: String,
+        val ttlSeconds: Long,
+        val expectedDisplayName: String?,
+        val recoveryNodeId: String? = null,
+    ) : SapphireCommandRequest
+
+    data class PrincipalDisable(
+        val storage: StorageSettings,
+        val kid: String,
+    ) : SapphireCommandRequest
+
+    data class NodeAgent(
+        val target: TargetDevice,
+        val outputMode: OutputMode,
+        val intervalSeconds: Long,
+        val hubEndpoint: String,
+        val hubAllowInsecureTransport: Boolean,
+        val credentialFile: String,
+        val pemCaFile: String?,
+        val heartbeatIntervalSeconds: Long,
+        val requestTimeoutSeconds: Long,
+        val maxRetries: Int,
+        val deviceIdentityNamespaceSalt: String,
+    ) : SapphireCommandRequest
+
+    data class NodeAgentJoin(
+        val hubEndpoint: String,
+        val hubAllowInsecureTransport: Boolean,
+        val credentialFile: String,
+        val pemCaFile: String?,
+        val requestTimeoutSeconds: Long,
+        val hubId: String,
+        val joinTokenId: String,
+        val joinTokenSecret: String,
+        val nodeName: String,
+        val expectedCollectionIntervalSeconds: Long,
+    ) : SapphireCommandRequest
+
     data class DbMigrate(
         val storage: StorageSettings,
     ) : SapphireCommandRequest {
@@ -149,11 +221,27 @@ internal class ProductionSapphireCommandRuntime(
     private val storageConnectionProvider: StorageConnectionProvider =
         StorageConnectionProvider(StorageConnectionFactory::connect),
     private val executorRunner: SapphireExecutorRunner = BlockingSapphireExecutorRunner,
+    private val distributedRuntime: SapphireCommandRuntime? = null,
+    private val schemaValidator: StorageSchemaValidator = FlywayStorageSchemaValidator,
 ) : SapphireCommandRuntime {
     override fun run(request: SapphireCommandRequest) {
         when (request) {
             is SapphireCommandRequest.Oneshot -> runOneshot(request)
             is SapphireCommandRequest.Standalone -> runStandalone(request)
+            is SapphireCommandRequest.Hub -> requireNotNull(distributedRuntime) {
+                "Distributed runtime is not configured."
+            }.run(request)
+            is SapphireCommandRequest.BootstrapTokenCreate -> requireNotNull(distributedRuntime) {
+                "Distributed runtime is not configured."
+            }.run(request)
+            is SapphireCommandRequest.PrincipalDisable -> requireNotNull(distributedRuntime) {
+                "Distributed runtime is not configured."
+            }.run(request)
+            is SapphireCommandRequest.NodeAgent,
+            is SapphireCommandRequest.NodeAgentJoin,
+            -> requireNotNull(distributedRuntime) {
+                "Distributed runtime is not configured."
+            }.run(request)
             is SapphireCommandRequest.DbMigrate -> runExecutor(
                 SapphireExecutor.Migrate(storage = request.storage),
             )
@@ -202,10 +290,27 @@ internal class ProductionSapphireCommandRuntime(
         }
     }
 
+    @OptIn(ExperimentalUuidApi::class)
     private fun runStandalone(request: SapphireCommandRequest.Standalone) {
         setupConsoleOutput(request.outputMode)
+        // Standalone now owns authentication tables as well as snapshot history.
+        // Validate before opening the runtime pool so an operator gets the same
+        // explicit migration boundary as Hub startup.
+        schemaValidator.requireCurrent(request.storage)
         storageConnectionProvider.connect(request.storage).use { connection ->
             val snapshotUseCase = snapshotUseCaseFactory.create(connection)
+            val transactions = ExposedTransactionRunner(connection.database)
+            val hubIdentities = ExposedHubIdentityRepository()
+            val tokens = ExposedBootstrapTokenRepository()
+            val principals = ExposedSecurityPrincipalRepository()
+            val registry = ExposedNodeAgentRegistryRepository()
+            val nonces = InMemoryNonceStore()
+            runBlocking {
+                transactions.readWrite {
+                    hubIdentities.getOrCreate(HubIdentity(Uuid.random(), Instant.now()))
+                }
+            }
+            val verifier = SignedRequestVerifier(principals, transactions, nonces)
             val maintenanceRunner = StandaloneMaintenanceRunner(
                 maintenanceUseCase = snapshotMaintenanceUseCaseFactory.create(connection),
                 rawSnapshotDays = request.rawSnapshotDays,
@@ -222,6 +327,22 @@ internal class ProductionSapphireCommandRuntime(
                         snapshotUseCase = snapshotUseCase,
                         host = request.host,
                         port = request.port,
+                        authDependencies = StandaloneAuthDependencies(
+                            nonceIssuer = AuthorizedNonceIssuer(tokens, principals, transactions, nonces),
+                            registrationService = BootstrapRegistrationService(
+                                hubIdentityRepository = hubIdentities,
+                                tokenRepository = tokens,
+                                principalRepository = principals,
+                                nodeRegistryRepository = registry,
+                                transactionRunner = transactions,
+                                nonceStore = nonces,
+                            ),
+                            signedRequestVerifier = verifier,
+                            queryService = StandaloneLatestSnapshotsQueryService(snapshotUseCase),
+                            snapshotUseCase = snapshotUseCase,
+                            nonceTtl = AgentConfigDefaults.NONCE_TTL_SECONDS.seconds,
+                            maximumRequestBodyBytes = AgentConfigDefaults.MAX_REQUEST_BODY_BYTES,
+                        ),
                     ),
                     maintenanceRunner = maintenanceRunner,
                     cleanupOnStartup = request.cleanupOnStartup,

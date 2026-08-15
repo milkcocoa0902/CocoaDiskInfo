@@ -1,27 +1,308 @@
 openapi: "3.1.0"
 info:
   title: "CocoaDiskInfo API"
-  description: "CocoaDiskInfo API"
+  description: |
+    Phase 5 Hub and authenticated Standalone API.
+
+    CocoaDiskInfo authenticates distributed requests with an application-level Ed25519 JWS.
+    TLS termination and certificate lifecycle are deployment responsibilities. Paths must not be
+    rewritten by a reverse proxy because the canonical API path is covered by the signature.
   version: "1.0.0"
 servers:
-  - url: "https://CocoaDiskInfo"
+  - url: "https://hub.example"
+    description: "Operator-configured public endpoint; TLS may terminate at a reverse proxy or load balancer."
+tags:
+  - name: "Operations"
+  - name: "Bootstrap"
+  - name: "Node Agent"
+  - name: "Client Read"
+
 paths:
+  /healthz:
+    get:
+      tags: ["Operations"]
+      summary: "Check Hub process readiness"
+      description: "Hub mode endpoint. It does not authenticate or query snapshot storage."
+      operationId: "getHealth"
+      responses:
+        "200":
+          description: "The Hub HTTP process is ready."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /api/v1/auth/nonces:
+    post:
+      tags: ["Bootstrap"]
+      summary: "Issue a short-lived, single-use nonce"
+      description: |
+        Issues a 256-bit nonce bound to the supplied subject and purpose. Hub accepts all defined
+        subject/purpose combinations for the appropriate route. Authenticated Standalone supports
+        client pairing and client read combinations, but does not expose Node Agent join or ingest.
+      operationId: "issueNonce"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NonceIssueRequest"
+      responses:
+        "200":
+          description: "Nonce issued. The response must not be cached."
+          headers:
+            Cache-Control:
+              description: "Always `no-store`."
+              schema:
+                type: "string"
+                const: "no-store"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NonceIssueResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "429":
+          description: "The bounded in-memory nonce store is at capacity."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Failure"
+
+  /api/v1/node-agents/join:
+    post:
+      tags: ["Bootstrap"]
+      summary: "Register or recover a Node Agent public key"
+      description: |
+        Hub-only bootstrap route. The Node Agent generates its Ed25519 key locally and proves
+        possession of the one-time join token secret with the shared JoinProof HMAC contract.
+        The token secret and private key are never sent.
+      operationId: "joinNodeAgent"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NodeJoinRequest"
+      responses:
+        "200":
+          description: "Node Agent principal registered."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NodeJoinResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+
+  /api/v1/clients/pair:
+    post:
+      tags: ["Bootstrap"]
+      summary: "Register a Client public key"
+      description: |
+        Available in Hub and authenticated Standalone modes. The Client generates its Ed25519 key
+        locally and proves possession of the one-time pairing token secret with the shared
+        JoinProof HMAC contract. The token secret and private key are never sent.
+      operationId: "pairClient"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClientPairRequest"
+      responses:
+        "200":
+          description: "Client principal registered."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClientPairResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+
+  /api/v1/snapshots:
+    post:
+      tags: ["Node Agent"]
+      summary: "Ingest one Node Agent snapshot"
+      description: |
+        Hub-only signed route. `Authorization` binds POST, the canonical path, an empty query,
+        purpose `SNAPSHOT_INGEST`, the single-use nonce, and SHA-256 of the exact request bytes.
+        The UTF-8 JSON body has no BOM or Content-Encoding and is not reserialized for verification.
+        Node identity comes from the authenticated NODE_AGENT principal, not the request body.
+      operationId: "ingestSnapshot"
+      security:
+        - CocoaDiskInfoJws: []
+      parameters:
+        - $ref: "#/components/parameters/ContentDigest"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SnapshotIngestRequest"
+      responses:
+        "200":
+          description: "Snapshot stored or recognized as an idempotent duplicate."
+          headers:
+            CocoaDiskInfo-Next-Nonce:
+              $ref: "#/components/headers/NextNonce"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SnapshotIngestResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          description: "The same Node used an existing ingestId for different snapshot content."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Failure"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+
+  /api/v1/node-agents/heartbeat:
+    post:
+      tags: ["Node Agent"]
+      summary: "Update Node Agent liveness and current collection state"
+      description: |
+        Hub-only signed route. `Authorization` binds POST, the canonical path, an empty query,
+        purpose `HEARTBEAT`, the single-use nonce, and SHA-256 of the exact request bytes.
+        A valid heartbeat updates last-seen state but does not make an old snapshot fresh.
+      operationId: "recordNodeHeartbeat"
+      security:
+        - CocoaDiskInfoJws: []
+      parameters:
+        - $ref: "#/components/parameters/ContentDigest"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NodeHeartbeatRequest"
+      responses:
+        "200":
+          description: "Heartbeat recorded."
+          headers:
+            CocoaDiskInfo-Next-Nonce:
+              $ref: "#/components/headers/NextNonce"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NodeHeartbeatResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+
+  /api/v1/snapshots/latest:
+    get:
+      tags: ["Client Read"]
+      summary: "Return a bounded cache-first page of latest snapshots"
+      description: |
+        Signed CLIENT_READ route available in Hub and authenticated Standalone modes. Rows use
+        keyset pagination in `(nodeId, deviceKey)` order. The signature canonical query contains
+        validated `cursor` when present and always contains the effective `limit`, including its
+        default. Unknown or duplicate query parameters are rejected. Disabled Hub nodes are omitted.
+      operationId: "getLatestSnapshots"
+      security:
+        - CocoaDiskInfoJws: []
+      parameters:
+        - name: "cursor"
+          in: "query"
+          required: false
+          description: "Opaque canonical base64url cursor returned in pagination.nextCursor."
+          schema:
+            type: "string"
+            pattern: "^[A-Za-z0-9_-]+$"
+        - name: "limit"
+          in: "query"
+          required: false
+          schema:
+            type: "integer"
+            format: "int32"
+            default: 100
+            minimum: 1
+            maximum: 500
+      responses:
+        "200":
+          description: "Latest snapshot page, including additive freshness and partial-result metadata."
+          headers:
+            CocoaDiskInfo-Next-Nonce:
+              $ref: "#/components/headers/NextNonce"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessLatestSnapshotsPayload"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/nodes/{nodeId}/devices/{deviceKey}/snapshots/latest:
+    get:
+      tags: ["Client Read"]
+      summary: "Return latest state for one node/device pair"
+      description: |
+        Signed CLIENT_READ route available in Hub and authenticated Standalone modes. It accepts no
+        query parameters and returns the common aggregate payload shape with one node and one device.
+      operationId: "getNodeDeviceLatestSnapshot"
+      security:
+        - CocoaDiskInfoJws: []
+      parameters:
+        - $ref: "#/components/parameters/NodeId"
+        - $ref: "#/components/parameters/DeviceKey"
+      responses:
+        "200":
+          description: "Latest snapshot with node and device freshness metadata."
+          headers:
+            CocoaDiskInfo-Next-Nonce:
+              $ref: "#/components/headers/NextNonce"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessLatestSnapshotsPayload"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   /api/v1/nodes/{nodeId}/devices/{deviceKey}/snapshots:
     get:
-      description: "Returns bounded snapshot history for one node/device pair."
+      tags: ["Client Read"]
+      summary: "Return bounded history for one node/device pair"
+      description: |
+        Signed CLIENT_READ route available in Hub and authenticated Standalone modes. The signature
+        canonical query contains validated effective values in name order: `from`, `limit`, `order`,
+        `to`. Effective `limit` and `order` are included even when omitted from the URL. Unknown or
+        duplicate query parameters are rejected.
+      operationId: "getNodeDeviceSnapshotHistory"
+      security:
+        - CocoaDiskInfoJws: []
       parameters:
-        - name: "nodeId"
-          in: "path"
-          required: true
-          schema:
-            type: "string"
-            format: "uuid"
-        - name: "deviceKey"
-          in: "path"
-          required: true
-          description: "Opaque stable device identity. This is not an OS device path or raw serial number."
-          schema:
-            type: "string"
+        - $ref: "#/components/parameters/NodeId"
+        - $ref: "#/components/parameters/DeviceKey"
         - name: "limit"
           in: "query"
           required: false
@@ -49,83 +330,133 @@ paths:
           schema:
             type: "string"
             default: "desc"
-            enum:
-              - "asc"
-              - "desc"
+            enum: ["asc", "desc"]
       responses:
-        "400":
-          description: "Bad Request"
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/Failure"
-              examples:
-                invalidLimit:
-                  description: "Invalid limit"
-                  value:
-                    error:
-                      code: "history_limit_invalid"
-                      message: "History limit must be between 1 and 1000."
         "200":
-          description: "OK"
+          description: "History plus additive current node/device freshness metadata."
+          headers:
+            CocoaDiskInfo-Next-Nonce:
+              $ref: "#/components/headers/NextNonce"
           content:
-            '*/*':
+            application/json:
               schema:
-                $ref: "#/components/schemas/Success_NodeDeviceHistoryPayload"
+                $ref: "#/components/schemas/SuccessNodeDeviceHistoryPayload"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   /api/v1/devices/{deviceKey}/snapshots/latest:
     get:
-      description: ""
+      tags: ["Client Read"]
+      summary: "Return latest snapshot by device key in Standalone mode"
+      description: |
+        Authenticated Standalone-only compatibility route. Hub does not register this device-only
+        route because device keys are not globally unique across nodes. This signed CLIENT_READ route
+        accepts no query parameters.
+      operationId: "getStandaloneDeviceLatestSnapshot"
+      security:
+        - CocoaDiskInfoJws: []
       parameters:
-        - name: "deviceKey"
-          in: "path"
-          required: true
-          description: "Opaque stable device identity. This is not an OS device path or raw serial number."
-          schema:
-            type: "string"
+        - $ref: "#/components/parameters/DeviceKey"
       responses:
+        "200":
+          description: "Latest Standalone device snapshot."
+          headers:
+            CocoaDiskInfo-Next-Nonce:
+              $ref: "#/components/headers/NextNonce"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessDiskSnapshot"
         "400":
-          description: "Bad Request"
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/Failure"
-              examples:
-                Example#1:
-                  description: ""
-                  value:
-                    error:
-                      code: "device_key_required"
-                      message: "Device key is required."
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
-          description: "Not Found"
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/Failure"
-              examples:
-                Example#1:
-                  description: ""
-                  value:
-                    error:
-                      code: "snapshot_not_found"
-                      message: "null"
-        "200":
-          description: "OK"
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/Success_DiskSnapshot"
-  /api/v1/snapshots/latest:
-    get:
-      description: ""
-      responses:
-        "200":
-          description: "OK"
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/Success_LatestSnapshotsPayload"
+          $ref: "#/components/responses/NotFound"
+
 components:
+  securitySchemes:
+    CocoaDiskInfoJws:
+      type: "apiKey"
+      in: "header"
+      name: "Authorization"
+      description: |
+        `CocoaDiskInfo-JWS <compact-jws>`. The protected header uses EdDSA and the Principal `kid`.
+        The payload binds version, nonce, HTTP method, canonical path, canonical query, purpose, and,
+        for signed body routes, the base64url SHA-256 body digest.
+
+  parameters:
+    NodeId:
+      name: "nodeId"
+      in: "path"
+      required: true
+      schema:
+        type: "string"
+        format: "uuid"
+    DeviceKey:
+      name: "deviceKey"
+      in: "path"
+      required: true
+      description: "Opaque stable identity; not an OS path or raw serial number."
+      schema:
+        type: "string"
+        minLength: 1
+    ContentDigest:
+      name: "Content-Digest"
+      in: "header"
+      required: true
+      description: "RFC 9530 digest of the exact request bytes: `sha-256=:<canonical-base64>:`."
+      schema:
+        type: "string"
+        pattern: "^sha-256=:[A-Za-z0-9+/]{43}=:$"
+
+  headers:
+    NextNonce:
+      description: |
+        Fresh 256-bit base64url nonce bound to the authenticated Principal and the same purpose.
+        It may be used for the next signed request instead of calling the nonce endpoint.
+      required: true
+      schema:
+        $ref: "#/components/schemas/Nonce"
+
+  responses:
+    BadRequest:
+      description: "Malformed body, invalid field, or invalid/unknown/duplicate query parameter."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Failure"
+    Unauthorized:
+      description: |
+        Authentication, bootstrap proof, Principal, or nonce failure. `nonce_unavailable` means the
+        caller may acquire one fresh nonce and retry once; other 401 codes are not retry signals.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Failure"
+    Conflict:
+      description: "A one-time bootstrap token was reused or an idempotency key conflicts."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Failure"
+    NotFound:
+      description: "The requested node or snapshot was not found."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Failure"
+    PayloadTooLarge:
+      description: "The request exceeds the configured maximum body size."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Failure"
+
   schemas:
     ApiError:
       type: "object"
@@ -134,65 +465,371 @@ components:
           type: "string"
         message:
           type: "string"
-      required:
-        - "code"
-        - "message"
+      required: ["code", "message"]
+
     Failure:
       type: "object"
       properties:
         error:
           $ref: "#/components/schemas/ApiError"
-      required:
-        - "error"
-    Instant:
+      required: ["error"]
+
+    HealthResponse:
       type: "object"
       properties:
-        epochSeconds:
+        status:
+          type: "string"
+          const: "ready"
+      required: ["status"]
+
+    Nonce:
+      type: "string"
+      description: "Canonical base64url without padding encoding of 32 bytes."
+      pattern: "^[A-Za-z0-9_-]{43}$"
+
+    KeyId:
+      type: "string"
+      description: "RFC 7638 SHA-256 JWK thumbprint encoded as canonical base64url without padding."
+      pattern: "^[A-Za-z0-9_-]{43}$"
+
+    Proof:
+      type: "string"
+      description: "JoinProof HMAC-SHA256 encoded as canonical base64url without padding."
+      pattern: "^[A-Za-z0-9_-]{43}$"
+
+    Ed25519PublicJwk:
+      type: "object"
+      properties:
+        kty:
+          type: "string"
+          const: "OKP"
+          default: "OKP"
+        crv:
+          type: "string"
+          const: "Ed25519"
+          default: "Ed25519"
+        x:
+          type: "string"
+          description: "Canonical base64url without padding encoding of the 32-byte public key."
+          pattern: "^[A-Za-z0-9_-]{43}$"
+      required: ["x"]
+
+    NonceIssueRequest:
+      type: "object"
+      properties:
+        subjectType:
+          type: "string"
+          enum: ["JOIN_TOKEN", "PAIRING_TOKEN", "PRINCIPAL"]
+        subjectId:
+          type: "string"
+          minLength: 1
+        purpose:
+          type: "string"
+          enum: ["JOIN", "CLIENT_PAIR", "SNAPSHOT_INGEST", "HEARTBEAT", "CLIENT_READ"]
+      required: ["subjectType", "subjectId", "purpose"]
+
+    NonceIssueResponse:
+      type: "object"
+      properties:
+        nonce:
+          $ref: "#/components/schemas/Nonce"
+        expiresAt:
+          type: "string"
+          format: "date-time"
+      required: ["nonce", "expiresAt"]
+
+    NodeJoinRequest:
+      type: "object"
+      properties:
+        joinTokenId:
+          type: "string"
+          format: "uuid"
+        nonce:
+          $ref: "#/components/schemas/Nonce"
+        publicKey:
+          $ref: "#/components/schemas/Ed25519PublicJwk"
+        kid:
+          $ref: "#/components/schemas/KeyId"
+        nodeName:
+          type: "string"
+          minLength: 1
+        expectedCollectionIntervalSeconds:
           type: "integer"
           format: "int64"
-        nanosecondsOfSecond:
+          minimum: 1
+        proof:
+          $ref: "#/components/schemas/Proof"
+      required:
+        - "joinTokenId"
+        - "nonce"
+        - "publicKey"
+        - "kid"
+        - "nodeName"
+        - "expectedCollectionIntervalSeconds"
+        - "proof"
+
+    NodeJoinResponse:
+      type: "object"
+      properties:
+        hubId:
+          type: "string"
+          format: "uuid"
+        principalId:
+          type: "string"
+          format: "uuid"
+        nodeId:
+          type: "string"
+          format: "uuid"
+        kid:
+          $ref: "#/components/schemas/KeyId"
+      required: ["hubId", "principalId", "nodeId", "kid"]
+
+    ClientPairRequest:
+      type: "object"
+      properties:
+        pairingTokenId:
+          type: "string"
+          format: "uuid"
+        nonce:
+          $ref: "#/components/schemas/Nonce"
+        publicKey:
+          $ref: "#/components/schemas/Ed25519PublicJwk"
+        kid:
+          $ref: "#/components/schemas/KeyId"
+        displayName:
+          type: "string"
+          minLength: 1
+        proof:
+          $ref: "#/components/schemas/Proof"
+      required: ["pairingTokenId", "nonce", "publicKey", "kid", "displayName", "proof"]
+
+    ClientPairResponse:
+      type: "object"
+      properties:
+        hubId:
+          type: "string"
+          format: "uuid"
+        principalId:
+          type: "string"
+          format: "uuid"
+        kid:
+          $ref: "#/components/schemas/KeyId"
+      required: ["hubId", "principalId", "kid"]
+
+    SnapshotIngestRequest:
+      type: "object"
+      properties:
+        ingestId:
+          type: "string"
+          format: "uuid"
+        snapshot:
+          $ref: "#/components/schemas/DiskSnapshot"
+      required: ["ingestId", "snapshot"]
+
+    SnapshotIngestResponse:
+      type: "object"
+      properties:
+        ingestId:
+          type: "string"
+          format: "uuid"
+        status:
+          type: "string"
+          enum: ["STORED", "DUPLICATE"]
+        snapshotId:
+          type: "string"
+          format: "uuid"
+        receivedAt:
+          type: "string"
+          format: "date-time"
+      required: ["ingestId", "status", "snapshotId", "receivedAt"]
+
+    NodeHeartbeatRequest:
+      type: "object"
+      properties:
+        expectedCollectionIntervalSeconds:
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        error:
+          oneOf:
+            - $ref: "#/components/schemas/NodeReportedError"
+            - type: "null"
+      required: ["expectedCollectionIntervalSeconds"]
+
+    NodeReportedError:
+      type: "object"
+      properties:
+        code:
+          type: "string"
+        message:
+          type: "string"
+      required: ["code", "message"]
+
+    NodeHeartbeatResponse:
+      type: "object"
+      properties:
+        receivedAt:
+          type: "string"
+          format: "date-time"
+      required: ["receivedAt"]
+
+    LatestSnapshotsPayload:
+      type: "object"
+      description: |
+        Cache-first current state. Metadata fields are additive and may be absent when an older
+        compatible implementation returns only `nodes`.
+      properties:
+        nodes:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/NodeSnapshot"
+        generatedAt:
+          type: ["string", "null"]
+          format: "date-time"
+        partial:
+          type: "boolean"
+          default: false
+        errors:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/NodeApiError"
+          default: []
+        errorsTruncated:
+          type: "boolean"
+          default: false
+        pagination:
+          oneOf:
+            - $ref: "#/components/schemas/PageMetadata"
+            - type: "null"
+      required: ["nodes"]
+
+    NodeSnapshot:
+      type: "object"
+      properties:
+        nodeId:
+          type: "string"
+          format: "uuid"
+        nodeName:
+          type: "string"
+        devices:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/DiskSnapshot"
+        status:
+          type: ["string", "null"]
+          enum: ["ACTIVE", "DISABLED", null]
+        lastSeenAt:
+          type: ["string", "null"]
+          format: "date-time"
+        deviceStates:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/DeviceState"
+          default: []
+      required: ["nodeId", "nodeName", "devices"]
+
+    DeviceState:
+      type: "object"
+      properties:
+        deviceKey:
+          type: "string"
+        lastReceivedAt:
+          type: ["string", "null"]
+          format: "date-time"
+        ageMs:
+          type: ["integer", "null"]
+          format: "int64"
+          minimum: 0
+        stale:
+          type: "boolean"
+          default: false
+      required: ["deviceKey"]
+
+    NodeApiError:
+      type: "object"
+      properties:
+        code:
+          type: "string"
+        message:
+          type: "string"
+        nodeId:
+          type: ["string", "null"]
+          format: "uuid"
+      required: ["code", "message"]
+
+    PageMetadata:
+      type: "object"
+      properties:
+        limit:
           type: "integer"
           format: "int32"
-      required:
-        - "epochSeconds"
-        - "nanosecondsOfSecond"
-    MetricsSnapshot:
+          minimum: 1
+          maximum: 500
+        nextCursor:
+          type: ["string", "null"]
+          pattern: "^[A-Za-z0-9_-]+$"
+        hasMore:
+          type: "boolean"
+          default: false
+      required: ["limit"]
+
+    NodeDeviceHistoryPayload:
       type: "object"
-      properties: { }
+      properties:
+        nodeId:
+          type: "string"
+          format: "uuid"
+        nodeName:
+          type: "string"
+        deviceKey:
+          type: "string"
+        snapshots:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/DiskSnapshot"
+        status:
+          type: ["string", "null"]
+          enum: ["ACTIVE", "DISABLED", null]
+        lastSeenAt:
+          type: ["string", "null"]
+          format: "date-time"
+        deviceState:
+          oneOf:
+            - $ref: "#/components/schemas/DeviceState"
+            - type: "null"
+        currentError:
+          oneOf:
+            - $ref: "#/components/schemas/NodeApiError"
+            - type: "null"
+      required: ["nodeId", "nodeName", "deviceKey", "snapshots"]
+
     DiskSnapshot:
       type: "object"
       properties:
         timestamp:
-          $ref: "#/components/schemas/Instant"
+          type: "string"
+          format: "date-time"
         deviceKey:
           type: "string"
-          description: "Opaque stable device identity. Clients should not parse it as an OS path or raw serial number."
+          description: "Opaque stable device identity."
         path:
           type: "string"
         model:
-          type: "string"
-          nullable: true
+          type: ["string", "null"]
         serial:
-          type: "string"
-          nullable: true
+          type: ["string", "null"]
         capacityBytes:
           type: "integer"
           format: "int64"
         temperatureCelsius:
-          type: "integer"
+          type: ["integer", "null"]
           format: "int32"
-          nullable: true
         powerOnHours:
-          type: "integer"
+          type: ["integer", "null"]
           format: "int64"
-          nullable: true
         health:
           type: "string"
-          enum:
-            - "GOOD"
-            - "CAUTION"
-            - "BAD"
-            - "UNKNOWN"
+          enum: ["GOOD", "CAUTION", "BAD", "UNKNOWN"]
         metricsSnapshot:
           $ref: "#/components/schemas/MetricsSnapshot"
       required:
@@ -202,64 +839,134 @@ components:
         - "capacityBytes"
         - "health"
         - "metricsSnapshot"
-    Success:
+
+    MetricsSnapshot:
+      oneOf:
+        - $ref: "#/components/schemas/AtaMetricsSnapshot"
+        - $ref: "#/components/schemas/NvmeMetricsSnapshot"
+      discriminator:
+        propertyName: "type"
+        mapping:
+          ata: "#/components/schemas/AtaMetricsSnapshot"
+          nvme: "#/components/schemas/NvmeMetricsSnapshot"
+
+    AtaMetricsSnapshot:
       type: "object"
-      properties: { }
-    Success_DiskSnapshot:
+      properties:
+        type:
+          type: "string"
+          const: "ata"
+        universal:
+          $ref: "#/components/schemas/UniversalMetrics"
+        attributes:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/AtaAttribute"
+        protocol:
+          type: "string"
+          const: "ATA"
+          default: "ATA"
+      required: ["type", "universal", "attributes"]
+
+    NvmeMetricsSnapshot:
+      type: "object"
+      properties:
+        type:
+          type: "string"
+          const: "nvme"
+        universal:
+          $ref: "#/components/schemas/UniversalMetrics"
+        percentageUsed:
+          type: ["integer", "null"]
+          format: "int32"
+        availableSpare:
+          type: ["integer", "null"]
+          format: "int32"
+        mediaErrors:
+          type: ["integer", "null"]
+          format: "int64"
+        dataUnitsWritten:
+          type: ["integer", "null"]
+          format: "int64"
+        dataUnitsRead:
+          type: ["integer", "null"]
+          format: "int64"
+        protocol:
+          type: "string"
+          const: "NVME"
+          default: "NVME"
+      required:
+        - "type"
+        - "universal"
+
+    UniversalMetrics:
+      type: "object"
+      properties:
+        temperatureCelsius:
+          type: ["integer", "null"]
+          format: "int32"
+        powerOnHours:
+          type: ["integer", "null"]
+          format: "int64"
+        powerCycleCount:
+          type: ["integer", "null"]
+          format: "int64"
+        percentageUsed:
+          type: ["integer", "null"]
+          format: "int32"
+        lifetimeRemainingPercent:
+          type: ["integer", "null"]
+          format: "int32"
+        totalBytesWritten:
+          type: ["integer", "null"]
+          format: "int64"
+        totalBytesRead:
+          type: ["integer", "null"]
+          format: "int64"
+        criticalWarningCount:
+          type: ["integer", "null"]
+          format: "int32"
+    AtaAttribute:
+      type: "object"
+      properties:
+        id:
+          type: "integer"
+          format: "int32"
+        name:
+          type: "string"
+        value:
+          type: "integer"
+          format: "int32"
+        worst:
+          type: "integer"
+          format: "int32"
+        threshold:
+          type: "integer"
+          format: "int32"
+        rawValue:
+          type: "integer"
+          format: "int64"
+        rawString:
+          type: "string"
+      required: ["id", "name", "value", "worst", "threshold", "rawValue", "rawString"]
+
+    SuccessDiskSnapshot:
       type: "object"
       properties:
         payload:
           $ref: "#/components/schemas/DiskSnapshot"
-    LatestSnapshotsPayload:
-      type: "object"
-      properties:
-        nodes:
-          type: "array"
-          items:
-            $ref: "#/components/schemas/NodeSnapshot"
-      required:
-        - "nodes"
-    NodeSnapshot:
-      type: "object"
-      properties:
-        nodeId:
-          type: "string"
-        nodeName:
-          type: "string"
-        devices:
-          type: "array"
-          items:
-            $ref: "#/components/schemas/DiskSnapshot"
-      required:
-        - "nodeId"
-        - "nodeName"
-        - "devices"
-    NodeDeviceHistoryPayload:
-      type: "object"
-      properties:
-        nodeId:
-          type: "string"
-        nodeName:
-          type: "string"
-        deviceKey:
-          type: "string"
-          description: "Opaque stable device identity for the selected node/device pair."
-        snapshots:
-          type: "array"
-          items:
-            $ref: "#/components/schemas/DiskSnapshot"
-      required:
-        - "nodeId"
-        - "nodeName"
-        - "deviceKey"
-        - "snapshots"
-    Success_LatestSnapshotsPayload:
+      required: ["payload"]
+
+    SuccessLatestSnapshotsPayload:
       type: "object"
       properties:
         payload:
           $ref: "#/components/schemas/LatestSnapshotsPayload"
-    Success_NodeDeviceHistoryPayload:
+      required: ["payload"]
+
+    SuccessNodeDeviceHistoryPayload:
       type: "object"
       properties:
         payload:
           $ref: "#/components/schemas/NodeDeviceHistoryPayload"
+      required: ["payload"]

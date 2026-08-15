@@ -3,6 +3,7 @@ package com.milkcocoa.info.sapphire.agent
 import com.milkcocoa.info.sapphire.agent.datastore.HistoryQuery
 import com.milkcocoa.info.sapphire.agent.datastore.StorageConnection
 import com.milkcocoa.info.sapphire.agent.datastore.StorageConnectionFactory
+import com.milkcocoa.info.sapphire.agent.datastore.StorageSchemaValidator
 import com.milkcocoa.info.sapphire.agent.datastore.StorageSettings
 import com.milkcocoa.info.sapphire.agent.usecase.SnapshotCleanupRequest
 import com.milkcocoa.info.sapphire.agent.usecase.SnapshotCleanupResult
@@ -15,6 +16,7 @@ import kotlin.io.path.absolutePathString
 import kotlin.io.path.createTempFile
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
@@ -84,9 +86,50 @@ class SapphireCommandRuntimeTest {
         assertTrue(openedConnections.all(StorageConnection::isClosed))
     }
 
+    @Test
+    fun `standalone rejects a stale schema before opening its runtime connection`() {
+        var connectionCount = 0
+        val runtime = runtime(
+            storageConnectionProvider = StorageConnectionProvider {
+                connectionCount += 1
+                error("Storage connection should not be opened.")
+            },
+            executorRunner = SapphireExecutorRunner { },
+            schemaValidator = object : StorageSchemaValidator {
+                override fun requireCurrent(settings: StorageSettings) {
+                    error("Run db migrate first.")
+                }
+            },
+        )
+
+        val error = assertFailsWith<IllegalStateException> {
+            runtime.run(
+                SapphireCommandRequest.Standalone(
+                    target = TargetDevice.Scan,
+                    outputMode = OutputMode.DEFAULT,
+                    intervalSeconds = 60,
+                    host = "127.0.0.1",
+                    port = 14631,
+                    storage = temporarySqliteStorage(),
+                    deviceIdentityNamespaceSalt = "test",
+                    rawSnapshotDays = 30,
+                    cleanupOnStartup = true,
+                    cleanupIntervalHours = 24,
+                    vacuumAfterCleanup = false,
+                ),
+            )
+        }
+
+        assertEquals("Run db migrate first.", error.message)
+        assertEquals(0, connectionCount)
+    }
+
     private fun runtime(
         storageConnectionProvider: StorageConnectionProvider,
         executorRunner: SapphireExecutorRunner,
+        schemaValidator: StorageSchemaValidator = object : StorageSchemaValidator {
+            override fun requireCurrent(settings: StorageSettings) = Unit
+        },
     ) = ProductionSapphireCommandRuntime(
         snapshotUseCaseFactory = SnapshotUseCaseFactory { unusedSnapshotUseCase() },
         snapshotMaintenanceUseCaseFactory = SnapshotMaintenanceUseCaseFactory {
@@ -94,6 +137,7 @@ class SapphireCommandRuntimeTest {
         },
         storageConnectionProvider = storageConnectionProvider,
         executorRunner = executorRunner,
+        schemaValidator = schemaValidator,
     )
 
     private fun temporarySqliteStorage(): StorageSettings = StorageSettings.fromJdbcUrl(

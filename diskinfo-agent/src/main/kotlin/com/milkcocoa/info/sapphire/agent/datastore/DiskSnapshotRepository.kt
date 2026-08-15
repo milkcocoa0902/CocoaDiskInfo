@@ -7,9 +7,14 @@ import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
 interface DiskSnapshotRepository {
-    fun insert(snapshot: DiskSnapshot)
+    fun insert(record: SnapshotPersistenceRecord): SnapshotInsertResult
     fun findLatestNodes(): List<NodeSnapshot>
     fun findLatestByDeviceKey(deviceKey: String): DiskSnapshot?
+
+    @OptIn(ExperimentalUuidApi::class)
+    fun findLatest(nodeId: Uuid, deviceKey: String): StoredDiskSnapshot?
+
+    fun findLatestPage(request: LatestSnapshotPageRequest): LatestSnapshotPage
 
     @OptIn(ExperimentalUuidApi::class)
     fun findHistory(

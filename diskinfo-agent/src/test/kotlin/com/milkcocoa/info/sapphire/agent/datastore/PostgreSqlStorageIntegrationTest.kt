@@ -1,6 +1,7 @@
 package com.milkcocoa.info.sapphire.agent.datastore
 
 import com.milkcocoa.info.sapphire.agent.testDiskSnapshot
+import com.milkcocoa.info.sapphire.agent.testSnapshotRecord
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assumptions.assumeTrue
 import java.time.Instant
@@ -38,10 +39,11 @@ class PostgreSqlStorageIntegrationTest {
 
         StorageConnectionFactory.connect(storage).use { connection ->
             requireEmptyDedicatedDatabase(connection)
-            assertSingleV1Migration(connection)
+            assertExpectedMigrations(connection)
 
             val transactionRunner = ExposedTransactionRunner(connection.database)
             val repository = ExposedDiskSnapshotRepository()
+            val registryRepository = ExposedNodeAgentRegistryRepository()
             val maintenanceRepository = ExposedSnapshotMaintenanceRepository()
             val maintenanceOperation = createStorageMaintenanceOperation(connection)
             val deviceKey = "phase4e-integration-device"
@@ -51,24 +53,41 @@ class PostgreSqlStorageIntegrationTest {
                 Instant.ofEpochMilli(newerTimestampMillis),
                 ZoneOffset.UTC,
             )
+            val olderRecord = testSnapshotRecord(
+                testDiskSnapshot(
+                    deviceKey = deviceKey,
+                    timestampMillis = olderTimestampMillis,
+                    temperatureCelsius = 30,
+                ),
+            )
 
             try {
                 transactionRunner.readWrite {
-                    repository.insert(
-                        testDiskSnapshot(
-                            deviceKey = deviceKey,
-                            timestampMillis = olderTimestampMillis,
-                            temperatureCelsius = 30,
-                        ),
-                    )
-                    repository.insert(
-                        testDiskSnapshot(
-                            deviceKey = deviceKey,
-                            timestampMillis = newerTimestampMillis,
-                            temperatureCelsius = 31,
+                    registryRepository.activate(
+                        NodeAgentRegistration(
+                            nodeId = NodeIdentity.nodeId,
+                            nodeName = NodeIdentity.nodeName,
+                            expectedCollectionIntervalSeconds = 60,
+                            joinedAt = Instant.ofEpochMilli(olderTimestampMillis),
                         ),
                     )
                 }
+                val stored = transactionRunner.readWrite { repository.insert(olderRecord) }
+                val duplicate = transactionRunner.readWrite { repository.insert(olderRecord) }
+                transactionRunner.readWrite {
+                    repository.insert(
+                        testSnapshotRecord(
+                            testDiskSnapshot(
+                                deviceKey = deviceKey,
+                                timestampMillis = newerTimestampMillis,
+                                temperatureCelsius = 31,
+                            ),
+                        ),
+                    )
+                }
+                assertEquals(SnapshotInsertStatus.STORED, stored.status)
+                assertEquals(SnapshotInsertStatus.DUPLICATE, duplicate.status)
+                assertEquals(stored.snapshotId, duplicate.snapshotId)
 
                 val latest = transactionRunner.readOnly {
                     repository.findLatestByDeviceKey(deviceKey)
@@ -76,6 +95,14 @@ class PostgreSqlStorageIntegrationTest {
                 assertNotNull(latest)
                 assertEquals(newerTimestampMillis, latest.timestamp.toEpochMilliseconds())
                 assertEquals(31, latest.temperatureCelsius)
+
+                val latestPage = transactionRunner.readOnly {
+                    repository.findLatestPage(LatestSnapshotPageRequest(limit = 1))
+                }
+                assertEquals(listOf(newerTimestampMillis), latestPage.rows.map {
+                    it.snapshot.timestamp.toEpochMilliseconds()
+                })
+                assertEquals(false, latestPage.hasMore)
 
                 val history = transactionRunner.readOnly {
                     repository.findHistory(
@@ -125,8 +152,33 @@ class PostgreSqlStorageIntegrationTest {
                 assertEquals(listOf(newerTimestampMillis), remaining.snapshots.map {
                     it.timestamp.toEpochMilliseconds()
                 })
+
+                assertEquals(
+                    emptyList(),
+                    transactionRunner.readOnly {
+                        registryRepository.findActiveWithoutSnapshots(limit = 10).entries
+                    },
+                )
+                transactionRunner.readWrite {
+                    maintenanceRepository.deleteSnapshotsBefore(
+                        OffsetDateTime.parse("2100-01-01T00:00:00Z"),
+                    )
+                }
+                assertEquals(
+                    listOf(NodeIdentity.nodeId),
+                    transactionRunner.readOnly {
+                        registryRepository.findActiveWithoutSnapshots(limit = 10).entries
+                            .map { it.nodeId }
+                    },
+                )
             } finally {
                 connection.useJdbcConnection { jdbcConnection ->
+                    jdbcConnection.prepareStatement(
+                        "DELETE FROM node_agent_registry WHERE node_id = ?",
+                    ).use { statement ->
+                        statement.setObject(1, java.util.UUID.fromString(NodeIdentity.nodeId.toString()))
+                        statement.executeUpdate()
+                    }
                     jdbcConnection.prepareStatement(
                         "DELETE FROM disk_snapshot WHERE device_key = ?",
                     ).use { statement ->
@@ -138,7 +190,7 @@ class PostgreSqlStorageIntegrationTest {
         }
     }
 
-    private fun assertSingleV1Migration(connection: StorageConnection) {
+    private fun assertExpectedMigrations(connection: StorageConnection) {
         val appliedVersions = connection.useJdbcConnection { jdbcConnection ->
             jdbcConnection.createStatement().use { statement ->
                 statement.executeQuery(
@@ -151,7 +203,7 @@ class PostgreSqlStorageIntegrationTest {
                 }
             }
         }
-        assertEquals(listOf("1"), appliedVersions)
+        assertEquals(listOf("1", "2", "3"), appliedVersions)
     }
 
     private fun requireEmptyDedicatedDatabase(connection: StorageConnection) {
@@ -197,25 +249,27 @@ class PostgreSqlStorageIntegrationTest {
         assertEquals("timestamp with time zone", columnTypes["collect_time"])
         assertEquals("jsonb", columnTypes["snapshot_json"])
 
-        val cleanupIndexExists = connection.useJdbcConnection { jdbcConnection ->
+        val expectedIndexes = connection.useJdbcConnection { jdbcConnection ->
             jdbcConnection.prepareStatement(
                 """
-                SELECT EXISTS (
-                    SELECT 1
-                    FROM pg_indexes
-                    WHERE schemaname = current_schema()
-                      AND tablename = 'disk_snapshot'
-                      AND indexname = 'disk_snapshot_collect_time'
-                )
+                SELECT indexname
+                FROM pg_indexes
+                WHERE schemaname = current_schema()
+                  AND tablename = 'disk_snapshot'
+                  AND indexname IN ('disk_snapshot_collect_time', 'disk_snapshot_latest_lookup')
                 """.trimIndent(),
             ).use { statement ->
                 statement.executeQuery().use { rows ->
-                    check(rows.next())
-                    rows.getBoolean(1)
+                    buildSet {
+                        while (rows.next()) add(rows.getString(1))
+                    }
                 }
             }
         }
-        assertTrue(cleanupIndexExists)
+        assertEquals(
+            setOf("disk_snapshot_collect_time", "disk_snapshot_latest_lookup"),
+            expectedIndexes,
+        )
 
         connection.useJdbcConnection { jdbcConnection ->
             jdbcConnection.prepareStatement(

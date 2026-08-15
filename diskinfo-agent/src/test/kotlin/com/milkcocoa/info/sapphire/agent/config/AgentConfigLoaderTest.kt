@@ -25,6 +25,11 @@ class AgentConfigLoaderTest {
         assertNull(config.storage.password)
         assertNull(config.http.host)
         assertNull(config.http.port)
+        assertNull(config.publicEndpoint.baseUrl)
+        assertNull(config.publicEndpoint.allowInsecureTransport)
+        assertNull(config.hub.endpoint)
+        assertNull(config.hub.credentialFile)
+        assertNull(config.auth.nonceTtlSeconds)
         assertNull(config.retention.rawSnapshotDays)
         assertNull(config.maintenance.cleanupOnStartup)
         assertNull(config.maintenance.cleanupIntervalHours)
@@ -76,6 +81,23 @@ class AgentConfigLoaderTest {
                 host = "127.0.0.1"
                 port = 14631
 
+                [publicEndpoint]
+                baseUrl = "https://hub.example"
+                allowInsecureTransport = false
+
+                [hub]
+                endpoint = "https://hub.example"
+                allowInsecureTransport = false
+                credentialFile = "/tmp/node-credential.json"
+                pemCaFile = "/tmp/hub-ca.pem"
+                heartbeatIntervalSeconds = 45
+                requestTimeoutSeconds = 20
+                maxRetries = 3
+
+                [auth]
+                nonceTtlSeconds = 90
+                maxRequestBodyBytes = 1048576
+
                 [retention]
                 rawSnapshotDays = 14
 
@@ -101,6 +123,16 @@ class AgentConfigLoaderTest {
         assertEquals("storage-password", config.storage.password)
         assertEquals("127.0.0.1", config.http.host)
         assertEquals(14631, config.http.port)
+        assertEquals("https://hub.example", config.publicEndpoint.baseUrl)
+        assertEquals(false, config.publicEndpoint.allowInsecureTransport)
+        assertEquals("https://hub.example", config.hub.endpoint)
+        assertEquals("/tmp/node-credential.json", config.hub.credentialFile)
+        assertEquals("/tmp/hub-ca.pem", config.hub.pemCaFile)
+        assertEquals(45L, config.hub.heartbeatIntervalSeconds)
+        assertEquals(20L, config.hub.requestTimeoutSeconds)
+        assertEquals(3, config.hub.maxRetries)
+        assertEquals(90L, config.auth.nonceTtlSeconds)
+        assertEquals(1_048_576L, config.auth.maxRequestBodyBytes)
         assertEquals(14, config.retention.rawSnapshotDays)
         assertEquals(false, config.maintenance.cleanupOnStartup)
         assertEquals(12, config.maintenance.cleanupIntervalHours)

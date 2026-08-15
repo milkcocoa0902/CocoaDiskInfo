@@ -9,6 +9,9 @@ data class AgentConfig(
     val runtime: RuntimeConfig = RuntimeConfig(),
     val storage: StorageConfig = StorageConfig(),
     val http: HttpConfig = HttpConfig(),
+    val publicEndpoint: PublicEndpointConfig = PublicEndpointConfig(),
+    val hub: HubConfig = HubConfig(),
+    val auth: AuthConfig = AuthConfig(),
     val retention: RetentionConfig = RetentionConfig(),
     val maintenance: MaintenanceConfig = MaintenanceConfig(),
 ) {
@@ -42,6 +45,26 @@ data class AgentConfig(
         val port: Int? = null,
     )
 
+    data class PublicEndpointConfig(
+        val baseUrl: String? = null,
+        val allowInsecureTransport: Boolean? = null,
+    )
+
+    data class HubConfig(
+        val endpoint: String? = null,
+        val allowInsecureTransport: Boolean? = null,
+        val credentialFile: String? = null,
+        val pemCaFile: String? = null,
+        val heartbeatIntervalSeconds: Long? = null,
+        val requestTimeoutSeconds: Long? = null,
+        val maxRetries: Int? = null,
+    )
+
+    data class AuthConfig(
+        val nonceTtlSeconds: Long? = null,
+        val maxRequestBodyBytes: Long? = null,
+    )
+
     data class RetentionConfig(
         val rawSnapshotDays: Int? = null,
     )
@@ -59,6 +82,11 @@ object AgentConfigDefaults {
     const val HTTP_HOST = "127.0.0.1"
     const val HTTP_PORT = 14631
     const val COLLECTION_INTERVAL_SECONDS = 60L
+    const val HEARTBEAT_INTERVAL_SECONDS = 60L
+    const val REQUEST_TIMEOUT_SECONDS = 30L
+    const val MAX_DELIVERY_RETRIES = 2
+    const val NONCE_TTL_SECONDS = 60L
+    const val MAX_REQUEST_BODY_BYTES = 2L * 1024L * 1024L
     const val DEVICE_IDENTITY_NAMESPACE_SALT = DeviceIdentityDefaults.NAMESPACE_SALT
 
     const val DEFAULT_RAW_SNAPSHOT_DAYS = 30

@@ -4,6 +4,7 @@ import com.milkcocoa.info.sapphire.agent.OutputMode
 import com.milkcocoa.info.sapphire.agent.TargetDevice
 import com.milkcocoa.info.sapphire.agent.datastore.StorageBackend
 import com.milkcocoa.info.sapphire.agent.datastore.StorageSettings
+import java.net.URI
 import java.nio.file.Paths
 
 class AgentConfigValidationException(message: String) : IllegalArgumentException(message)
@@ -22,6 +23,17 @@ data class AgentConfigOverrides(
     val port: Int? = null,
     val rawSnapshotDays: Int? = null,
     val vacuumAfterCleanup: Boolean? = null,
+    val publicEndpointBaseUrl: String? = null,
+    val publicEndpointAllowInsecureTransport: Boolean? = null,
+    val hubEndpoint: String? = null,
+    val hubAllowInsecureTransport: Boolean? = null,
+    val credentialFile: String? = null,
+    val pemCaFile: String? = null,
+    val heartbeatIntervalSeconds: Long? = null,
+    val requestTimeoutSeconds: Long? = null,
+    val maxRetries: Int? = null,
+    val nonceTtlSeconds: Long? = null,
+    val maxRequestBodyBytes: Long? = null,
 )
 
 data class EffectiveOneshotConfig(
@@ -67,6 +79,53 @@ data class EffectiveDbCleanupConfig(
     val jdbcUrl: String
         get() = storage.jdbcUrl
 }
+
+data class EffectiveHubConfig(
+    val storage: StorageSettings,
+    val host: String,
+    val port: Int,
+    val publicEndpointBaseUrl: String,
+    val publicEndpointAllowInsecureTransport: Boolean,
+    val nonceTtlSeconds: Long,
+    val maxRequestBodyBytes: Long,
+    val rawSnapshotDays: Int,
+    val cleanupOnStartup: Boolean,
+    val cleanupIntervalHours: Long,
+    val vacuumAfterCleanup: Boolean,
+)
+
+enum class BootstrapTokenHostMode {
+    HUB,
+    STANDALONE,
+}
+
+data class EffectiveBootstrapTokenConfig(
+    val storage: StorageSettings,
+    val publicEndpointBaseUrl: String,
+    val publicEndpointAllowInsecureTransport: Boolean,
+)
+
+data class EffectiveNodeAgentConfig(
+    val target: TargetDevice,
+    val outputMode: OutputMode,
+    val intervalSeconds: Long,
+    val hubEndpoint: String,
+    val hubAllowInsecureTransport: Boolean,
+    val credentialFile: String,
+    val pemCaFile: String?,
+    val heartbeatIntervalSeconds: Long,
+    val requestTimeoutSeconds: Long,
+    val maxRetries: Int,
+    val deviceIdentityNamespaceSalt: String,
+)
+
+data class EffectiveNodeAgentJoinConfig(
+    val hubEndpoint: String,
+    val hubAllowInsecureTransport: Boolean,
+    val credentialFile: String,
+    val pemCaFile: String?,
+    val requestTimeoutSeconds: Long,
+)
 
 object AgentConfigResolver {
     fun resolveOneshot(
@@ -211,6 +270,212 @@ object AgentConfigResolver {
         )
     }
 
+    fun resolveHub(
+        config: AgentConfig,
+        environment: Map<String, String> = System.getenv(),
+        cli: AgentConfigOverrides = AgentConfigOverrides(),
+    ): EffectiveHubConfig {
+        val host = firstString(
+            "[http].host",
+            cli.host,
+            environment.string("COCOADISKINFO_AGENT_HTTP_HOST"),
+            config.http.host,
+        ) ?: AgentConfigDefaults.HTTP_HOST
+        val port = cli.port
+            ?: environment.int("COCOADISKINFO_AGENT_HTTP_PORT")
+            ?: config.http.port
+            ?: AgentConfigDefaults.HTTP_PORT
+        val publicEndpoint = resolvePublicEndpoint(config, environment, cli, requiredFor = "hub mode")
+        val nonceTtl = cli.nonceTtlSeconds
+            ?: environment.long("COCOADISKINFO_AGENT_AUTH_NONCE_TTL_SECONDS")
+            ?: config.auth.nonceTtlSeconds
+            ?: AgentConfigDefaults.NONCE_TTL_SECONDS
+        val maxBodyBytes = cli.maxRequestBodyBytes
+            ?: environment.long("COCOADISKINFO_AGENT_AUTH_MAX_REQUEST_BODY_BYTES")
+            ?: config.auth.maxRequestBodyBytes
+            ?: AgentConfigDefaults.MAX_REQUEST_BODY_BYTES
+        val rawSnapshotDays = environment.int("COCOADISKINFO_AGENT_RETENTION_RAW_SNAPSHOT_DAYS")
+            ?: config.retention.rawSnapshotDays
+            ?: AgentConfigDefaults.DEFAULT_RAW_SNAPSHOT_DAYS
+        val cleanupOnStartup = environment.boolean("COCOADISKINFO_AGENT_MAINTENANCE_CLEANUP_ON_STARTUP")
+            ?: config.maintenance.cleanupOnStartup
+            ?: AgentConfigDefaults.DEFAULT_CLEANUP_ON_STARTUP
+        val cleanupIntervalHours = environment.long("COCOADISKINFO_AGENT_MAINTENANCE_CLEANUP_INTERVAL_HOURS")
+            ?: config.maintenance.cleanupIntervalHours
+            ?: AgentConfigDefaults.DEFAULT_CLEANUP_INTERVAL_HOURS
+        val vacuumAfterCleanup = environment.boolean("COCOADISKINFO_AGENT_MAINTENANCE_VACUUM_AFTER_CLEANUP")
+            ?: config.maintenance.vacuumAfterCleanup
+            ?: AgentConfigDefaults.DEFAULT_VACUUM_AFTER_CLEANUP
+
+        validatePort(port)
+        validateNonceTtl(nonceTtl)
+        validatePositive("[auth].maxRequestBodyBytes", maxBodyBytes)
+        validateRawSnapshotDays(rawSnapshotDays)
+        validateCleanupInterval(cleanupIntervalHours)
+
+        return EffectiveHubConfig(
+            storage = resolveRequiredStorageSettings(config, environment, cli),
+            host = host,
+            port = port,
+            publicEndpointBaseUrl = publicEndpoint.baseUrl,
+            publicEndpointAllowInsecureTransport = publicEndpoint.allowInsecureTransport,
+            nonceTtlSeconds = nonceTtl,
+            maxRequestBodyBytes = maxBodyBytes,
+            rawSnapshotDays = rawSnapshotDays,
+            cleanupOnStartup = cleanupOnStartup,
+            cleanupIntervalHours = cleanupIntervalHours,
+            vacuumAfterCleanup = vacuumAfterCleanup,
+        )
+    }
+
+    fun resolveBootstrapToken(
+        hostMode: BootstrapTokenHostMode,
+        config: AgentConfig,
+        environment: Map<String, String> = System.getenv(),
+        cli: AgentConfigOverrides = AgentConfigOverrides(),
+    ): EffectiveBootstrapTokenConfig {
+        val requiredFor = when (hostMode) {
+            BootstrapTokenHostMode.HUB -> "hub token creation"
+            BootstrapTokenHostMode.STANDALONE -> "standalone client pairing token creation"
+        }
+        val publicEndpoint = resolvePublicEndpoint(config, environment, cli, requiredFor)
+        val storage = when (hostMode) {
+            // A central Hub must never silently choose a working-directory SQLite file.
+            BootstrapTokenHostMode.HUB -> resolveRequiredStorageSettings(config, environment, cli)
+            // Standalone uses the same local storage default as its runtime and db commands.
+            BootstrapTokenHostMode.STANDALONE -> resolveStorageSettings(config, environment, cli)
+        }
+        return EffectiveBootstrapTokenConfig(
+            storage = storage,
+            publicEndpointBaseUrl = publicEndpoint.baseUrl,
+            publicEndpointAllowInsecureTransport = publicEndpoint.allowInsecureTransport,
+        )
+    }
+
+    fun resolveNodeAgent(
+        config: AgentConfig,
+        environment: Map<String, String> = System.getenv(),
+        cli: AgentConfigOverrides = AgentConfigOverrides(),
+    ): EffectiveNodeAgentConfig {
+        val scan = cli.scan
+            ?: environment.boolean("COCOADISKINFO_AGENT_SMARTCTL_SCAN")
+            ?: config.smartctl.scan
+        val device = firstString(
+            "[smartctl].device",
+            cli.device,
+            environment.string("COCOADISKINFO_AGENT_SMARTCTL_DEVICE"),
+            config.smartctl.device,
+        )
+        val interval = cli.intervalSeconds
+            ?: environment.long("COCOADISKINFO_AGENT_RUNTIME_INTERVAL_SECONDS")
+            ?: config.runtime.intervalSeconds
+            ?: AgentConfigDefaults.COLLECTION_INTERVAL_SECONDS
+        val allowInsecure = cli.hubAllowInsecureTransport
+            ?: environment.boolean("COCOADISKINFO_AGENT_HUB_ALLOW_INSECURE_TRANSPORT")
+            ?: config.hub.allowInsecureTransport
+            ?: false
+        val endpoint = firstString(
+            "[hub].endpoint",
+            cli.hubEndpoint,
+            environment.string("COCOADISKINFO_AGENT_HUB_ENDPOINT"),
+            config.hub.endpoint,
+        ) ?: throw AgentConfigValidationException("[hub].endpoint is required for node-agent mode.")
+        val credential = firstString(
+            "[hub].credentialFile",
+            cli.credentialFile,
+            environment.string("COCOADISKINFO_AGENT_HUB_CREDENTIAL_FILE"),
+            config.hub.credentialFile,
+        ) ?: throw AgentConfigValidationException("[hub].credentialFile is required for node-agent mode.")
+        val heartbeat = cli.heartbeatIntervalSeconds
+            ?: environment.long("COCOADISKINFO_AGENT_HUB_HEARTBEAT_INTERVAL_SECONDS")
+            ?: config.hub.heartbeatIntervalSeconds
+            ?: AgentConfigDefaults.HEARTBEAT_INTERVAL_SECONDS
+        val timeout = cli.requestTimeoutSeconds
+            ?: environment.long("COCOADISKINFO_AGENT_HUB_REQUEST_TIMEOUT_SECONDS")
+            ?: config.hub.requestTimeoutSeconds
+            ?: AgentConfigDefaults.REQUEST_TIMEOUT_SECONDS
+        val retries = cli.maxRetries
+            ?: environment.int("COCOADISKINFO_AGENT_HUB_MAX_RETRIES")
+            ?: config.hub.maxRetries
+            ?: AgentConfigDefaults.MAX_DELIVERY_RETRIES
+
+        validateInterval(interval)
+        validatePublicHttpUrl("[hub].endpoint", endpoint, allowInsecure)
+        validatePositive("[hub].heartbeatIntervalSeconds", heartbeat)
+        validatePositive("[hub].requestTimeoutSeconds", timeout)
+        if (retries !in 0..10) {
+            throw AgentConfigValidationException("[hub].maxRetries must be between 0 and 10.")
+        }
+
+        return EffectiveNodeAgentConfig(
+            target = requireTarget(scan == true, device),
+            outputMode = resolveOutputMode(
+                cli.outputMode?.name
+                    ?: firstString(
+                        "[output].mode",
+                        environment.string("COCOADISKINFO_AGENT_OUTPUT_MODE"),
+                        config.output.mode,
+                    ),
+            ),
+            intervalSeconds = interval,
+            hubEndpoint = normalizeBaseUrl(endpoint),
+            hubAllowInsecureTransport = allowInsecure,
+            credentialFile = credential,
+            pemCaFile = firstString(
+                "[hub].pemCaFile",
+                cli.pemCaFile,
+                environment.string("COCOADISKINFO_AGENT_HUB_PEM_CA_FILE"),
+                config.hub.pemCaFile,
+            ),
+            heartbeatIntervalSeconds = heartbeat,
+            requestTimeoutSeconds = timeout,
+            maxRetries = retries,
+            deviceIdentityNamespaceSalt = resolveDeviceIdentityNamespaceSalt(config, environment),
+        )
+    }
+
+    fun resolveNodeAgentJoin(
+        config: AgentConfig,
+        environment: Map<String, String> = System.getenv(),
+        cli: AgentConfigOverrides = AgentConfigOverrides(),
+    ): EffectiveNodeAgentJoinConfig {
+        val allowInsecure = cli.hubAllowInsecureTransport
+            ?: environment.boolean("COCOADISKINFO_AGENT_HUB_ALLOW_INSECURE_TRANSPORT")
+            ?: config.hub.allowInsecureTransport
+            ?: false
+        val endpoint = firstString(
+            "[hub].endpoint",
+            cli.hubEndpoint,
+            environment.string("COCOADISKINFO_AGENT_HUB_ENDPOINT"),
+            config.hub.endpoint,
+        ) ?: throw AgentConfigValidationException("[hub].endpoint is required for node-agent join.")
+        val credential = firstString(
+            "[hub].credentialFile",
+            cli.credentialFile,
+            environment.string("COCOADISKINFO_AGENT_HUB_CREDENTIAL_FILE"),
+            config.hub.credentialFile,
+        ) ?: throw AgentConfigValidationException("[hub].credentialFile is required for node-agent join.")
+        val timeout = cli.requestTimeoutSeconds
+            ?: environment.long("COCOADISKINFO_AGENT_HUB_REQUEST_TIMEOUT_SECONDS")
+            ?: config.hub.requestTimeoutSeconds
+            ?: AgentConfigDefaults.REQUEST_TIMEOUT_SECONDS
+
+        validatePublicHttpUrl("[hub].endpoint", endpoint, allowInsecure)
+        validatePositive("[hub].requestTimeoutSeconds", timeout)
+        return EffectiveNodeAgentJoinConfig(
+            hubEndpoint = normalizeBaseUrl(endpoint),
+            hubAllowInsecureTransport = allowInsecure,
+            credentialFile = credential,
+            pemCaFile = firstString(
+                "[hub].pemCaFile",
+                cli.pemCaFile,
+                environment.string("COCOADISKINFO_AGENT_HUB_PEM_CA_FILE"),
+                config.hub.pemCaFile,
+            ),
+            requestTimeoutSeconds = timeout,
+        )
+    }
+
     private fun resolveStorageSettings(
         config: AgentConfig,
         environment: Map<String, String>,
@@ -262,6 +527,44 @@ object AgentConfigResolver {
                 environment.string("COCOADISKINFO_AGENT_STORAGE_PASSWORD"),
                 config.storage.password,
             ),
+        )
+    }
+
+    private fun resolveRequiredStorageSettings(
+        config: AgentConfig,
+        environment: Map<String, String>,
+        cli: AgentConfigOverrides,
+    ): StorageSettings {
+        if (
+            cli.jdbcUrl == null &&
+            environment["COCOADISKINFO_AGENT_STORAGE_JDBC_URL"] == null &&
+            config.storage.jdbcUrl == null
+        ) {
+            throw AgentConfigValidationException("[storage].jdbcUrl is required for hub mode.")
+        }
+        return resolveStorageSettings(config, environment, cli)
+    }
+
+    private fun resolvePublicEndpoint(
+        config: AgentConfig,
+        environment: Map<String, String>,
+        cli: AgentConfigOverrides,
+        requiredFor: String,
+    ): ResolvedPublicEndpoint {
+        val allowInsecure = cli.publicEndpointAllowInsecureTransport
+            ?: environment.boolean("COCOADISKINFO_AGENT_PUBLIC_ENDPOINT_ALLOW_INSECURE_TRANSPORT")
+            ?: config.publicEndpoint.allowInsecureTransport
+            ?: false
+        val baseUrl = firstString(
+            "[publicEndpoint].baseUrl",
+            cli.publicEndpointBaseUrl,
+            environment.string("COCOADISKINFO_AGENT_PUBLIC_ENDPOINT_BASE_URL"),
+            config.publicEndpoint.baseUrl,
+        ) ?: throw AgentConfigValidationException("[publicEndpoint].baseUrl is required for $requiredFor.")
+        validatePublicHttpUrl("[publicEndpoint].baseUrl", baseUrl, allowInsecure)
+        return ResolvedPublicEndpoint(
+            baseUrl = normalizeBaseUrl(baseUrl),
+            allowInsecureTransport = allowInsecure,
         )
     }
 
@@ -322,6 +625,32 @@ object AgentConfigResolver {
         }
     }
 
+    private fun validateNonceTtl(seconds: Long) {
+        if (seconds !in 10..300) {
+            throw AgentConfigValidationException("[auth].nonceTtlSeconds must be between 10 and 300 seconds.")
+        }
+    }
+
+    private fun validatePositive(name: String, value: Long) {
+        if (value <= 0) throw AgentConfigValidationException("$name must be greater than 0.")
+    }
+
+    private fun validatePublicHttpUrl(name: String, rawUrl: String, allowInsecure: Boolean) {
+        val uri = runCatching { URI(rawUrl) }.getOrNull()
+            ?: throw AgentConfigValidationException("$name must be an absolute HTTP(S) URL.")
+        if (!uri.isAbsolute || uri.host.isNullOrBlank() || uri.scheme.lowercase() !in setOf("http", "https")) {
+            throw AgentConfigValidationException("$name must be an absolute HTTP(S) URL.")
+        }
+        if (uri.userInfo != null || uri.query != null || uri.fragment != null || uri.path !in setOf("", "/")) {
+            throw AgentConfigValidationException("$name must not contain user info, a base path, query, or fragment.")
+        }
+        if (uri.scheme.equals("http", ignoreCase = true) && !allowInsecure) {
+            throw AgentConfigValidationException("$name uses HTTP; explicitly enable allowInsecureTransport to accept the risk.")
+        }
+    }
+
+    private fun normalizeBaseUrl(rawUrl: String): String = rawUrl.trim().removeSuffix("/")
+
     private fun firstString(name: String, vararg values: String?): String? {
         return values.firstNotNullOfOrNull { value ->
             value?.also { requireNonBlank(name, it) }
@@ -361,4 +690,9 @@ object AgentConfigResolver {
         }
         return value.toInt()
     }
+
+    private data class ResolvedPublicEndpoint(
+        val baseUrl: String,
+        val allowInsecureTransport: Boolean,
+    )
 }

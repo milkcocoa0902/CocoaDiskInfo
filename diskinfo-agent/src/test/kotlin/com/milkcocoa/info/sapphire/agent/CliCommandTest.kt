@@ -2,6 +2,8 @@ package com.milkcocoa.info.sapphire.agent
 
 import com.github.ajalt.clikt.testing.test
 import com.milkcocoa.info.sapphire.agent.config.AgentConfigDefaults
+import com.milkcocoa.info.sapphire.agent.datastore.BootstrapTokenType
+import com.milkcocoa.info.sapphire.agent.datastore.StorageSettings
 import java.nio.file.Path
 import kotlin.io.path.absolutePathString
 import kotlin.io.path.createTempFile
@@ -18,6 +20,8 @@ class CliCommandTest {
         assertEquals(0, result.statusCode, result.output)
         assertContains(result.output, "oneshot")
         assertContains(result.output, "standalone")
+        assertContains(result.output, "hub")
+        assertContains(result.output, "node-agent")
         assertContains(result.output, "db")
     }
 
@@ -26,6 +30,13 @@ class CliCommandTest {
         listOf(
             listOf("oneshot", "--help"),
             listOf("standalone", "--help"),
+            listOf("standalone", "principal", "disable", "--help"),
+            listOf("hub", "--help"),
+            listOf("hub", "principal", "disable", "--help"),
+            listOf("hub", "join-token", "create", "--help"),
+            listOf("hub", "client-pairing-token", "create", "--help"),
+            listOf("node-agent", "--help"),
+            listOf("node-agent", "join", "--help"),
             listOf("db", "migrate", "--help"),
             listOf("db", "cleanup", "--help"),
         ).forEach { args ->
@@ -180,6 +191,154 @@ class CliCommandTest {
             ),
             runtime.singleRequest(),
         )
+    }
+
+    @Test
+    fun `hub and bootstrap token commands assemble distributed requests`() {
+        val runtime = RecordingRuntime()
+        val hubResult = command(runtime).test(
+            "hub",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            "15431",
+            "--public-endpoint",
+            "http://192.0.2.10:15431",
+            "--allow-insecure-transport",
+            "--db-url",
+            "jdbc:sqlite:/tmp/cocoadiskinfo-hub.db",
+        )
+        assertEquals(0, hubResult.statusCode, hubResult.output)
+        assertTrue(runtime.requests.single() is SapphireCommandRequest.Hub)
+
+        val tokenRuntime = RecordingRuntime()
+        val tokenResult = command(tokenRuntime).test(
+            "hub",
+            "join-token",
+            "create",
+            "--public-endpoint",
+            "http://192.0.2.10:15431",
+            "--allow-insecure-transport",
+            "--db-url",
+            "jdbc:sqlite:/tmp/cocoadiskinfo-hub.db",
+            "--node-name",
+            "node-a",
+            "--ttl-seconds",
+            "120",
+        )
+        assertEquals(0, tokenResult.statusCode, tokenResult.output)
+        val tokenRequest = tokenRuntime.singleRequest() as SapphireCommandRequest.BootstrapTokenCreate
+        assertEquals(BootstrapTokenType.JOIN_TOKEN, tokenRequest.tokenType)
+        assertEquals("node-a", tokenRequest.expectedDisplayName)
+        assertEquals(120, tokenRequest.ttlSeconds)
+    }
+
+    @Test
+    fun `standalone pairing token uses standalone default storage without hub requirements`() {
+        val runtime = RecordingRuntime()
+        val result = command(runtime).test(
+            "standalone",
+            "client-pairing-token",
+            "create",
+            "--public-endpoint",
+            "http://127.0.0.1:14631",
+            "--allow-insecure-transport",
+        )
+
+        assertEquals(0, result.statusCode, result.output)
+        assertEquals(
+            SapphireCommandRequest.BootstrapTokenCreate(
+                tokenType = BootstrapTokenType.PAIRING_TOKEN,
+                storage = StorageSettings.fromJdbcUrl(AgentConfigDefaults.JDBC_URL),
+                publicEndpointBaseUrl = "http://127.0.0.1:14631",
+                ttlSeconds = 600,
+                expectedDisplayName = null,
+            ),
+            runtime.singleRequest(),
+        )
+    }
+
+    @Test
+    fun `hub and standalone principal disable resolve only storage and kid`() {
+        val kid = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        listOf("hub", "standalone").forEach { mode ->
+            val runtime = RecordingRuntime()
+            val dbUrl = "jdbc:sqlite:/tmp/cocoadiskinfo-$mode-principal.db"
+            val result = command(runtime).test(
+                mode,
+                "principal",
+                "disable",
+                "--kid",
+                kid,
+                "--db-url",
+                dbUrl,
+            )
+
+            assertEquals(0, result.statusCode, result.output)
+            assertEquals(
+                SapphireCommandRequest.PrincipalDisable(
+                    storage = StorageSettings.fromJdbcUrl(dbUrl),
+                    kid = kid,
+                ),
+                runtime.singleRequest(),
+            )
+        }
+    }
+
+    @Test
+    fun `principal disable requires kid`() {
+        listOf("hub", "standalone").forEach { mode ->
+            val runtime = RecordingRuntime()
+            val result = command(runtime).test(mode, "principal", "disable")
+
+            assertTrue(result.statusCode != 0, result.output)
+            assertContains(result.output, "--kid")
+            assertEquals(emptyList(), runtime.requests)
+        }
+    }
+
+    @Test
+    fun `node agent run and join commands assemble transport requests without storage`() {
+        val credential = "/tmp/cocoadiskinfo-node-credential.json"
+        val runtime = RecordingRuntime()
+        val runResult = command(runtime).test(
+            "node-agent",
+            "--scan",
+            "--hub",
+            "http://192.0.2.10:15431",
+            "--allow-insecure-transport",
+            "--credential-file",
+            credential,
+            "--interval-seconds",
+            "30",
+        )
+        assertEquals(0, runResult.statusCode, runResult.output)
+        val runRequest = runtime.singleRequest() as SapphireCommandRequest.NodeAgent
+        assertEquals(TargetDevice.Scan, runRequest.target)
+        assertEquals(30, runRequest.intervalSeconds)
+
+        val joinRuntime = RecordingRuntime()
+        val joinResult = command(joinRuntime).test(
+            "node-agent",
+            "join",
+            "--hub",
+            "http://192.0.2.10:15431",
+            "--allow-insecure-transport",
+            "--credential-file",
+            credential,
+            "--hub-id",
+            "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "--token-id",
+            "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+            "--token-secret",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "--node-name",
+            "node-a",
+        )
+        assertEquals(0, joinResult.statusCode, joinResult.output)
+        val joinRequest = joinRuntime.singleRequest() as SapphireCommandRequest.NodeAgentJoin
+        assertEquals("node-a", joinRequest.nodeName)
+        assertEquals(credential, joinRequest.credentialFile)
     }
 
     @Test
