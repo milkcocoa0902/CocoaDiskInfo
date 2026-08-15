@@ -11,12 +11,20 @@ object AgentUrlStore {
     private val prefs: Preferences by lazy {
         Preferences.userNodeForPackage(AgentUrlStore::class.java)
     }
+    private val connectionProfiles: ConnectionProfileStore by lazy {
+        PreferencesConnectionProfileStore(prefs)
+    }
 
     var agentUrl: String
         get() = prefs.get(PREF_KEY_AGENT_URL, DEFAULT_AGENT_URL)
         set(value) {
             prefs.put(PREF_KEY_AGENT_URL, value)
             prefs.flush()
+
+            // Settingsは入力途中の値も保存するため、完全なURLだけversioned profileへ反映する。
+            runCatching {
+                connectionProfiles.load().copy(baseUrl = value).validate()
+            }.getOrNull()?.let(connectionProfiles::save)
         }
 
     var refreshIntervalSeconds: Long

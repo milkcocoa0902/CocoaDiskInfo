@@ -41,20 +41,19 @@ import kotlin.time.Duration.Companion.milliseconds
 @Composable
 internal fun Dashboard(agentApiClient: AgentApiClient) {
     val scope = rememberCoroutineScope()
-    var agentUrl by remember { mutableStateOf(AgentUrlStore.agentUrl) }
     var uiState by remember { mutableStateOf(DeviceListState(isLoading = true)) }
     var selectedNodeId by remember { mutableStateOf<String?>(null) }
     var selectedDeviceKey by remember { mutableStateOf<String?>(null) }
 
     suspend fun refresh() {
-        agentUrl = AgentUrlStore.agentUrl // Settingsで変更された可能性があるので再取得
         uiState = uiState.copy(
             isLoading = true,
             message = null,
         )
 
         uiState = runCatching {
-            val nodes = agentApiClient.fetchLatestNodes(agentUrl)
+            val payload = agentApiClient.fetchLatestSnapshots()
+            val nodes = payload.nodes
             val selectedStillExists = nodes.any { node ->
                 node.nodeId == selectedNodeId && node.devices.any { it.deviceKey == selectedDeviceKey }
             }
@@ -65,6 +64,7 @@ internal fun Dashboard(agentApiClient: AgentApiClient) {
             uiState.copy(
                 isLoading = false,
                 nodes = nodes,
+                presentation = payload.toPresentationState(),
             )
         }.getOrElse {
             val message = it.message ?: "Failed to load disk snapshots."
@@ -99,6 +99,7 @@ internal fun Dashboard(agentApiClient: AgentApiClient) {
         Header(
             isRefreshing = uiState.isLoading,
             lastError = uiState.message,
+            presentation = uiState.presentation,
             onRefresh = { scope.launch { refresh() } },
         )
         Row(
@@ -112,12 +113,11 @@ internal fun Dashboard(agentApiClient: AgentApiClient) {
         }
         DeviceContent(
             uiState = uiState,
-            agentUrl = agentUrl,
+            historySourceKey = AgentUrlStore.agentUrl,
             selectedNodeId = selectedNodeId,
             selectedDeviceKey = selectedDeviceKey,
             loadDeviceHistory = { nodeId, deviceKey ->
                 agentApiClient.fetchDeviceHistory(
-                    baseUrl = agentUrl,
                     nodeId = nodeId,
                     deviceKey = deviceKey,
                 )
@@ -137,6 +137,7 @@ internal fun Dashboard(agentApiClient: AgentApiClient) {
 private fun Header(
     isRefreshing: Boolean,
     lastError: String?,
+    presentation: LatestSnapshotPresentationState,
     onRefresh: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -155,6 +156,11 @@ private fun Header(
                     text = when {
                         lastError != null -> "Last refresh failed: $lastError"
                         isRefreshing -> "Refreshing disk snapshots"
+                        presentation.partial -> presentation.errors.firstOrNull()?.let {
+                            "Partial data: ${it.message}${if (presentation.errorsTruncated) " (more errors)" else ""}"
+                        } ?: "Partial data returned by the agent"
+                        presentation.freshnessByDevice.values.any { it.level == FreshnessLevel.STALE } ->
+                            "Cached data includes stale snapshots"
                         else -> "Disk health dashboard"
                     },
                     style = MaterialTheme.typography.bodyMedium,
@@ -213,6 +219,12 @@ internal data class DeviceListState(
     val isLoading: Boolean = false,
     val nodes: List<NodeSnapshot> = emptyList(),
     val message: String? = null,
+    val presentation: LatestSnapshotPresentationState = LatestSnapshotPresentationState(
+        partial = false,
+        errors = emptyList(),
+        errorsTruncated = false,
+        freshnessByDevice = emptyMap(),
+    ),
 )
 
 internal typealias DeviceHistoryLoader = suspend (String, String) -> NodeDeviceHistoryPayload

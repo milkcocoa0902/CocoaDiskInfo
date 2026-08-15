@@ -33,6 +33,12 @@ kotlin {
                 implementation(libs.ktor.serialization.kotlinx.json)
             }
         }
+        val desktopTest by getting {
+            dependencies {
+                implementation(kotlin("test"))
+                implementation("io.ktor:ktor-client-mock:3.5.0")
+            }
+        }
     }
 }
 

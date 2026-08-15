@@ -30,6 +30,7 @@ import com.milkcocoa.info.sapphire.core.snapshot.DiskSnapshot
 @Composable
 internal fun DeviceListPane(
     nodes: List<NodeSnapshot>,
+    freshnessByDevice: Map<DeviceIdentity, FreshnessPresentation>,
     selectedNodeId: String?,
     selectedDeviceKey: String?,
     onSelectDevice: (String, String) -> Unit,
@@ -49,6 +50,7 @@ internal fun DeviceListPane(
             ) { snapshot ->
                 DeviceRow(
                     snapshot = snapshot,
+                    freshness = freshnessByDevice[DeviceIdentity(node.nodeId, snapshot.deviceKey)],
                     selected = node.nodeId == selectedNodeId && snapshot.deviceKey == selectedDeviceKey,
                     onClick = { onSelectDevice(node.nodeId, snapshot.deviceKey) },
                 )
@@ -85,6 +87,7 @@ private fun NodeHeader(node: NodeSnapshot) {
 @Composable
 private fun DeviceRow(
     snapshot: DiskSnapshot,
+    freshness: FreshnessPresentation?,
     selected: Boolean,
     onClick: () -> Unit,
 ) {
@@ -135,6 +138,17 @@ private fun DeviceRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                freshness?.let {
+                    Text(
+                        text = listOfNotNull(it.label, it.ageLabel).joinToString(" - "),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = when (it.level) {
+                            FreshnessLevel.FRESH -> Color(0xFF62D6A4)
+                            FreshnessLevel.STALE -> Color(0xFFFFB86B)
+                            FreshnessLevel.UNKNOWN -> Color(0xFF858C93)
+                        },
+                    )
+                }
             }
             HealthBadge(snapshot.health)
         }
