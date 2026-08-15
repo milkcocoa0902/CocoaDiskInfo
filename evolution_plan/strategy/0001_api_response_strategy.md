@@ -20,6 +20,8 @@ GET /api/v1/devices/{deviceKey}/snapshots/latest
 
 ## Direction
 - current-state APIはhistory/cache-firstとする。
+- Phase 5完了時のHub/Standalone read APIはtransport schemeに関係なくnonce-bound JWS `CLIENT` Principalを要求する。
+- HTTPSの終端とcertificate lifecycleはdeployment responsibilityとする。ClientがHTTP endpointを使う場合は明示的なinsecure transport opt-inを要求する。
 - unbounded responseは禁止する。
 - live取得を追加する場合は、通常APIの既定挙動を変えず、明示的なqueryまたは別endpointで扱う。
 - `oneshot` はCLI診断経路であり、APIの通常応答とは分ける。
@@ -31,7 +33,12 @@ GET /api/v1/devices/{deviceKey}/snapshots/latest
 ```text
 GET /api/v1/snapshots/latest
 GET /api/v1/devices/{deviceKey}/snapshots/latest
+GET /api/v1/nodes/{nodeId}/devices/{deviceKey}/snapshots/latest
 ```
+
+node-scoped latestはPhase 5 Hub向けに追加する。device-only latestはStandalone compatibility routeとして維持し、複数Nodeを持つHub route setには含めない初期方針とする。
+
+Hub aggregate latestはdevice row単位のkeyset paginationを持つ。`limit`はdefault 100、maximum 500とし、`nodeId ASC, deviceKey ASC`のstable order、opaque `nextCursor`、`hasMore`を返す。各pageは既存の`nodes[].devices[]`へ再groupするため、同じNodeが複数pageへ現れ得る。
 
 履歴:
 
@@ -64,7 +71,11 @@ GET /api/v1/devices/{deviceKey}/snapshots/latest?source=live
 - 履歴なしdeviceは `404` を返すこと。
 - invalid queryは `400` を返すこと。
 - Hub導入時はpartial/stale/error metadataを含む部分成功を確認すること。
+- 同じdevice keyを持つ複数Nodeでもnode-scoped latest/historyが混ざらないこと。
+- signed readでmethod/path/query/purpose/nonceを検証し、unsigned/replayed/wrong-principal requestを拒否すること。
+- aggregate latestがdevice row単位のkeyset paginationでboundedになり、全履歴や全deviceを1 responseへmaterializeしないこと。
 
-## Open Questions
-- Standaloneのlive取得を `source=live` queryで追加するか、別endpointにするか。
-- Hubでlive同期問い合わせを許可するか、初期Hubはcache-first固定にするか。
+## Follow-up Items
+- Phase 5のStandalone/Hubはcache-firstに固定する。Standaloneのlive取得を追加する場合に`source=live` queryと別endpointのどちらを使うかは後続で決める。
+- Hubのlive同期問い合わせはPhase 5 scope外とし、Node Agent timeout、fan-out負荷、partial response contractを設計できる段階まで延期する。
+- device-only latest routeはStandaloneだけに登録し、Hubではnode-scoped latestを使う。

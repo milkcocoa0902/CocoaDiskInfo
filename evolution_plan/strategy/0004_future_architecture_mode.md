@@ -29,13 +29,15 @@ cocoadiskinfo-agent db migrate
 ### DB Commands
 - `db migrate` はschema operationだけを担当する。
 - 収集、HTTP API、snapshot output設定に巻き込まない。
-- 将来の `db cleanup`、`db vacuum` も同じDB command familyに置く。
+- `db cleanup` はraw snapshot retention、dry-run、backend別vacuumを扱う。
+- migration時はFlywayが直接DataSourceを管理し、long-running runtimeのHikari poolを要求しない。
 
 ### Future Node Agent
 - 各マシンでローカル収集し、Hubへsnapshotを送る。
 - 初期実装では送信失敗時の永続retry queueを必須にしない。
 - 将来 `SqliteSnapshotBuffer` を追加できるよう、buffer interfaceだけ意識する。
 - Node AgentはHub APIを提供しない。
+- 初期Node Agentはlocal snapshot Repositoryへ接続せず、remote delivery failureはbounded immediate retryとstructured logで扱う。
 
 ### Future Hub / Master
 - Node Agentからsnapshotを受け取り、保存し、Client向けAPIを提供する。
@@ -56,6 +58,9 @@ cocoadiskinfo-agent db migrate
 - `SapphireAgentServer` はExecutorから分離済み。
 - `SapphireCommandRuntime` にproduction side effectsを閉じ込め、CLI parse/assemblyをテスト可能にした。
 - `AgentConfigResolver` がcommand scope別のeffective configを返す。
+- SQLite/PostgreSQL storage、`db migrate`、`db cleanup`を実装済み。
+- Standaloneの起動時/24時間周期cleanup、failure continuation、cancellation、duplicate-run skipを実装済み。
+- Oneshotは`--persist`時だけstorageへ接続し、DB-disabled pathを維持している。
 
 ## Deferred Scope
 - `node-agent` subcommand。
@@ -63,8 +68,9 @@ cocoadiskinfo-agent db migrate
 - ingest API。
 - remote HTTP sink。
 - retry buffer。
-- `db cleanup` とretention enforcement。
-- authentication/authorization。
+- JWS、nonce、Principal、join tokenを含むapplication-level authentication/authorization。
+- external TLS termination、HTTP insecure opt-in、public endpoint configuration。
+- Hub用received time、Node registry、freshness metadata。
 
 ## Test Plan
 - CLI parse/assembly:

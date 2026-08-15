@@ -37,6 +37,7 @@
 5. Clientはまず現在状態を見やすく保ち、履歴やグラフは選択デバイスの詳細内に閉じる。
 6. Health判定は固定ロジックではなく、名前付きの判定ポリシーとして扱えるようにする。
 7. apt/systemd/Prometheus対応は、コマンド、設定ファイル、データ配置が安定してから進める。
+8. 分散requestはPrincipal public key、body digest付きJWS、single-use nonceによりapplication-levelで認証する。TLS終端、server certificate、CA lifecycleはdeployment responsibilityとし、CocoaDiskInfoはX.509 certificateを発行しない。
 
 ## Target Execution Model
 将来的なCLIはフラグ中心ではなく、サブコマンド中心にする。
@@ -84,16 +85,25 @@ default < config file < environment variables < CLI arguments
 ```
 
 設定ファイルで扱う候補:
-- node identity: `nodeId`, `nodeName`
+- local node identity: `nodeName`。Standaloneの`nodeId`はlocal identity providerが管理する。
 - device identity: `namespaceSalt`
 - smartctl: `smartctlPath`, `devices`, `scan`
 - runtime: `mode`, `interval`, `retentionDays`
-- HTTP: `host`, `port`, `baseUrl`
+- HTTP listen: `host`, `port`
+- public endpoint: `baseUrl`, `allowInsecureTransport`
 - storage: `type`, `jdbcUrl`, `username`, `password`
-- hub: `endpoint`, `nodeId`, `heartbeatInterval`
+- hub: `endpoint`, `allowInsecureTransport`, `heartbeatInterval`, signing credential。Node Agentのauthoritative `nodeId`はjoin後にHub Principalから割り当てられる。
 - health: `policy`, `policyVersion`
 
 設定ファイル形式はTOMLを基準とする。現行のagent設定は `/etc/cocoadiskinfo/agent.toml` を想定し、Hub導入時も同じTOML方針で `hub.toml` を検討する。
+
+### Transport Security Responsibility
+- CocoaDiskInfoはHTTP application server/clientとJWS認証を提供し、TLS certificateの生成、発行、renewal、CA運用を行わない。
+- HTTPSは信頼できないnetworkでは強く推奨する。ALB、reverse proxy、service meshなどでTLSを終端してよい。
+- 隔離された信頼済みnetworkでは、operatorがserver authentication、confidentiality、response integrityがないriskを明示的に受容した場合だけHTTP endpointを利用できる。
+- Node AgentとClientが`http://` endpointへ接続する場合は`allowInsecureTransport=true`を明示必須にし、HTTPSへsilent fallbackまたはverification無効化を行わない。
+- Hub/Standaloneのinternal listen URLと外部公開URLを分離する。`publicEndpoint.baseUrl`はjoin/pairing materialとoperator表示に使い、security identityには使わない。
+- Hubの不変identityは永続化した`hubId`とし、`publicEndpoint.baseUrl`変更でPrincipalの再join/re-pairを要求しない。
 
 ## Storage Direction
 最初はSQLiteを基準実装とする。PostgreSQL/MySQL対応は、JDBC URLを増やすだけではなく、`SnapshotRepository` のbackend追加として扱う。
@@ -131,6 +141,8 @@ DBごとに次の差分があるため、storage層に閉じ込める。
 - ingest:
     - `POST /api/v1/snapshots`
     - Hub/AgentがNode Agentからsnapshotを受け取る
+    - remote retry用の`ingestId`を持ち、node identityはrequest bodyではなくauthenticated Principalから決める
+    - snapshot本体はJWSへ内包せず、送信body bytesのSHA-256をJWSへbindする
 - metrics:
     - `GET /metrics`
     - Prometheus export用。履歴保存の主経路にはしない。
