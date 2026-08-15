@@ -1,6 +1,9 @@
 package com.milkcocoa.info.sapphire.agent
 
 import com.milkcocoa.info.sapphire.agent.datastore.DiskSnapshotTable
+import com.milkcocoa.info.sapphire.agent.datastore.NodeIdentity
+import com.milkcocoa.info.sapphire.agent.datastore.SnapshotOrigin
+import com.milkcocoa.info.sapphire.agent.datastore.SnapshotPersistenceRecord
 import com.milkcocoa.info.sapphire.agent.datastore.StorageSettings
 import com.milkcocoa.info.sapphire.agent.datastore.createStorageMigratorFactory
 import com.milkcocoa.info.sapphire.core.snapshot.DiskHealth
@@ -12,6 +15,7 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
+import java.time.Instant as JavaInstant
 import kotlin.io.path.absolutePathString
 import kotlin.io.path.createTempFile
 import kotlin.time.Instant
@@ -72,6 +76,20 @@ internal fun testDiskSnapshot(
 }
 
 @OptIn(ExperimentalUuidApi::class)
+internal fun testSnapshotRecord(
+    snapshot: DiskSnapshot,
+    nodeId: Uuid = NodeIdentity.nodeId,
+    nodeName: String = NodeIdentity.nodeName,
+    ingestId: Uuid = Uuid.random(),
+    receivedAt: JavaInstant = JavaInstant.ofEpochMilli(snapshot.timestamp.toEpochMilliseconds()),
+): SnapshotPersistenceRecord = SnapshotPersistenceRecord(
+    ingestId = ingestId,
+    origin = SnapshotOrigin(nodeId = nodeId, nodeName = nodeName),
+    snapshot = snapshot,
+    receivedAt = receivedAt,
+)
+
+@OptIn(ExperimentalUuidApi::class)
 internal fun insertDiskSnapshot(
     nodeId: Uuid,
     nodeName: String,
@@ -82,10 +100,15 @@ internal fun insertDiskSnapshot(
     //  Test Helperのため、一時的に許容する。
     transaction {
         DiskSnapshotTable.insert {
+            it[DiskSnapshotTable.ingestId] = Uuid.random()
             it[DiskSnapshotTable.nodeId] = nodeId
             it[DiskSnapshotTable.nodeName] = nodeName
             it[DiskSnapshotTable.collectTimeStamp] = OffsetDateTime.ofInstant(
                 java.time.Instant.ofEpochMilli(snapshot.timestamp.toEpochMilliseconds()),
+                ZoneOffset.UTC,
+            )
+            it[DiskSnapshotTable.receivedAt] = OffsetDateTime.ofInstant(
+                JavaInstant.ofEpochMilli(snapshot.timestamp.toEpochMilliseconds()),
                 ZoneOffset.UTC,
             )
             it[DiskSnapshotTable.deviceKey] = snapshot.deviceKey

@@ -116,6 +116,30 @@ Node Agentの登録、heartbeat、最後の送信状態。
     - 必要なのは通常 `lastHeartbeatAt` と `lastError`。
     - 詳細な接続履歴が必要になった場合のみ短期event tableを追加する。
 
+### Authentication and Join Metadata
+HubまたはHub-less local Hub roleが持つPrincipal public key、join token use state、短命nonce。
+
+- Principal:
+    - active/disabled status、`kid`、public JWK、key algorithmをcurrent security stateとして保持する。
+    - raw snapshot retentionと連動して削除しない。
+    - disabled Principalのhard deleteは、audit/履歴参照への影響を決めるまで自動化しない。
+- Join token:
+    - 短命・単回利用にする。
+    - plaintext tokenは保存せずdigestとexpiry/use stateだけを保存する。
+    - expired/used tokenは運用確認に必要な短いbounded期間後にcleanupする。
+- Secret material:
+    - Node Agent private keyとClient private keyはDB lifecycle dataにしない。
+    - permissionを限定したfile/keystoreとし、backup/rotationはPhase 7のoperations policyで固定する。
+    - TLS certificate/private keyはCocoaDiskInfoの管理対象ではなく、ALBやreverse proxyを含むdeployment側で管理する。
+- Nonce:
+    - default 60秒程度のshort-lived replay-prevention stateとする。
+    - Phase 5ではbounded in-memory storeへ置き、DBへ保存しない。
+    - Hub再起動で失われた場合はclientが再取得する。
+    - Redis/shared storeは複数Hub instanceが必要になった後のbackendとする。
+- Key status:
+    - protected routeでJWS `kid`からPrincipal statusを確認する。
+    - rotation/compromise対応に必要なmetadataだけを保存する。
+
 ### Error / Event History
 収集失敗、smartctl失敗、DB cleanup結果、ingest失敗などのイベント。
 
@@ -153,6 +177,9 @@ heartbeat events:      7 days if implemented
 inactive node agents: 30 days
 inactive devices:    180 days if inventory table is implemented
 raw smartctl JSON:     disabled, 7 days if enabled
+join tokens:           short TTL, single-use, bounded cleanup after expiry/use
+principals:            current security state; no raw-retention cascade
+nonces:                memory only, about 60 seconds, single-use
 ```
 
 この既定値は家庭内/NAS/小規模サーバー用途を想定する。大規模運用では設定ファイルで調整する。
@@ -228,6 +255,9 @@ DBライフタイム方針を導入する際は、次を確認する。
 - 既存 `disk_snapshot` の削除条件は `collect_time` に基づく。
 - `node_id`, `device_key`, `collect_time` のindexを維持する。
 - 将来inventory tableやevent tableを追加する場合は、各tableにcleanup対象となるtimestampを持たせる。
+- join token tableはexpiry/use timestampとcleanup indexを持ち、token plaintextを保存しない。
+- Principal/public-key metadataをsnapshot cleanupからcascade deleteしない。
+- nonceをschema migrationやDB cleanupの対象にしない。
 - migrationはデータ削除とスキーマ変更を混ぜすぎない。
 - 破壊的cleanupを伴う場合は、PR notesに保持期間と削除条件を書く。
 

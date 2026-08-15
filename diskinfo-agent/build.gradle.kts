@@ -26,6 +26,9 @@ dependencies {
     implementation("io.ktor:ktor-server-resources:3.5.0")
     implementation("io.ktor:ktor-server-content-negotiation:3.5.0")
     implementation("io.ktor:ktor-serialization-kotlinx-json:3.5.0")
+    implementation("io.ktor:ktor-client-core:3.5.0")
+    implementation("io.ktor:ktor-client-cio:3.5.0")
+    implementation("io.ktor:ktor-client-content-negotiation:3.5.0")
 
     implementation("org.jetbrains.exposed:exposed-core:1.2.0")
     implementation("org.jetbrains.exposed:exposed-jdbc:1.2.0")
@@ -50,6 +53,7 @@ dependencies {
 
     testImplementation(kotlin("test"))
     testImplementation("io.ktor:ktor-server-test-host:3.5.0")
+    testImplementation("io.ktor:ktor-client-mock:3.5.0")
 }
 
 tasks.test {

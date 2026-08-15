@@ -14,10 +14,12 @@ object DiskSnapshotTable: UuidTable(
     name = "disk_snapshot",
     columnName = "snapshot_id"
 ) {
-    val nodeId = uuid("node_id").clientDefault { NodeIdentity.nodeId }
-    val nodeName = varchar("node_name", 255).clientDefault { NodeIdentity.nodeName }
+    val ingestId = uuid("ingest_id")
+    val nodeId = uuid("node_id")
+    val nodeName = varchar("node_name", 255)
 
     val collectTimeStamp = timestampWithTimeZone("collect_time")
+    val receivedAt = timestampWithTimeZone("received_at")
     val deviceKey = varchar("device_key", 255)
     val deviceSerialName = varchar("device_serial_name", 255).nullable()
     val connectionProtocol = varchar("connection_protocol", 255)
@@ -41,6 +43,7 @@ object DiskSnapshotTable: UuidTable(
 
     init {
         index(false, nodeId, deviceKey, collectTimeStamp)
+        uniqueIndex("uq_disk_snapshot_node_ingest", nodeId, ingestId)
     }
 
     val snapshotJson = jsonb<DiskSnapshot>(

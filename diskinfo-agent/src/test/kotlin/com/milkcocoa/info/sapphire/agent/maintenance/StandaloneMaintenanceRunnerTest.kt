@@ -18,6 +18,17 @@ import kotlin.test.assertIs
 
 class StandaloneMaintenanceRunnerTest {
     @Test
+    fun `mode neutral runner exposes the shared cleanup result`() = runBlocking {
+        val useCase = RecordingMaintenanceUseCase()
+        val runner = PeriodicMaintenanceRunner(useCase, rawSnapshotDays = 14, vacuumAfterCleanup = true)
+
+        val result = runner.runCleanup()
+
+        assertIs<PeriodicMaintenanceRunResult.Completed>(result)
+        assertEquals(2, result.cleanup.deletedRowCount)
+    }
+
+    @Test
     fun `cleanup uses automatic settings and returns completed result`() = runBlocking {
         val useCase = RecordingMaintenanceUseCase()
         val runner = StandaloneMaintenanceRunner(useCase, rawSnapshotDays = 14, vacuumAfterCleanup = true)

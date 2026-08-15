@@ -1,5 +1,6 @@
 package com.milkcocoa.info.sapphire.agent.server
 
+import com.milkcocoa.info.sapphire.agent.maintenance.PeriodicMaintenanceRunner
 import com.milkcocoa.info.sapphire.agent.maintenance.StandaloneMaintenanceRunner
 import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationStarted
@@ -12,6 +13,31 @@ import kotlin.time.Duration
 
 fun Application.installStandaloneMaintenance(
     runner: StandaloneMaintenanceRunner,
+    cleanupInterval: Duration,
+) {
+    require(cleanupInterval.isPositive()) {
+        "cleanupInterval must be greater than zero."
+    }
+
+    var maintenanceJob: Job? = null
+    monitor.subscribe(ApplicationStarted) { application ->
+        if (maintenanceJob?.isActive == true) return@subscribe
+
+        maintenanceJob = application.launch {
+            while (isActive) {
+                delay(cleanupInterval)
+                runner.runCleanup()
+            }
+        }
+    }
+    monitor.subscribe(ApplicationStopping) {
+        maintenanceJob?.cancel()
+        maintenanceJob = null
+    }
+}
+
+fun Application.installPeriodicMaintenance(
+    runner: PeriodicMaintenanceRunner,
     cleanupInterval: Duration,
 ) {
     require(cleanupInterval.isPositive()) {

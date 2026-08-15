@@ -6,12 +6,20 @@ import com.milkcocoa.info.sapphire.core.ata.AtaSmartAttributeId
 import com.milkcocoa.info.sapphire.core.snapshot.DiskSnapshot
 import com.milkcocoa.info.sapphire.core.snapshot.MetricsSnapshot
 import org.jetbrains.exposed.v1.core.Op
+import org.jetbrains.exposed.v1.core.QueryAlias
+import org.jetbrains.exposed.v1.core.RowNumber
 import org.jetbrains.exposed.v1.core.SortOrder
+import org.jetbrains.exposed.v1.core.ExpressionWithColumnType
 import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.alias
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.greater
 import org.jetbrains.exposed.v1.core.greaterEq
+import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.core.lessEq
-import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.core.or
+import org.jetbrains.exposed.v1.jdbc.insertIgnore
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import java.time.Instant
 import java.time.OffsetDateTime
@@ -19,29 +27,35 @@ import java.time.ZoneOffset
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
+@OptIn(ExperimentalUuidApi::class)
 class ExposedDiskSnapshotRepository : DiskSnapshotRepository {
     @OptIn(ExperimentalUuidApi::class)
-    override fun insert(snapshot: DiskSnapshot) {
-        val nodeId = NodeIdentity.nodeId
-        val nodeName = NodeIdentity.nodeName
+    override fun insert(record: SnapshotPersistenceRecord): SnapshotInsertResult {
+        findByIngestId(record.origin.nodeId, record.ingestId)?.let { existing ->
+            return existing.toInsertResult(record)
+        }
 
-        DiskSnapshotTable.insert {
-            it[DiskSnapshotTable.nodeId] = nodeId
-            it[DiskSnapshotTable.nodeName] = nodeName
+        // A PostgreSQL transaction cannot be queried after a unique violation. Ignoring
+        // the race here lets us inspect the winning row in the same transaction.
+        val statement = DiskSnapshotTable.insertIgnore {
+            it[DiskSnapshotTable.ingestId] = record.ingestId
+            it[DiskSnapshotTable.nodeId] = record.origin.nodeId
+            it[DiskSnapshotTable.nodeName] = record.origin.nodeName
             it[DiskSnapshotTable.collectTimeStamp] = OffsetDateTime.ofInstant(
-                Instant.ofEpochMilli(snapshot.timestamp.toEpochMilliseconds()),
+                Instant.ofEpochMilli(record.snapshot.timestamp.toEpochMilliseconds()),
                 ZoneOffset.UTC,
             )
-            it[DiskSnapshotTable.deviceKey] = snapshot.deviceKey
-            it[DiskSnapshotTable.deviceSerialName] = snapshot.serial
-            it[DiskSnapshotTable.connectionProtocol] = snapshot.metricsSnapshot.protocol.name
-            it[DiskSnapshotTable.deviceModel] = snapshot.model
-            it[DiskSnapshotTable.devicePath] = snapshot.path
-            it[DiskSnapshotTable.temperatureCelsius] = snapshot.temperatureCelsius?.toBigDecimal()
-            it[DiskSnapshotTable.powerOnCycles] = snapshot.metricsSnapshot.universal.powerCycleCount
-            it[DiskSnapshotTable.powerOnHours] = snapshot.powerOnHours
+            it[DiskSnapshotTable.receivedAt] = OffsetDateTime.ofInstant(record.receivedAt, ZoneOffset.UTC)
+            it[DiskSnapshotTable.deviceKey] = record.snapshot.deviceKey
+            it[DiskSnapshotTable.deviceSerialName] = record.snapshot.serial
+            it[DiskSnapshotTable.connectionProtocol] = record.snapshot.metricsSnapshot.protocol.name
+            it[DiskSnapshotTable.deviceModel] = record.snapshot.model
+            it[DiskSnapshotTable.devicePath] = record.snapshot.path
+            it[DiskSnapshotTable.temperatureCelsius] = record.snapshot.temperatureCelsius?.toBigDecimal()
+            it[DiskSnapshotTable.powerOnCycles] = record.snapshot.metricsSnapshot.universal.powerCycleCount
+            it[DiskSnapshotTable.powerOnHours] = record.snapshot.powerOnHours
 
-            when (val metrics = snapshot.metricsSnapshot) {
+            when (val metrics = record.snapshot.metricsSnapshot) {
                 is MetricsSnapshot.AtaMetricsSnapshot -> {
                     it[DiskSnapshotTable.ataReallocatedSectorCount] =
                         metrics.attributes.find { attribute ->
@@ -70,8 +84,21 @@ class ExposedDiskSnapshotRepository : DiskSnapshotRepository {
                 }
             }
 
-            it[DiskSnapshotTable.snapshotJson] = snapshot
+            it[DiskSnapshotTable.snapshotJson] = record.snapshot
         }
+
+        if (statement.insertedCount == 1) {
+            return SnapshotInsertResult(
+                status = SnapshotInsertStatus.STORED,
+                snapshotId = statement[DiskSnapshotTable.id].value,
+                ingestId = record.ingestId,
+                receivedAt = record.receivedAt,
+            )
+        }
+
+        val winner = findByIngestId(record.origin.nodeId, record.ingestId)
+            ?: error("Snapshot insert was ignored without an idempotency-key winner.")
+        return winner.toInsertResult(record)
     }
 
     @OptIn(ExperimentalUuidApi::class)
@@ -100,6 +127,85 @@ class ExposedDiskSnapshotRepository : DiskSnapshotRepository {
             .limit(1)
             .singleOrNull()
             ?.get(DiskSnapshotTable.snapshotJson)
+
+    @OptIn(ExperimentalUuidApi::class)
+    override fun findLatest(nodeId: Uuid, deviceKey: String): StoredDiskSnapshot? =
+        DiskSnapshotTable
+            .selectAll()
+            .where {
+                (DiskSnapshotTable.nodeId eq nodeId) and
+                    (DiskSnapshotTable.deviceKey eq deviceKey)
+            }
+            .orderBy(DiskSnapshotTable.collectTimeStamp to SortOrder.DESC)
+            .limit(1)
+            .singleOrNull()
+            ?.toStoredSnapshot()
+
+    override fun findLatestPage(request: LatestSnapshotPageRequest): LatestSnapshotPage {
+        val latestRank = RowNumber()
+            .over()
+            .partitionBy(DiskSnapshotTable.nodeId, DiskSnapshotTable.deviceKey)
+            .orderBy(
+                DiskSnapshotTable.collectTimeStamp to SortOrder.DESC,
+                DiskSnapshotTable.id to SortOrder.DESC,
+            )
+            .alias("latest_rank")
+        val snapshotPayload = DiskSnapshotTable.snapshotJson.alias("snapshot_payload")
+        val rankedSnapshots = DiskSnapshotTable
+            .innerJoin(
+                otherTable = NodeAgentRegistryTable,
+                onColumn = { DiskSnapshotTable.nodeId },
+                otherColumn = { NodeAgentRegistryTable.nodeId },
+            )
+            .select(
+                DiskSnapshotTable.columns.filterNot { it == DiskSnapshotTable.snapshotJson } +
+                    snapshotPayload + latestRank,
+            )
+            .where { NodeAgentRegistryTable.status eq NodeAgentStatus.ACTIVE.name }
+            .alias("ranked_snapshot")
+
+        var condition: Op<Boolean> = rankedSnapshots[latestRank] eq 1L
+        request.cursor?.let { cursor ->
+            condition = condition and (
+                (rankedSnapshots[DiskSnapshotTable.nodeId] greater cursor.nodeId) or
+                    (
+                        (rankedSnapshots[DiskSnapshotTable.nodeId] eq cursor.nodeId) and
+                            (rankedSnapshots[DiskSnapshotTable.deviceKey] greater cursor.deviceKey)
+                        )
+                )
+        }
+
+        val selectedSnapshotPayload = rankedSnapshots[snapshotPayload]
+            .alias("selected_snapshot_payload")
+        val selectedRows = rankedSnapshots
+            .select(rankedSnapshots.columns + selectedSnapshotPayload)
+            .where { condition }
+            .orderBy(
+                rankedSnapshots[DiskSnapshotTable.nodeId] to SortOrder.ASC,
+                rankedSnapshots[DiskSnapshotTable.deviceKey] to SortOrder.ASC,
+            )
+            .limit(request.limit + 1)
+            .toList()
+        val hasMore = selectedRows.size > request.limit
+        val rows = selectedRows
+            .take(request.limit)
+            .map { it.toStoredSnapshot(rankedSnapshots, selectedSnapshotPayload) }
+
+        return LatestSnapshotPage(
+            rows = rows,
+            hasMore = hasMore,
+            nextCursor = if (hasMore) {
+                rows.lastOrNull()?.let { latest ->
+                    LatestSnapshotCursor(
+                        nodeId = latest.origin.nodeId,
+                        deviceKey = latest.snapshot.deviceKey,
+                    )
+                }
+            } else {
+                null
+            },
+        )
+    }
 
     @OptIn(ExperimentalUuidApi::class)
     override fun findHistory(
@@ -136,4 +242,61 @@ class ExposedDiskSnapshotRepository : DiskSnapshotRepository {
             snapshots = rows.map { it[DiskSnapshotTable.snapshotJson] },
         )
     }
+
+    @OptIn(ExperimentalUuidApi::class)
+    private fun findByIngestId(nodeId: Uuid, ingestId: Uuid): StoredDiskSnapshot? =
+        DiskSnapshotTable
+            .selectAll()
+            .where {
+                (DiskSnapshotTable.nodeId eq nodeId) and
+                    (DiskSnapshotTable.ingestId eq ingestId)
+            }
+            .limit(1)
+            .singleOrNull()
+            ?.toStoredSnapshot()
+
+    @OptIn(ExperimentalUuidApi::class)
+    private fun StoredDiskSnapshot.toInsertResult(
+        record: SnapshotPersistenceRecord,
+    ): SnapshotInsertResult {
+        if (snapshot != record.snapshot) {
+            throw IngestIdConflictException(
+                nodeId = record.origin.nodeId,
+                ingestId = record.ingestId,
+            )
+        }
+        return SnapshotInsertResult(
+            status = SnapshotInsertStatus.DUPLICATE,
+            snapshotId = snapshotId,
+            ingestId = ingestId,
+            receivedAt = receivedAt,
+        )
+    }
+
+    @OptIn(ExperimentalUuidApi::class)
+    private fun org.jetbrains.exposed.v1.core.ResultRow.toStoredSnapshot(): StoredDiskSnapshot =
+        StoredDiskSnapshot(
+            snapshotId = this[DiskSnapshotTable.id].value,
+            ingestId = this[DiskSnapshotTable.ingestId],
+            origin = SnapshotOrigin(
+                nodeId = this[DiskSnapshotTable.nodeId],
+                nodeName = this[DiskSnapshotTable.nodeName],
+            ),
+            snapshot = this[DiskSnapshotTable.snapshotJson],
+            receivedAt = this[DiskSnapshotTable.receivedAt].toInstant(),
+        )
+
+    private fun org.jetbrains.exposed.v1.core.ResultRow.toStoredSnapshot(
+        source: QueryAlias,
+        snapshotPayload: ExpressionWithColumnType<DiskSnapshot>,
+    ): StoredDiskSnapshot = StoredDiskSnapshot(
+        snapshotId = this[source[DiskSnapshotTable.id]].value,
+        ingestId = this[source[DiskSnapshotTable.ingestId]],
+        origin = SnapshotOrigin(
+            nodeId = this[source[DiskSnapshotTable.nodeId]],
+            nodeName = this[source[DiskSnapshotTable.nodeName]],
+        ),
+        snapshot = this[snapshotPayload],
+        receivedAt = this[source[DiskSnapshotTable.receivedAt]].toInstant(),
+    )
 }

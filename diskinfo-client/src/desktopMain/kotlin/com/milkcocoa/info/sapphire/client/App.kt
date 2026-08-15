@@ -18,6 +18,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,6 +32,9 @@ internal fun CocoaDiskInfoApp(
     agentApiClient: AgentApiClient = remember { AgentApiClient() },
 ) {
     var currentScreen by remember { mutableStateOf(Screen.Dashboard) }
+    DisposableEffect(agentApiClient) {
+        onDispose(agentApiClient::close)
+    }
 
     MaterialTheme(
         colorScheme = darkColorScheme(

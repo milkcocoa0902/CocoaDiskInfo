@@ -7,8 +7,10 @@ import com.milkcocoa.info.sapphire.agent.datastore.StorageMigratorFactory
 import com.milkcocoa.info.sapphire.agent.datastore.StorageSettings
 import com.milkcocoa.info.sapphire.agent.datastore.createStorageMigratorFactory
 import com.milkcocoa.info.sapphire.agent.maintenance.StandaloneMaintenanceRunner
+import com.milkcocoa.info.sapphire.agent.maintenance.PeriodicMaintenanceRunner
 import com.milkcocoa.info.sapphire.agent.server.SapphireServer
 import com.milkcocoa.info.sapphire.agent.server.installStandaloneMaintenance
+import com.milkcocoa.info.sapphire.agent.server.installPeriodicMaintenance
 import com.milkcocoa.info.sapphire.agent.sink.ColotokSnapshotSink
 import com.milkcocoa.info.sapphire.agent.sink.SnapshotSink
 import com.milkcocoa.info.sapphire.agent.usecase.SnapshotCleanupRequest
@@ -71,6 +73,79 @@ sealed interface SapphireExecutor {
         }
     }
 
+    class Hub(
+        private val server: SapphireServer,
+        private val maintenanceRunner: PeriodicMaintenanceRunner,
+        private val cleanupOnStartup: Boolean,
+        private val cleanupInterval: Duration,
+    ) : SapphireExecutor {
+        override suspend fun execute() {
+            if (cleanupOnStartup) {
+                maintenanceRunner.runCleanup()
+            }
+            server.start(wait = true) {
+                installPeriodicMaintenance(
+                    runner = maintenanceRunner,
+                    cleanupInterval = cleanupInterval,
+                )
+            }
+        }
+    }
+
+    class NodeAgent(
+        private val device: TargetDevice,
+        private val collectionInterval: Duration,
+        private val heartbeatInterval: Duration,
+        private val collector: DiskSnapshotCollector,
+        private val sink: SnapshotSink,
+        private val heartbeat: NodeAgentHeartbeat,
+    ) : SapphireExecutor {
+        override suspend fun execute() {
+            kotlinx.coroutines.coroutineScope {
+                val latestCycleFailure = java.util.concurrent.atomic.AtomicReference<Exception?>(null)
+                val heartbeatJob = launch {
+                    while (isActive) {
+                        try {
+                            heartbeat.send(latestCycleFailure.get())
+                        } catch (error: kotlinx.coroutines.CancellationException) {
+                            throw error
+                        } catch (error: Exception) {
+                            com.milkcocoa.info.colotok.core.logger.Colotok.warn(
+                                msg = "Node Agent heartbeat failed; the next heartbeat will continue.",
+                                attr = mapOf("error" to (error.message ?: error::class.simpleName.orEmpty())),
+                            )
+                        }
+                        delay(heartbeatInterval)
+                    }
+                }
+
+                try {
+                    while (isActive) {
+                        try {
+                            collectSnapshots(device, collector).forEach { snapshot ->
+                                sink.write(snapshot)
+                            }
+                            latestCycleFailure.set(null)
+                        } catch (error: kotlinx.coroutines.CancellationException) {
+                            throw error
+                        } catch (error: Exception) {
+                            latestCycleFailure.set(error)
+                            com.milkcocoa.info.colotok.core.logger.Colotok.warn(
+                                msg = "Node Agent collection or delivery failed; the next cycle will continue.",
+                                attr = mapOf("error" to (error.message ?: error::class.simpleName.orEmpty())),
+                            )
+                        }
+                        // Waiting after completion keeps slow collection/delivery jobs
+                        // sequential instead of trying to catch up with overlapping work.
+                        delay(collectionInterval)
+                    }
+                } finally {
+                    heartbeatJob.cancel()
+                }
+            }
+        }
+    }
+
     class Migrate(
         private val storage: StorageSettings,
         private val migratorFactory: StorageMigratorFactory = createStorageMigratorFactory(),
@@ -103,6 +178,10 @@ sealed interface SapphireExecutor {
             )
         }
     }
+}
+
+fun interface NodeAgentHeartbeat {
+    suspend fun send(cycleFailure: Exception?)
 }
 
 private suspend fun collectSnapshots(

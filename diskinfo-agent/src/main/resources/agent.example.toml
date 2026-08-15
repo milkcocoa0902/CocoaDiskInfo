@@ -23,6 +23,27 @@ jdbcUrl = "jdbc:sqlite:./sapphire.db"
 host = "127.0.0.1"
 port = 14631
 
+# External address handed to Node Agents and Clients. It may differ from the
+# internal listener when an ALB or reverse proxy terminates TLS.
+[publicEndpoint]
+baseUrl = "https://hub.example"
+allowInsecureTransport = false
+
+# Used by node-agent mode. Private signing material lives in credentialFile,
+# not in this TOML file.
+[hub]
+endpoint = "https://hub.example"
+allowInsecureTransport = false
+credentialFile = "/etc/cocoadiskinfo/node-credential.json"
+# pemCaFile = "/etc/cocoadiskinfo/private-ca.pem"
+heartbeatIntervalSeconds = 60
+requestTimeoutSeconds = 30
+maxRetries = 2
+
+[auth]
+nonceTtlSeconds = 60
+maxRequestBodyBytes = 2097152
+
 [retention]
 rawSnapshotDays = 30
 

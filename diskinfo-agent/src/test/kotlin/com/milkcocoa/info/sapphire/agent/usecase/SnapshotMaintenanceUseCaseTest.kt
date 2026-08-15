@@ -11,6 +11,7 @@ import com.milkcocoa.info.sapphire.agent.datastore.TransactionRunner
 import com.milkcocoa.info.sapphire.agent.datastore.createStorageMaintenanceOperation
 import com.milkcocoa.info.sapphire.agent.datastore.createStorageMigratorFactory
 import com.milkcocoa.info.sapphire.agent.testDiskSnapshot
+import com.milkcocoa.info.sapphire.agent.testSnapshotRecord
 import kotlinx.coroutines.runBlocking
 import java.time.Clock
 import java.time.Instant
@@ -21,7 +22,9 @@ import kotlin.io.path.createTempFile
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.uuid.ExperimentalUuidApi
 
+@OptIn(ExperimentalUuidApi::class)
 class SnapshotMaintenanceUseCaseTest {
     private val clock = Clock.fixed(Instant.parse("2026-08-08T12:00:00Z"), ZoneOffset.UTC)
 
@@ -129,9 +132,15 @@ class SnapshotMaintenanceUseCaseTest {
             val cutoff = Instant.parse("2026-07-09T12:00:00Z")
 
             transactionRunner.readWrite {
-                snapshotRepository.insert(testDiskSnapshot("before", cutoff.minusSeconds(1).toEpochMilli()))
-                snapshotRepository.insert(testDiskSnapshot("at-cutoff", cutoff.toEpochMilli()))
-                snapshotRepository.insert(testDiskSnapshot("after", cutoff.plusSeconds(1).toEpochMilli()))
+                snapshotRepository.insert(
+                    testSnapshotRecord(testDiskSnapshot("before", cutoff.minusSeconds(1).toEpochMilli())),
+                )
+                snapshotRepository.insert(
+                    testSnapshotRecord(testDiskSnapshot("at-cutoff", cutoff.toEpochMilli())),
+                )
+                snapshotRepository.insert(
+                    testSnapshotRecord(testDiskSnapshot("after", cutoff.plusSeconds(1).toEpochMilli())),
+                )
             }
 
             val dryRun = useCase.cleanup(

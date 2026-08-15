@@ -42,6 +42,7 @@ class SapphireAgentServer(
     private val snapshotUseCase: SnapshotUseCase,
     private val host: String = "127.0.0.1",
     private val port: Int = 14631,
+    private val authDependencies: StandaloneAuthDependencies,
 ) : SapphireServer {
     override fun start(
         wait: Boolean,
@@ -52,7 +53,35 @@ class SapphireAgentServer(
             host = host,
             port = port,
         ) {
-            installSapphireAgentApi(snapshotUseCase)
+            install(ContentNegotiation) { json(Json) }
+            install(Resources)
+            installStandaloneSecureApi(authDependencies)
+            module()
+        }.start(wait = wait)
+    }
+}
+
+class SapphireHubServer(
+    private val dependencies: HubAuthApiDependencies,
+    private val readDependencies: HubReadApiDependencies,
+    private val host: String,
+    private val port: Int,
+) : SapphireServer {
+    override fun start(
+        wait: Boolean,
+        module: Application.() -> Unit,
+    ) {
+        embeddedServer(
+            factory = CIO,
+            host = host,
+            port = port,
+        ) {
+            install(ContentNegotiation) {
+                json(Json)
+            }
+            install(Resources)
+            installHubAuthApi(dependencies)
+            installHubReadApi(readDependencies)
             module()
         }.start(wait = wait)
     }

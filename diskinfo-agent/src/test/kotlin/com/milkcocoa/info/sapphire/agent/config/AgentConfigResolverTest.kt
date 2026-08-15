@@ -9,6 +9,95 @@ import kotlin.test.assertFailsWith
 
 class AgentConfigResolverTest {
     @Test
+    fun `resolves hub only with explicit storage and public endpoint`() {
+        val resolved = AgentConfigResolver.resolveHub(
+            config = AgentConfig(
+                storage = AgentConfig.StorageConfig(jdbcUrl = "jdbc:sqlite:/tmp/hub.db"),
+                http = AgentConfig.HttpConfig(host = "0.0.0.0", port = 16000),
+                publicEndpoint = AgentConfig.PublicEndpointConfig(baseUrl = "https://hub.example"),
+            ),
+            environment = emptyMap(),
+        )
+
+        assertEquals("jdbc:sqlite:/tmp/hub.db", resolved.storage.jdbcUrl)
+        assertEquals("0.0.0.0", resolved.host)
+        assertEquals(16000, resolved.port)
+        assertEquals("https://hub.example", resolved.publicEndpointBaseUrl)
+        assertEquals(60L, resolved.nonceTtlSeconds)
+    }
+
+    @Test
+    fun `hub rejects implicit storage and insecure public endpoint without opt in`() {
+        assertFailsWith<AgentConfigValidationException> {
+            AgentConfigResolver.resolveHub(
+                config = AgentConfig(
+                    publicEndpoint = AgentConfig.PublicEndpointConfig(baseUrl = "https://hub.example"),
+                ),
+                environment = emptyMap(),
+            )
+        }
+        assertFailsWith<AgentConfigValidationException> {
+            AgentConfigResolver.resolveHub(
+                config = AgentConfig(
+                    storage = AgentConfig.StorageConfig(jdbcUrl = "jdbc:sqlite:/tmp/hub.db"),
+                    publicEndpoint = AgentConfig.PublicEndpointConfig(baseUrl = "http://hub.local"),
+                ),
+                environment = emptyMap(),
+            )
+        }
+    }
+
+    @Test
+    fun `standalone pairing token shares standalone default storage while hub token requires explicit storage`() {
+        val standalone = AgentConfigResolver.resolveBootstrapToken(
+            hostMode = BootstrapTokenHostMode.STANDALONE,
+            config = AgentConfig(),
+            environment = emptyMap(),
+            cli = AgentConfigOverrides(
+                publicEndpointBaseUrl = "http://127.0.0.1:14631",
+                publicEndpointAllowInsecureTransport = true,
+            ),
+        )
+
+        assertEquals(AgentConfigDefaults.JDBC_URL, standalone.storage.jdbcUrl)
+        assertEquals("http://127.0.0.1:14631", standalone.publicEndpointBaseUrl)
+
+        assertFailsWith<AgentConfigValidationException> {
+            AgentConfigResolver.resolveBootstrapToken(
+                hostMode = BootstrapTokenHostMode.HUB,
+                config = AgentConfig(),
+                environment = emptyMap(),
+                cli = AgentConfigOverrides(publicEndpointBaseUrl = "https://hub.example"),
+            )
+        }
+    }
+
+    @Test
+    fun `resolves node agent transport and rejects insecure endpoint without opt in`() {
+        val config = AgentConfig(
+            smartctl = AgentConfig.SmartctlConfig(scan = true),
+            hub = AgentConfig.HubConfig(
+                endpoint = "http://hub.local:14631",
+                allowInsecureTransport = true,
+                credentialFile = "/tmp/node.json",
+            ),
+        )
+        val resolved = AgentConfigResolver.resolveNodeAgent(config, environment = emptyMap())
+
+        assertEquals(TargetDevice.Scan, resolved.target)
+        assertEquals("http://hub.local:14631", resolved.hubEndpoint)
+        assertEquals(true, resolved.hubAllowInsecureTransport)
+        assertEquals("/tmp/node.json", resolved.credentialFile)
+
+        assertFailsWith<AgentConfigValidationException> {
+            AgentConfigResolver.resolveNodeAgent(
+                config.copy(hub = config.hub.copy(allowInsecureTransport = false)),
+                environment = emptyMap(),
+            )
+        }
+    }
+
+    @Test
     fun `resolves oneshot config environment and cli precedence`() {
         val resolved = AgentConfigResolver.resolveOneshot(
             config = AgentConfig(

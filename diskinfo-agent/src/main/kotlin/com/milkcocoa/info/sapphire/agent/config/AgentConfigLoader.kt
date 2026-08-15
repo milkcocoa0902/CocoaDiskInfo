@@ -39,6 +39,23 @@ object AgentConfigLoader {
                 host = entries.string("http", "host"),
                 port = entries.int("http", "port"),
             ),
+            publicEndpoint = AgentConfig.PublicEndpointConfig(
+                baseUrl = entries.string("publicEndpoint", "baseUrl"),
+                allowInsecureTransport = entries.boolean("publicEndpoint", "allowInsecureTransport"),
+            ),
+            hub = AgentConfig.HubConfig(
+                endpoint = entries.string("hub", "endpoint"),
+                allowInsecureTransport = entries.boolean("hub", "allowInsecureTransport"),
+                credentialFile = entries.string("hub", "credentialFile"),
+                pemCaFile = entries.string("hub", "pemCaFile"),
+                heartbeatIntervalSeconds = entries.long("hub", "heartbeatIntervalSeconds"),
+                requestTimeoutSeconds = entries.long("hub", "requestTimeoutSeconds"),
+                maxRetries = entries.int("hub", "maxRetries"),
+            ),
+            auth = AgentConfig.AuthConfig(
+                nonceTtlSeconds = entries.long("auth", "nonceTtlSeconds"),
+                maxRequestBodyBytes = entries.long("auth", "maxRequestBodyBytes"),
+            ),
             retention = AgentConfig.RetentionConfig(
                 rawSnapshotDays = entries.int("retention", "rawSnapshotDays"),
             ),
@@ -59,6 +76,17 @@ private object MinimalTomlParser {
         "runtime" to setOf("persist", "intervalSeconds"),
         "storage" to setOf("type", "jdbcUrl", "username", "password"),
         "http" to setOf("host", "port"),
+        "publicEndpoint" to setOf("baseUrl", "allowInsecureTransport"),
+        "hub" to setOf(
+            "endpoint",
+            "allowInsecureTransport",
+            "credentialFile",
+            "pemCaFile",
+            "heartbeatIntervalSeconds",
+            "requestTimeoutSeconds",
+            "maxRetries",
+        ),
+        "auth" to setOf("nonceTtlSeconds", "maxRequestBodyBytes"),
         "retention" to setOf("rawSnapshotDays"),
         "maintenance" to setOf("cleanupOnStartup", "cleanupIntervalHours", "vacuumAfterCleanup"),
     )

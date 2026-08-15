@@ -2,6 +2,7 @@ package com.milkcocoa.info.sapphire.core.api
 
 import com.milkcocoa.info.sapphire.core.snapshot.DiskSnapshot
 import kotlinx.serialization.Serializable
+import kotlin.time.Instant
 
 @Serializable
 sealed interface ApiResponse {
@@ -27,6 +28,11 @@ data class ApiError(
 @Serializable
 data class LatestSnapshotsPayload(
     val nodes: List<NodeSnapshot>,
+    val generatedAt: Instant? = null,
+    val partial: Boolean = false,
+    val errors: List<NodeApiError> = emptyList(),
+    val errorsTruncated: Boolean = false,
+    val pagination: PageMetadata? = null,
 ) : ResponsePayload
 
 @Serializable
@@ -34,7 +40,38 @@ data class NodeSnapshot(
     val nodeId: String,
     val nodeName: String,
     val devices: List<DiskSnapshot>,
+    val status: NodeStatus? = null,
+    val lastSeenAt: Instant? = null,
+    val deviceStates: List<DeviceState> = emptyList(),
 )
+
+@Serializable
+data class DeviceState(
+    val deviceKey: String,
+    val lastReceivedAt: Instant? = null,
+    val ageMs: Long? = null,
+    val stale: Boolean = false,
+)
+
+@Serializable
+data class NodeApiError(
+    val code: String,
+    val message: String,
+    val nodeId: String? = null,
+)
+
+@Serializable
+data class PageMetadata(
+    val limit: Int,
+    val nextCursor: String? = null,
+    val hasMore: Boolean = false,
+)
+
+@Serializable
+enum class NodeStatus {
+    ACTIVE,
+    DISABLED,
+}
 
 @Serializable
 data class NodeDeviceHistoryPayload(
@@ -42,4 +79,8 @@ data class NodeDeviceHistoryPayload(
     val nodeName: String,
     val deviceKey: String,
     val snapshots: List<DiskSnapshot>,
+    val status: NodeStatus? = null,
+    val lastSeenAt: Instant? = null,
+    val deviceState: DeviceState? = null,
+    val currentError: NodeApiError? = null,
 ) : ResponsePayload

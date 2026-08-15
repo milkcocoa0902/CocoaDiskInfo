@@ -16,7 +16,7 @@ Phase 3Cでは、正規化した `serialNumber` からUUIDv5で `deviceKey` を�
 
 ## Current State
 - `DiskSnapshot` は `deviceKey`, `path`, `serial` を別フィールドとして持つ。
-- 現行converterは `deviceKey = serialNumber` を設定している。
+- 現行converterはinjectされた`DeviceKeyDeriver`を使い、正規化したserialからUUIDv5 `deviceKey`を生成する。
 - SQLite `disk_snapshot` は `device_key`, `device_serial_name`, `device_path` を別カラムとして保存している。
 - History APIは `GET /api/v1/nodes/{nodeId}/devices/{deviceKey}/snapshots` を提供している。
 - Clientはlatest APIで受け取った `deviceKey` を解釈せず、そのままHistory APIへ渡す。
@@ -70,6 +70,7 @@ CLI flagは追加しない。
 ## API Implications
 - API path shapeは維持する。
 - `GET /api/v1/nodes/{nodeId}/devices/{deviceKey}/snapshots` は `(nodeId, deviceKey)` をhistory identityとして扱う。
+- Phase 5 Hubのlatest queryも`(nodeId, deviceKey)`をidentityとして扱う。`deviceKey`をHub全体でglobal uniqueとは仮定しない。
 - `deviceKey` はopaque stringとして扱う。Phase 3Cの実装値はUUID文字列だが、OpenAPI上でUUID formatに固定しない。
 - Clientは `deviceKey` の中身を解釈しない。
 - raw serialを直接指定していた手動API利用はPhase 3C後に互換ではない。
