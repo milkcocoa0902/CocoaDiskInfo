@@ -42,11 +42,13 @@ bootstrapは次のモデルにする。
 1. Hub operatorが高entropy、短命・単回利用のjoin tokenを作成する。
 2. Hub `publicEndpoint.baseUrl`、join token ID/secretをNode Agentへ渡す。HTTP endpointの場合はNode Agent側でもinsecure transportを明示承認する。
 3. Node AgentはEd25519 private keyをローカル生成し、public JWKとRFC 7638 `kid`を作る。
-4. Node Agentはjoin用nonceを取得し、join tokenをkeyに`nonce + kid + Hub/context`のcanonical inputへHMAC-SHA256を計算する。
+4. Node AgentとHubは`joinKey = SHA-256(tokenSecret)`を導出し、Node Agentはjoin用nonceとcanonical inputへ`HMAC-SHA256(joinKey, input)`を計算する。Hubはtoken plaintextではなくjoin keyだけを保存する。
 5. Hubはtoken、HMAC、nonceを検証し、Node Agent Principalへpublic keyを登録する。
 6. Node Agentは以後、nonce、method/path/purpose、body digestをEd25519 JWSで署名してingest/heartbeatを行う。
 
 HubはNode Agentのprivate keyを生成・受領しない。
+
+JWS proofは`Authorization: CocoaDiskInfo-JWS <compact JWS>`で送り、successful protected responseの次回nonceは`CocoaDiskInfo-Next-Nonce` headerで返す。nonce issue requestは`subjectType`、`subjectId`、`purpose`を持つ。
 
 初期に強制するrule:
 
@@ -79,6 +81,8 @@ Phase 4で永続化が実装された結果、Phase 5では次を先に変更し
 - Node Agentはsnapshotごとに`ingestId`を一度生成し、HTTP retryでも同じ値を使う。Hubは`disk_snapshot.snapshot_id`をinternal row identityとして維持し、別の`ingest_id`へ保存して`UNIQUE(node_id, ingest_id)`で冪等性を保証する。
 - Hub受信時刻`receivedAt`とNode registryを追加し、収集時刻、受信時刻、`lastSeenAt`、`lastSnapshotReceivedAt`、last errorを分ける。
 - `lastSeenAt`はvalid heartbeat、`STORED`、`DUPLICATE`で更新し、`lastSnapshotReceivedAt`は新しいsnapshotを`STORED`した場合だけ更新する。duplicate retryはdata freshnessを延長しない。
+- expected collection intervalはjoin時に登録し、設定変更を反映できるようheartbeatで更新可能にする。成功heartbeat/ingestはcurrent errorをclearするが、`lastFailureAt`は最後のfailure時刻として保持する。
+- recovery join tokenは既存`nodeId`へscopeできるようにし、key replacementでhistory identityを維持する。current表示名はregistry、snapshot rowの名前はhistorical metadataとして扱う。
 - `deviceKey`単体のlatest queryはHub全体では曖昧なため、Hubでは`nodeId + deviceKey`を使う。
 - Phase 4のSQLite/PostgreSQL V1は確定baselineとし、Phase 5 schemaはV2以降の追加migrationで導入する。
 - raw snapshot cleanup contractはHubでも再利用するが、Principal/join token lifecycleは別のsecurity metadata policyとして扱う。

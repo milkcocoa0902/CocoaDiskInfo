@@ -1,5 +1,9 @@
 # Phase 5H: End-to-End Acceptance and Phase 4 Regression
 
+## Status
+
+実装とdefault suiteは完了。実PostgreSQL/TLS proxyのenvironment-gated release evidenceは[Phase 5 handoff](../phase_0005_handoff.md)に分離して記録する。
+
 ## Source Context
 - Primary: `../../master.md`
 - Phase plan: `../phase_0005_plan.md`
@@ -47,6 +51,7 @@ Phase 5の分散topologyとHub-less topologyを実transport・実storageで検�
 - Affected modules/files: OpenAPI、example config、phase status/handoff、CLI help assertions。
 - Expected behavior:
   - `/nonce`、`/join`、ingest、heartbeat、read routesとPrincipal別authorizationを記述する。
+  - `CocoaDiskInfo-JWS` authorization scheme、`CocoaDiskInfo-Next-Nonce` header、join key derivation、Client pairing routeを記述する。
   - internal listenと`publicEndpoint.baseUrl`の分離、HTTP insecure opt-in、external TLS termination、key file permission、secret redaction、join token lifetimeを記述する。
   - CocoaDiskInfoがX.509 certificate/CA lifecycleを所有しないこと、HTTPではserver authentication/confidentiality/response integrityがないことを記述する。
   - `db migrate`→Hub start→join→Node Agent start→Client pairingの順序を記述する。

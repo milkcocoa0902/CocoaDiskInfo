@@ -41,12 +41,15 @@ Hub/Standaloneが短命・単回利用のClient pairing tokenを発行し、Desk
 - Hub/Standalone `publicEndpoint.baseUrl`、`hubId`、pairing tokenをout-of-bandでClientへ渡す。
 - HTTP endpointの場合はClient profileでも`allowInsecureTransport=true`を明示する。
 - pairing token plaintext、private key、passwordをPreferences/logへ保存しない。
+- pairing endpointは`POST /api/v1/clients/pair`とし、nonce endpoint、`joinKey = SHA-256(tokenSecret)`、length-prefixed HMAC inputをNode Agent joinと共用する。
 
 ## Signed Read Profile
 - bodyなしGETではJWS payloadへ`kid`、nonce、method、normalized path、purpose=`CLIENT_READ`を含める。freshnessはserver-side nonce TTLで判定し、Client clockへ依存しない。
 - query canonicalizationはPhase 5C profileを再利用し、`limit`、`from`、`to`、`order`のdecoded/validated effective valueをname順にencodeする。unknown/duplicate parameterを拒否し、raw query stringのparameter orderへ依存しない。
 - Hub/Standaloneはactive `CLIENT` Principalとscopeを確認する。
 - successful responseが次のnonceを返し、失った場合はnonce endpointから再取得する。
+- JWSは`Authorization: CocoaDiskInfo-JWS <compact JWS>`、次回nonceは`CocoaDiskInfo-Next-Nonce` response headerで渡す。
+- aggregate latestはroute-specific known queryとして`cursor`とeffective `limit`をcanonicalizeする。historyは`from`, `limit`, `order`, `to`を使う。
 
 ## Task Breakdown
 
@@ -109,6 +112,8 @@ cocoadiskinfo-agent standalone client-pairing-token create --display-name deskto
 - Hub/StandaloneはClient Principal、public JWK、`kid`、statusをDBへ保存する。
 - Desktop Clientはcredential reference/profile metadataだけをPreferencesに置く。
 - private keyはpermissionを限定したlocal credential storeへ保存する。
+- credential fileはversioned JSONとし、POSIX owner-only permissionまたはWindows owner-only ACLを検証できない場合はfail closedにする。
+- HTTPSはplatform trustまたはprofileで参照したPEM CA fileを使い、`trust-all`を提供しない。
 - nonceはClient/Hub双方で短命memory stateとして扱い、履歴DBへ保存しない。
 
 ## Validation Plan
@@ -124,6 +129,7 @@ Hub、Hub-less Standalone、HTTP opt-in、TLS-terminating proxy、wrong HTTPS tr
 - Client private keyはPhase 5ではowner-only local fileへ保存する。OS keychain/encrypted storeはPhase 7で検討し、Preferences平文保存は不可とする。
 - key compromise/rotationはold Principal disable + new pairing tokenによるre-pairをPhase 5 flowとし、online rotationはfollow-upとする。
 - URL-only既存profileには「credential registrationが必要」「HTTPは明示opt-inが必要」を区別したmigration messageを出す。
+- 複数profile、active profile selection、DataStore候補、OS別default credential directory、credential path入力をAdvancedへ移すfollow-upは[Phase 7A](../../phase_0007/tasks/phase-7a-client-profile-credential-management.md)まで検討保留とする。
 
 ## Implementation Order
 1. Client pairing tokenとlocal key registration flowを実装する。

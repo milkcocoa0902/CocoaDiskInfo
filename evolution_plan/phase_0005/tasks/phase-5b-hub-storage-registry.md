@@ -68,6 +68,9 @@ update rule:
 - `last_snapshot_received_at`は新しいrowを`STORED`した場合だけ更新する。
 - `DUPLICATE`は既存snapshotの`received_at`と`last_snapshot_received_at`を変更しない。
 - data freshnessはlatest snapshotの`received_at`から計算し、heartbeat/livenessとは分離する。
+- expected collection intervalはjoin時に初期登録し、heartbeatでpositive valueへ更新できる。
+- valid heartbeat、`STORED`、`DUPLICATE`はcurrent errorをclearする。`last_failure_at`は最後にfailureが発生した時刻として保持し、clear時にnullへ戻さない。
+- registryの最新`node_name`をcurrent APIの表示authorityとし、既存snapshot rowの`node_name`は書き換えない。
 
 ## Task Breakdown
 

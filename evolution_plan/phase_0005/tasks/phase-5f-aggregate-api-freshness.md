@@ -43,6 +43,7 @@ Hubが保存済みsnapshotとNode registryだけから、複数Nodeのlatest/his
 - bounded `errors[]`（stable code、node context、sanitized message）
 - pagination metadata（`limit`, opaque `nextCursor`, `hasMore`）
 - `errorsTruncated`
+- Nodeごとのadditiveな`status`, `lastSeenAt`, `deviceStates[]`。`deviceStates`は`deviceKey`, `lastReceivedAt`, `ageMs`, `stale`を持ち、既存`devices`とkeyで対応付ける。
 
 古いAgent responseにmetadataがない場合をPhase 5G Clientが扱えるよう、既存fieldを削除・renameしない。
 
@@ -61,7 +62,9 @@ Hubが保存済みsnapshotとNode registryだけから、複数Nodeのlatest/his
   - 1 Node停止でも他Nodeと停止Nodeのlast cacheを返し、partial/staleを説明する。
   - `limit`はdevice row数へ適用し、page内のrowを既存`nodes[].devices[]`へ再groupする。同じNodeが複数pageへ現れ得る。
   - cursorはversioned opaque valueとして最後の`nodeId + deviceKey`を表し、不正値を`400 invalid_cursor`で拒否する。
+  - known queryは`cursor`と`limit`だけに限定し、duplicate/unknown parameterを拒否する。canonical queryはvalidated cursorをbase64url without paddingへ再encodeし、effective `limit`を常に含めてname順にする。
   - `errors[]`も上限を持ち、切り捨て時は`errorsTruncated=true`を返す。
+  - administratively `DISABLED`なNodeはaggregateから除外するが、node-scoped direct historyは維持する。ACTIVE registry-only Nodeはbounded `errors[]`でmissing snapshotを説明する。
 - Validation: 2 Node正常、1 Node停止、空Hub、registry-only node、default/max/invalid limit、cursor継続、same Node page split、大量履歴でも1 responseが最大device row数にboundedであること。
 
 ### Task 3: Add Node-Scoped Latest Route
@@ -83,6 +86,7 @@ Hubが保存済みsnapshotとNode registryだけから、複数Nodeのlatest/his
 - 新しいnode-scoped latest routeを追加する。
 - device-only latest routeはStandaloneでは維持し、Hub route setから外す。
 - aggregate latestのpagination metadataはadditiveに追加する。新Desktop Clientはpageをmergeできるよう更新する。
+- historyの既存`snapshots`配列は維持し、Phase 5ではnode-level freshness contextだけをadditiveに返す。per-row parallel arrayは追加しない。
 - Client read認証の強制はPhase 5G cutoverで行う。
 
 ## Data and Persistence Impact

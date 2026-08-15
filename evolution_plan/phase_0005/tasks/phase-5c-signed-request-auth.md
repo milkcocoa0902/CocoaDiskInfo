@@ -82,7 +82,7 @@ bodySha256  # bodyを持つrequestでは必須、32-byte digestのbase64url with
 - queryはknown parameterのdecoded/validated effective valueからname順に構築する。historyではeffective `limit`と`order`を常に含め、`from`/`to`は存在時だけUTC instantのcanonical formで含める。unknown/duplicate parameterを拒否する。
 - raw query parameter orderやequivalent percent-encodingはsignature semanticsへ影響させない。
 - request freshnessはclient clockではなく、Hubが発行・TTL管理するnonceで判定する。Phase 5 JWSに`iat`/`exp`を要求しない。
-- JWS compact tokenは専用`Authorization` schemeまたは単一headerで渡し、複数proof headerを拒否する。
+- JWS compact tokenは`Authorization: CocoaDiskInfo-JWS <compact JWS>`で渡し、複数Authorization/proof headerを拒否する。
 
 ## Snapshot Body Digest Profile
 snapshot本体をJWS payloadへ入れず、送信bodyのSHA-256をJWSへbindする。
@@ -111,6 +111,7 @@ JSONをparseして再serializeした値はhash対象にしない。中継者がw
   - join前: `joinTokenId + JOIN`
   - join後: `kid + SNAPSHOT_INGEST/HEARTBEAT/CLIENT_READ`
 - nonce responseは`Cache-Control: no-store`を返す。
+- nonce issue requestは`subjectType`、`subjectId`、`purpose`を持ち、responseは`nonce`、`expiresAt`を返す。
 - clientへ返すerrorはunknown、expired、usedの詳細を区別しすぎず、再取得可能であることを示す。
 
 ### Store Boundary
@@ -145,7 +146,7 @@ future backend:
 
 nonceをsignature/body validation前にconsumeしない。DB処理失敗やresponse loss後は新しいnonceを取得し、同じ`ingestId`でretryする。
 
-成功responseには次回用nonceを含め、通常時の追加round tripを減らす。responseを失った場合だけnonce endpointから再取得する。
+成功responseには`CocoaDiskInfo-Next-Nonce` headerで次回用nonceを含め、通常時の追加round tripを減らす。responseを失った場合だけnonce endpointから再取得する。
 
 ## Principal and Route Policy
 初期Principal type:
@@ -178,7 +179,7 @@ read route cutoverはPhase 5GでClient対応と同時に行う。
 2. join materialとしてHub `publicEndpoint.baseUrl`、`hubId`、join token ID/secret、任意のexpected node nameを渡す。HTTP endpointの場合はNode Agent側でもinsecure transportを明示承認する。
 3. Node AgentがEd25519 key pairをlocal生成し、public JWKとRFC 7638 `kid`を作る。
 4. Node Agentが`joinTokenId + JOIN`にbindされたnonceを取得する。
-5. Node Agentがdomain-separated canonical inputへ`HMAC-SHA256(joinTokenSecret, input)`を計算する。
+5. Node Agentが`joinKey = SHA-256(joinTokenSecret)`を導出し、domain-separated canonical inputへ`HMAC-SHA256(joinKey, input)`を計算する。
 6. Hubがtoken digest/TTL、HMAC、nonce、expected node nameを検証する。
 7. Hubがnonce/tokenをatomicにconsumeし、`NODE_AGENT` PrincipalとNode registryを作成する。
 8. Hubが`kid`、割り当てた`nodeId`、Principal metadataを返す。
@@ -196,6 +197,10 @@ nodeName
 ```
 
 token利用は最初の成功時に`kid`へbindする。同じtoken secret + 同じ`kid`のretryはtoken TTL内で同じjoin resultを返し、response lossから回復できるようにする。異なる`kid`への再利用は拒否する。
+
+Hub DBへ保存するのは`joinKey`であり、token plaintextではない。`joinKey`はtoken TTL内にはproof verifierとして機能するため、join tokenを短命・単回利用にし、通常ログやresponseへ出さない。
+
+recovery用join tokenは既存`nodeId`へscopeできる。operatorはold Principalをdisableしてrecovery tokenを発行し、新Principalを同じregistry identityへbindする。
 
 Phase 5のkey rotation/compromise recoveryは、operatorがold Principalを`DISABLED`にし、新しいjoin/pairing tokenで再join/re-pairする最小flowとする。active old keyによるonline rotationはfollow-upに送る。
 
@@ -241,6 +246,7 @@ cocoadiskinfo-agent node-agent join --hub http://192.168.1.10:14631 --allow-inse
 
 POST /api/v1/auth/nonces
 POST /api/v1/node-agents/join
+POST /api/v1/clients/pair
 ```
 
 既存`oneshot`、`standalone`、`db` command shapeは変更しない。

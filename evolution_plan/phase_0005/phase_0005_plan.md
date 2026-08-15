@@ -1,5 +1,9 @@
 # Phase 5: Hub and Node Agent
 
+## Status
+
+Phase 5A-Hの実装は完了（2026-08-15）。[Phase 5I](tasks/phase-5i-runtime-capability-alignment.md)でmode別capabilityは現実装を維持すると確定し、Standalone pairing token bug修正とREADME matrixへ反映した。
+
 ## Source Context
 - Primary: `../master.md`
 - Supporting: `../strategy/0001_api_response_strategy.md`
@@ -98,6 +102,13 @@ nonceは数十秒だけ必要なreplay-prevention stateであり、raw snapshot 
 - nonceは256-bit、subject/purpose-bound、短命・単回利用とし、signature/body/DTO validation後にatomic consumeする。
 - Client read APIのsigned-request cutoverはDesktop Clientがsigning keyを扱える最後のtaskと同時に行い、途中commitで既存Standaloneを恒久的に利用不能にしない。
 - `NODE_AGENT` principalでClient read routeを読ませず、`CLIENT` principalでingest routeへ送らせない。
+- join/pairing secretから`joinKey = SHA-256(tokenSecret)`を導出し、challenge HMACとDB保存には`joinKey`を使う。Hubはtoken plaintextを保存しない。
+- JWS proofは`Authorization: CocoaDiskInfo-JWS <compact JWS>`、次回nonceは`CocoaDiskInfo-Next-Nonce` response headerで渡す。
+- aggregate latestのknown queryは`cursor`と`limit`とし、validated cursorをcanonical base64urlへ戻してname順で署名する。effective `limit`は省略時も含める。
+- existing `NodeSnapshot.devices`は維持し、node status/last seenとdevice freshnessはadditiveな`deviceStates`へ置く。disabled Nodeはaggregateから除外するが、direct history参照は維持する。
+- expected collection intervalはjoin時に初期登録し、heartbeatで更新できる。valid heartbeat/`STORED`/`DUPLICATE`はcurrent errorをclearし、`lastFailureAt`は最後のfailure時刻として保持する。
+- recovery join tokenは既存`nodeId`へscopeできるようにし、key replacementでhistory identityを分断しない。registryの最新`nodeName`をcurrent表示名、snapshot rowの`nodeName`をhistorical recordとする。
+- credential fileはversioned JSONとし、POSIX owner-only permissionまたはWindows owner-only ACLを保証できない場合はfail closedにする。HTTPS trustはplatform trustとoptional PEM CA fileだけを許可する。
 
 ## Tasks
 - [Phase 5A: Node-Scoped Ingest Contract and Identity](tasks/phase-5a-ingest-contract-node-identity.md)
@@ -108,6 +119,7 @@ nonceは数十秒だけ必要なreplay-prevention stateであり、raw snapshot 
 - [Phase 5F: Cache-First Aggregate API and Freshness](tasks/phase-5f-aggregate-api-freshness.md)
 - [Phase 5G: Client Signed Requests and Hub-Less Compatibility](tasks/phase-5g-client-auth-hubless.md)
 - [Phase 5H: End-to-End Acceptance and Phase 4 Regression](tasks/phase-5h-acceptance-phase4-regression.md)
+- [Phase 5I: Runtime Capability Alignment](tasks/phase-5i-runtime-capability-alignment.md)
 
 ## Compatibility Impact
 - `oneshot`, `standalone`, `db migrate`, `db cleanup`の既存CLI shapeを維持する。
@@ -180,3 +192,4 @@ Integration checks:
 6. Phase 5Fでcache-first aggregate response、freshness metadata、node-scoped latest routeを実装する。
 7. Phase 5GでDesktop Client signing credential、signed read、HTTP opt-in、freshness UI、Hub-less pairingを完成させる。
 8. Phase 5HでSQLite/PostgreSQL、Hub/Node Agent、Hub-less Standaloneのintegration matrix、operator handoff、既存mode regressionを完了する。
+9. Phase 5Iで現実装とcapability案を比較し、現行mode境界の維持、Standalone pairing token bug修正、README capability matrixを確定する。
