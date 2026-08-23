@@ -64,6 +64,9 @@ object AgentConfigLoader {
                 cleanupIntervalHours = entries.long("maintenance", "cleanupIntervalHours"),
                 vacuumAfterCleanup = entries.boolean("maintenance", "vacuumAfterCleanup"),
             ),
+            health = AgentConfig.HealthConfig(
+                policy = entries.string("health", "policy"),
+            ),
         )
     }
 }
@@ -89,6 +92,7 @@ private object MinimalTomlParser {
         "auth" to setOf("nonceTtlSeconds", "maxRequestBodyBytes"),
         "retention" to setOf("rawSnapshotDays"),
         "maintenance" to setOf("cleanupOnStartup", "cleanupIntervalHours", "vacuumAfterCleanup"),
+        "health" to setOf("policy"),
     )
 
     fun parse(path: Path): TomlEntries {

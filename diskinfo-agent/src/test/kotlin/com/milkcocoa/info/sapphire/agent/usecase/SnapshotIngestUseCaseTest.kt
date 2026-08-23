@@ -12,8 +12,8 @@ import com.milkcocoa.info.sapphire.agent.datastore.StoredDiskSnapshot
 import com.milkcocoa.info.sapphire.agent.datastore.TransactionRunner
 import com.milkcocoa.info.sapphire.agent.testDiskSnapshot
 import com.milkcocoa.info.sapphire.agent.testNodeId
-import com.milkcocoa.info.sapphire.core.api.NodeDeviceHistoryPayload
-import com.milkcocoa.info.sapphire.core.api.NodeSnapshot
+import com.milkcocoa.info.sapphire.agent.datastore.RawNodeDeviceHistory
+import com.milkcocoa.info.sapphire.agent.datastore.RawNodeSnapshot
 import com.milkcocoa.info.sapphire.core.snapshot.DiskSnapshot
 import kotlinx.coroutines.runBlocking
 import java.time.Instant
@@ -72,7 +72,7 @@ private class RecordingIngestRepository : DiskSnapshotRepository {
         )
     }
 
-    override fun findLatestNodes(): List<NodeSnapshot> = emptyList()
+    override fun findLatestNodes(): List<RawNodeSnapshot> = emptyList()
 
     override fun findLatestByDeviceKey(deviceKey: String): DiskSnapshot? = null
 
@@ -85,7 +85,7 @@ private class RecordingIngestRepository : DiskSnapshotRepository {
         nodeId: Uuid,
         deviceKey: String,
         query: HistoryQuery,
-    ): NodeDeviceHistoryPayload = NodeDeviceHistoryPayload(
+    ): RawNodeDeviceHistory = RawNodeDeviceHistory(
         nodeId = nodeId.toString(),
         nodeName = "",
         deviceKey = deviceKey,

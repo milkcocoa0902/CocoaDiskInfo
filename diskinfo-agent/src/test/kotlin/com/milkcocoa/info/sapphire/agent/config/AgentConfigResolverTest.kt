@@ -6,6 +6,7 @@ import com.milkcocoa.info.sapphire.agent.datastore.StorageBackend
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 
 class AgentConfigResolverTest {
     @Test
@@ -133,6 +134,60 @@ class AgentConfigResolverTest {
         assertEquals("env-user", resolved.storage.username)
         assertEquals("env-password", resolved.storage.password)
         assertEquals("env-salt", resolved.deviceIdentityNamespaceSalt)
+    }
+
+    @Test
+    fun `health policy uses config environment and cli precedence`() {
+        val config = AgentConfig(
+            smartctl = AgentConfig.SmartctlConfig(scan = true),
+            health = AgentConfig.HealthConfig(policy = "default"),
+        )
+
+        assertEquals(
+            "default",
+            AgentConfigResolver.resolveOneshot(config, environment = emptyMap()).healthPolicy.policyName,
+        )
+        assertEquals(
+            "default",
+            AgentConfigResolver.resolveOneshot(
+                config,
+                environment = mapOf("COCOADISKINFO_AGENT_HEALTH_POLICY" to "default"),
+            ).healthPolicy.policyName,
+        )
+        assertEquals(
+            "default",
+            AgentConfigResolver.resolveOneshot(
+                config,
+                environment = mapOf("COCOADISKINFO_AGENT_HEALTH_POLICY" to "default"),
+                cli = AgentConfigOverrides(healthPolicy = "default"),
+            ).healthPolicy.policyName,
+        )
+    }
+
+    @Test
+    fun `unknown and blank health policies fail with available policy names`() {
+        listOf("missing", " ").forEach { policy ->
+            val error = assertFailsWith<AgentConfigValidationException> {
+                AgentConfigResolver.resolveOneshot(
+                    AgentConfig(smartctl = AgentConfig.SmartctlConfig(scan = true)),
+                    environment = emptyMap(),
+                    cli = AgentConfigOverrides(healthPolicy = policy),
+                )
+            }
+            assertTrue(error.message.orEmpty().contains("default"))
+        }
+    }
+
+    @Test
+    fun `db commands do not resolve health policy`() {
+        val resolved = AgentConfigResolver.resolveDbMigrate(
+            AgentConfig(
+                health = AgentConfig.HealthConfig(policy = "unknown"),
+                storage = AgentConfig.StorageConfig(jdbcUrl = "jdbc:sqlite:/tmp/health-policy-db.db"),
+            ),
+            environment = mapOf("COCOADISKINFO_AGENT_HEALTH_POLICY" to "unknown"),
+        )
+        assertEquals("jdbc:sqlite:/tmp/health-policy-db.db", resolved.jdbcUrl)
     }
 
     @Test

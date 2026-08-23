@@ -4,6 +4,8 @@ import com.milkcocoa.info.sapphire.agent.OutputMode
 import com.milkcocoa.info.sapphire.agent.TargetDevice
 import com.milkcocoa.info.sapphire.agent.datastore.StorageBackend
 import com.milkcocoa.info.sapphire.agent.datastore.StorageSettings
+import com.milkcocoa.info.sapphire.core.health.DefaultHealthPolicy
+import com.milkcocoa.info.sapphire.core.health.HealthPolicy
 import java.net.URI
 import java.nio.file.Paths
 
@@ -34,6 +36,7 @@ data class AgentConfigOverrides(
     val maxRetries: Int? = null,
     val nonceTtlSeconds: Long? = null,
     val maxRequestBodyBytes: Long? = null,
+    val healthPolicy: String? = null,
 )
 
 data class EffectiveOneshotConfig(
@@ -42,6 +45,7 @@ data class EffectiveOneshotConfig(
     val persist: Boolean,
     val storage: StorageSettings,
     val deviceIdentityNamespaceSalt: String,
+    val healthPolicy: HealthPolicy = DefaultHealthPolicy,
 ) {
     val jdbcUrl: String
         get() = storage.jdbcUrl
@@ -59,6 +63,7 @@ data class EffectiveStandaloneConfig(
     val cleanupOnStartup: Boolean,
     val cleanupIntervalHours: Long,
     val vacuumAfterCleanup: Boolean,
+    val healthPolicy: HealthPolicy = DefaultHealthPolicy,
 ) {
     val jdbcUrl: String
         get() = storage.jdbcUrl
@@ -92,6 +97,7 @@ data class EffectiveHubConfig(
     val cleanupOnStartup: Boolean,
     val cleanupIntervalHours: Long,
     val vacuumAfterCleanup: Boolean,
+    val healthPolicy: HealthPolicy = DefaultHealthPolicy,
 )
 
 enum class BootstrapTokenHostMode {
@@ -117,6 +123,7 @@ data class EffectiveNodeAgentConfig(
     val requestTimeoutSeconds: Long,
     val maxRetries: Int,
     val deviceIdentityNamespaceSalt: String,
+    val healthPolicy: HealthPolicy = DefaultHealthPolicy,
 )
 
 data class EffectiveNodeAgentJoinConfig(
@@ -156,6 +163,7 @@ object AgentConfigResolver {
             ?: false
         val storage = resolveStorageSettings(config, environment, cli)
         val deviceIdentityNamespaceSalt = resolveDeviceIdentityNamespaceSalt(config, environment)
+        val healthPolicy = resolveHealthPolicy(config, environment, cli)
 
         return EffectiveOneshotConfig(
             target = requireTarget(scan == true, device),
@@ -163,6 +171,7 @@ object AgentConfigResolver {
             persist = persist,
             storage = storage,
             deviceIdentityNamespaceSalt = deviceIdentityNamespaceSalt,
+            healthPolicy = healthPolicy,
         )
     }
 
@@ -204,6 +213,7 @@ object AgentConfigResolver {
             ?: config.http.port
             ?: AgentConfigDefaults.HTTP_PORT
         val deviceIdentityNamespaceSalt = resolveDeviceIdentityNamespaceSalt(config, environment)
+        val healthPolicy = resolveHealthPolicy(config, environment, cli)
         val rawSnapshotDays = environment.int("COCOADISKINFO_AGENT_RETENTION_RAW_SNAPSHOT_DAYS")
             ?: config.retention.rawSnapshotDays
             ?: AgentConfigDefaults.DEFAULT_RAW_SNAPSHOT_DAYS
@@ -234,6 +244,7 @@ object AgentConfigResolver {
             cleanupOnStartup = cleanupOnStartup,
             cleanupIntervalHours = cleanupIntervalHours,
             vacuumAfterCleanup = vacuumAfterCleanup,
+            healthPolicy = healthPolicy,
         )
     }
 
@@ -286,6 +297,7 @@ object AgentConfigResolver {
             ?: config.http.port
             ?: AgentConfigDefaults.HTTP_PORT
         val publicEndpoint = resolvePublicEndpoint(config, environment, cli, requiredFor = "hub mode")
+        val healthPolicy = resolveHealthPolicy(config, environment, cli)
         val nonceTtl = cli.nonceTtlSeconds
             ?: environment.long("COCOADISKINFO_AGENT_AUTH_NONCE_TTL_SECONDS")
             ?: config.auth.nonceTtlSeconds
@@ -325,6 +337,7 @@ object AgentConfigResolver {
             cleanupOnStartup = cleanupOnStartup,
             cleanupIntervalHours = cleanupIntervalHours,
             vacuumAfterCleanup = vacuumAfterCleanup,
+            healthPolicy = healthPolicy,
         )
     }
 
@@ -398,6 +411,7 @@ object AgentConfigResolver {
             ?: environment.int("COCOADISKINFO_AGENT_HUB_MAX_RETRIES")
             ?: config.hub.maxRetries
             ?: AgentConfigDefaults.MAX_DELIVERY_RETRIES
+        val healthPolicy = resolveHealthPolicy(config, environment, cli)
 
         validateInterval(interval)
         validatePublicHttpUrl("[hub].endpoint", endpoint, allowInsecure)
@@ -431,6 +445,7 @@ object AgentConfigResolver {
             requestTimeoutSeconds = timeout,
             maxRetries = retries,
             deviceIdentityNamespaceSalt = resolveDeviceIdentityNamespaceSalt(config, environment),
+            healthPolicy = healthPolicy,
         )
     }
 
@@ -577,6 +592,23 @@ object AgentConfigResolver {
             environment.string("COCOADISKINFO_AGENT_DEVICE_IDENTITY_NAMESPACE_SALT"),
             config.deviceIdentity.namespaceSalt,
         ) ?: AgentConfigDefaults.DEVICE_IDENTITY_NAMESPACE_SALT
+    }
+
+    private fun resolveHealthPolicy(
+        config: AgentConfig,
+        environment: Map<String, String>,
+        cli: AgentConfigOverrides,
+    ): HealthPolicy {
+        // Do not route this through firstString/string: the selector owns blank
+        // policy diagnostics so every source gets the available-name hint.
+        val policyName = when {
+            cli.healthPolicy != null -> cli.healthPolicy
+            environment.containsKey("COCOADISKINFO_AGENT_HEALTH_POLICY") ->
+                environment["COCOADISKINFO_AGENT_HEALTH_POLICY"]
+            config.health.policy != null -> config.health.policy
+            else -> AgentConfigDefaults.DEFAULT_HEALTH_POLICY
+        } ?: AgentConfigDefaults.DEFAULT_HEALTH_POLICY
+        return HealthPolicyRegistry.select(policyName)
     }
 
     private fun requireTarget(scan: Boolean, device: String?): TargetDevice {

@@ -6,8 +6,9 @@ import com.milkcocoa.info.sapphire.core.api.NodeApiError
 import com.milkcocoa.info.sapphire.core.api.NodeSnapshot
 import com.milkcocoa.info.sapphire.core.api.NodeStatus
 import com.milkcocoa.info.sapphire.core.api.PageMetadata
+import com.milkcocoa.info.sapphire.core.health.HealthPolicyMetadata
 import com.milkcocoa.info.sapphire.core.snapshot.DiskHealth
-import com.milkcocoa.info.sapphire.core.snapshot.DiskSnapshot
+import com.milkcocoa.info.sapphire.core.snapshot.EvaluatedDiskSnapshot
 import com.milkcocoa.info.sapphire.core.snapshot.MetricsSnapshot
 import com.milkcocoa.info.sapphire.core.snapshot.UniversalMetrics
 import kotlin.test.Test
@@ -79,9 +80,52 @@ class LatestSnapshotPagesTest {
         )
     }
 
+    @Test
+    fun `pages retain a shared evaluated policy`() {
+        val policy = HealthPolicyMetadata("default", 1)
+        val merged = mergeLatestSnapshotPages(
+            listOf(
+                LatestSnapshotsPayload(
+                    nodes = listOf(node("node-a", snapshot("device-a", policy), receivedState("device-a", 1))),
+                    evaluationPolicy = policy,
+                ),
+                LatestSnapshotsPayload(
+                    nodes = listOf(node("node-a", snapshot("device-b", policy), receivedState("device-b", 2))),
+                    evaluationPolicy = policy,
+                ),
+            ),
+        )
+
+        assertEquals(policy, merged.evaluationPolicy)
+        assertTrue(merged.nodes.single().devices.all { it.evaluationPolicy == policy })
+    }
+
+    @Test
+    fun `pages reject mixed evaluation policies`() {
+        val firstPolicy = HealthPolicyMetadata("default", 1)
+        val secondPolicy = HealthPolicyMetadata("default", 2)
+
+        val error = kotlin.test.assertFailsWith<LatestSnapshotPolicyMismatchException> {
+            mergeLatestSnapshotPages(
+                listOf(
+                    LatestSnapshotsPayload(
+                        nodes = listOf(node("node-a", snapshot("device-a", firstPolicy), receivedState("device-a", 1))),
+                        evaluationPolicy = firstPolicy,
+                    ),
+                    LatestSnapshotsPayload(
+                        nodes = listOf(node("node-a", snapshot("device-b", secondPolicy), receivedState("device-b", 2))),
+                        evaluationPolicy = secondPolicy,
+                    ),
+                ),
+            )
+        }
+
+        assertTrue(error.message.orEmpty().contains("inconsistent evaluation policy"))
+    }
+
     private fun node(
         nodeId: String,
-        snapshot: DiskSnapshot,
+        snapshot: EvaluatedDiskSnapshot,
         state: DeviceState,
     ): NodeSnapshot = NodeSnapshot(
         nodeId = nodeId,
@@ -101,7 +145,10 @@ class LatestSnapshotPagesTest {
         ageMs = 0,
     )
 
-    private fun snapshot(deviceKey: String): DiskSnapshot = DiskSnapshot(
+    private fun snapshot(
+        deviceKey: String,
+        evaluationPolicy: HealthPolicyMetadata? = null,
+    ): EvaluatedDiskSnapshot = EvaluatedDiskSnapshot(
         timestamp = Instant.fromEpochMilliseconds(0),
         deviceKey = deviceKey,
         path = "/dev/$deviceKey",
@@ -127,5 +174,6 @@ class LatestSnapshotPagesTest {
             dataUnitsWritten = null,
             dataUnitsRead = null,
         ),
+        evaluationPolicy = evaluationPolicy,
     )
 }

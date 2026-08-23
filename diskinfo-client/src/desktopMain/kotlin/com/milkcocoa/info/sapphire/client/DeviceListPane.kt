@@ -25,7 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.milkcocoa.info.sapphire.core.api.NodeSnapshot
-import com.milkcocoa.info.sapphire.core.snapshot.DiskSnapshot
+import com.milkcocoa.info.sapphire.core.snapshot.EvaluatedDiskSnapshot
 
 @Composable
 internal fun DeviceListPane(
@@ -86,7 +86,7 @@ private fun NodeHeader(node: NodeSnapshot) {
 
 @Composable
 private fun DeviceRow(
-    snapshot: DiskSnapshot,
+    snapshot: EvaluatedDiskSnapshot,
     freshness: FreshnessPresentation?,
     selected: Boolean,
     onClick: () -> Unit,

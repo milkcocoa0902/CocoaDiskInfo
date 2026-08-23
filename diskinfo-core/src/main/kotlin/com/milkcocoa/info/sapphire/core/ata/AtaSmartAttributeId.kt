@@ -12,6 +12,10 @@ import kotlinx.serialization.encoding.Encoder
 sealed interface AtaSmartAttributeId {
     val id: Int
     val name: String
+    val evaluationMode: AtaAttributeEvaluationMode
+        get() = AtaAttributeEvaluationMode.NormalizedThreshold
+    val canonicalHealthRuleKey: String
+        get() = canonicalHealthRuleKey(name)
 
 
     @Serializable
@@ -42,6 +46,8 @@ sealed interface AtaSmartAttributeId {
     data object ReallocatedSectorCt: AtaSmartAttributeId {
         override val id: Int = 5
         override val name: String = "Reallocated_Sector_Ct" // or Reallocate_NAND_Blk_Cnt
+        override val evaluationMode = AtaAttributeEvaluationMode.RawMaximum(maximum = 0)
+        override val canonicalHealthRuleKey: String = "ata.reallocated_sector_count"
     }
 
     @Serializable
@@ -108,18 +114,24 @@ sealed interface AtaSmartAttributeId {
     data object CurrentPendingSector: AtaSmartAttributeId {
         override val id: Int = 197
         override val name: String = "Current_Pending_Sector" // or Current_Pending_ECC_Cnt
+        override val evaluationMode = AtaAttributeEvaluationMode.RawMaximum(maximum = 0)
+        override val canonicalHealthRuleKey: String = "ata.current_pending_sector_count"
     }
 
     @Serializable
     data object OfflineUncorrectable: AtaSmartAttributeId {
         override val id: Int = 198
         override val name: String = "Offline_Uncorrectable"
+        override val evaluationMode = AtaAttributeEvaluationMode.RawMaximum(maximum = 0)
+        override val canonicalHealthRuleKey: String = "ata.offline_uncorrectable_count"
     }
 
     @Serializable
     data object UdmaCrcErrorCount: AtaSmartAttributeId {
         override val id: Int = 199
         override val name: String = "UDMA_CRC_Error_Count"
+        override val evaluationMode = AtaAttributeEvaluationMode.RawMaximum(maximum = 0)
+        override val canonicalHealthRuleKey: String = "ata.udma_crc_error_count"
     }
 
     @Serializable
@@ -234,6 +246,11 @@ sealed interface AtaSmartAttributeId {
     data object PercentLifetimeRemain: AtaSmartAttributeId {
         override val id: Int = 202
         override val name: String = "Percent_Lifetime_Remain"
+        override val evaluationMode = AtaAttributeEvaluationMode.RemainingPercentage(
+            badAtOrBelow = 10,
+            cautionAtOrBelow = 20,
+        )
+        override val canonicalHealthRuleKey: String = "ata.percent_lifetime_remaining"
     }
 
     @Serializable
@@ -276,7 +293,13 @@ sealed interface AtaSmartAttributeId {
     data class Dynamic(
         override val id: Int,
         override val name: String
-    ): AtaSmartAttributeId
+    ): AtaSmartAttributeId {
+        private val standard: AtaSmartAttributeId? get() = standardOf(id)
+        override val evaluationMode: AtaAttributeEvaluationMode
+            get() = standard?.evaluationMode ?: AtaAttributeEvaluationMode.NormalizedThreshold
+        override val canonicalHealthRuleKey: String
+            get() = standard?.canonicalHealthRuleKey ?: "ata.attribute_$id"
+    }
 
 
     object Serializer: KSerializer<AtaSmartAttributeId>{
@@ -296,52 +319,7 @@ sealed interface AtaSmartAttributeId {
 
     companion object {
         fun of(id: Int, name: String? = null): AtaSmartAttributeId {
-            val standard = when(id) {
-                1 -> RawReadErrorRate
-                2 -> ThroughputPerformance
-                3 -> SpinUpTime
-                4 -> StartStopCount
-                5 -> ReallocatedSectorCt
-                7 -> SeekErrorRate
-                8 -> SeekTimePerformance
-                9 -> PowerOnHours
-                10 -> SpinRetryCount
-                12 -> PowerCycleCount
-                191 -> GSenseErrorRate
-                192 -> PowerOffRetractCount
-                193 -> LoadCycleCount
-                194 -> TemperatureCelsius
-                196 -> ReallocatedEventCount
-                197 -> CurrentPendingSector
-                198 -> OfflineUncorrectable
-                199 -> UdmaCrcErrorCount
-                220 -> DiskShift
-                222 -> LoadedHours
-                223 -> LoadRetryCount
-                224 -> LoadFriction
-                226 -> LoadInTime
-                240 -> HeadFlyingHours
-                171 -> ProgramFailCount
-                172 -> EraseFailCount
-                173 -> AveBlockEraseCount
-                174 -> UnexpectPowerLossCt
-                180 -> UnusedReserveNandBlk
-                183 -> RuntimeBadBlock
-                184 -> EndToEndError
-                187 -> ReportedUncorrect
-                188 -> CommandTimeout
-                189 -> HighFlyWrites
-                190 -> AirflowTemperatureCel
-                195 -> HardwareEccRecovered
-                202 -> PercentLifetimeRemain
-                206 -> WriteErrorRate
-                210 -> SuccessRainRecovCnt
-                241 -> TotalLbasWritten
-                242 -> TotalLbasRead
-                247 -> HostProgramPageCount
-                248 -> FtlProgramPageCount
-                else -> null
-            }
+            val standard = standardOf(id)
 
             if (standard != null) {
                 if (name != null && standard.name != name) {
@@ -352,8 +330,61 @@ sealed interface AtaSmartAttributeId {
             return Dynamic(id, name ?: "Unknown")
         }
 
+        private fun standardOf(id: Int): AtaSmartAttributeId? = when (id) {
+            1 -> RawReadErrorRate
+            2 -> ThroughputPerformance
+            3 -> SpinUpTime
+            4 -> StartStopCount
+            5 -> ReallocatedSectorCt
+            7 -> SeekErrorRate
+            8 -> SeekTimePerformance
+            9 -> PowerOnHours
+            10 -> SpinRetryCount
+            12 -> PowerCycleCount
+            191 -> GSenseErrorRate
+            192 -> PowerOffRetractCount
+            193 -> LoadCycleCount
+            194 -> TemperatureCelsius
+            196 -> ReallocatedEventCount
+            197 -> CurrentPendingSector
+            198 -> OfflineUncorrectable
+            199 -> UdmaCrcErrorCount
+            220 -> DiskShift
+            222 -> LoadedHours
+            223 -> LoadRetryCount
+            224 -> LoadFriction
+            226 -> LoadInTime
+            240 -> HeadFlyingHours
+            171 -> ProgramFailCount
+            172 -> EraseFailCount
+            173 -> AveBlockEraseCount
+            174 -> UnexpectPowerLossCt
+            180 -> UnusedReserveNandBlk
+            183 -> RuntimeBadBlock
+            184 -> EndToEndError
+            187 -> ReportedUncorrect
+            188 -> CommandTimeout
+            189 -> HighFlyWrites
+            190 -> AirflowTemperatureCel
+            195 -> HardwareEccRecovered
+            202 -> PercentLifetimeRemain
+            206 -> WriteErrorRate
+            210 -> SuccessRainRecovCnt
+            241 -> TotalLbasWritten
+            242 -> TotalLbasRead
+            247 -> HostProgramPageCount
+            248 -> FtlProgramPageCount
+            else -> null
+        }
+
         @Deprecated("Use of(id, name) instead", ReplaceWith("of(id, null)"))
         fun of(id: Int): AtaSmartAttributeId = of(id, null)
     }
 }
 
+/** Kept as a function for callers that already use the Phase 6 rule-key API. */
+fun AtaSmartAttributeId.healthRuleKey(): String = canonicalHealthRuleKey
+
+private fun canonicalHealthRuleKey(name: String): String {
+    return "ata.${name.lowercase().replace(Regex("[^a-z0-9]+"), "_").trim('_')}"
+}

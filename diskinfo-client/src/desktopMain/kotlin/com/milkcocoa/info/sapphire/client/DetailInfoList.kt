@@ -16,12 +16,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.milkcocoa.info.sapphire.core.snapshot.DiskSnapshot
+import com.milkcocoa.info.sapphire.core.snapshot.EvaluatedDiskSnapshot
 import com.milkcocoa.info.sapphire.core.snapshot.MetricsSnapshot
 
 @Composable
 internal fun DetailInfoList(
-    snapshot: DiskSnapshot,
+    snapshot: EvaluatedDiskSnapshot,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -61,6 +61,9 @@ internal fun DetailInfoList(
                             )
                         }
                     }
+                }
+                if (snapshot.nonGoodEvaluations().isNotEmpty()) {
+                    item { NonGoodEvaluationList(snapshot) }
                 }
             }
         }

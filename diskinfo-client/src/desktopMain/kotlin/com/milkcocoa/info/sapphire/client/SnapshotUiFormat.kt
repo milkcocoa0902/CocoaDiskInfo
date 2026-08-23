@@ -3,22 +3,22 @@ package com.milkcocoa.info.sapphire.client
 import androidx.compose.ui.graphics.Color
 import com.milkcocoa.info.sapphire.core.snapshot.AttributeStatus
 import com.milkcocoa.info.sapphire.core.snapshot.DiskHealth
-import com.milkcocoa.info.sapphire.core.snapshot.DiskSnapshot
+import com.milkcocoa.info.sapphire.core.snapshot.EvaluatedDiskSnapshot
 import com.milkcocoa.info.sapphire.core.snapshot.MetricsSnapshot
 
-internal fun List<DiskSnapshot>.countWarnings(): Int {
+internal fun List<EvaluatedDiskSnapshot>.countWarnings(): Int {
     return count { it.health == DiskHealth.CAUTION || it.health == DiskHealth.BAD }
 }
 
-internal fun List<DiskSnapshot>.latestTimestamp(): String {
+internal fun List<EvaluatedDiskSnapshot>.latestTimestamp(): String {
     return maxByOrNull { it.timestamp }?.timestampLabel() ?: "--"
 }
 
-internal fun DiskSnapshot.timestampLabel(): String {
+internal fun EvaluatedDiskSnapshot.timestampLabel(): String {
     return timestamp.toString().substringBefore('.')
 }
 
-internal fun DiskSnapshot.protocolName(): String {
+internal fun EvaluatedDiskSnapshot.protocolName(): String {
     return when (metricsSnapshot) {
         is MetricsSnapshot.AtaMetricsSnapshot -> "ATA"
         is MetricsSnapshot.NvmeMetricsSnapshot -> "NVMe"

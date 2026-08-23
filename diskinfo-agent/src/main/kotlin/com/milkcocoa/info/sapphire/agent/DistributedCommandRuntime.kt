@@ -116,6 +116,14 @@ internal class ProductionDistributedCommandRuntime(
 
     private fun runNodeAgent(request: SapphireCommandRequest.NodeAgent) {
         ColotokProviderFactory.create(request.outputMode).also(ColotokLoggerContext::setDefault)
+        Colotok.info(
+            msg = "Using health policy.",
+            attr = mapOf(
+                "policy_name" to request.healthPolicy.metadata.policyName,
+                "policy_version" to request.healthPolicy.metadata.policyVersion.toString(),
+                "policy_authority" to "node-agent-console-only",
+            ),
+        )
         val credential = OwnerOnlyJsonNodeAgentCredentialStore().load(Path.of(request.credentialFile))
         val transport = SignedNodeAgentTransport.create(
             credential = credential,
@@ -132,7 +140,7 @@ internal class ProductionDistributedCommandRuntime(
                     collector = SmartctlCollector(
                         deviceKeyDeriver = UuidV5DeviceKeyDeriver(request.deviceIdentityNamespaceSalt),
                     ),
-                    sink = CompositeSnapshotSink(ColotokSnapshotSink(), remoteSink),
+                    sink = CompositeSnapshotSink(ColotokSnapshotSink(request.healthPolicy), remoteSink),
                     heartbeat = NodeAgentHeartbeat { failure ->
                         transport.heartbeat(
                             NodeHeartbeatRequest(
@@ -196,6 +204,14 @@ internal class ProductionDistributedCommandRuntime(
 
     @OptIn(ExperimentalUuidApi::class)
     private fun runHub(request: SapphireCommandRequest.Hub) {
+        Colotok.info(
+            msg = "Using health policy.",
+            attr = mapOf(
+                "policy_name" to request.healthPolicy.metadata.policyName,
+                "policy_version" to request.healthPolicy.metadata.policyVersion.toString(),
+                "policy_authority" to "hub-api",
+            ),
+        )
         // Hub never migrates implicitly. An operator-visible failure before the pool
         // and listener are created makes a schema mistake recoverable and predictable.
         schemaValidator.requireCurrent(request.storage)
@@ -259,6 +275,7 @@ internal class ProductionDistributedCommandRuntime(
                             snapshotRepository = snapshotRepository,
                             registryRepository = nodeRegistryRepository,
                             transactionRunner = transactionRunner,
+                            healthPolicy = request.healthPolicy,
                         ),
                         signedRequestVerifier = verifier,
                         nonceTtl = request.nonceTtlSeconds.seconds,

@@ -46,6 +46,21 @@ data class StoredDiskSnapshot(
     val receivedAt: Instant,
 )
 
+/** Raw repository result. Policy-derived fields never cross this boundary. */
+data class RawNodeSnapshot(
+    val nodeId: String,
+    val nodeName: String,
+    val devices: List<DiskSnapshot>,
+)
+
+/** Raw repository history result. Policy-derived fields never cross this boundary. */
+data class RawNodeDeviceHistory(
+    val nodeId: String,
+    val nodeName: String,
+    val deviceKey: String,
+    val snapshots: List<DiskSnapshot>,
+)
+
 @OptIn(ExperimentalUuidApi::class)
 class IngestIdConflictException(
     val nodeId: Uuid,

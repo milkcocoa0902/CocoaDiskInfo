@@ -29,7 +29,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.milkcocoa.info.sapphire.core.api.NodeDeviceHistoryPayload
 import com.milkcocoa.info.sapphire.core.snapshot.DiskHealth
-import com.milkcocoa.info.sapphire.core.snapshot.DiskSnapshot
+import com.milkcocoa.info.sapphire.core.snapshot.EvaluatedDiskSnapshot
 
 internal sealed interface DeviceHistoryState {
     data object Idle : DeviceHistoryState
@@ -64,6 +64,7 @@ internal fun DeviceHistoryPane(
             } else {
                 HistoryContent(
                     snapshots = snapshots,
+                    evaluationPolicyText = state.payload.evaluationPolicy.policyProvenanceText(),
                     modifier = modifier,
                 )
             }
@@ -92,14 +93,15 @@ private fun LoadingHistory(
 
 @Composable
 private fun HistoryContent(
-    snapshots: List<DiskSnapshot>,
+    snapshots: List<EvaluatedDiskSnapshot>,
+    evaluationPolicyText: String,
     modifier: Modifier = Modifier,
 ) {
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        HistorySummary(snapshots)
+        HistorySummary(snapshots, evaluationPolicyText)
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -118,7 +120,10 @@ private fun HistoryContent(
 }
 
 @Composable
-private fun HistorySummary(snapshots: List<DiskSnapshot>) {
+private fun HistorySummary(
+    snapshots: List<EvaluatedDiskSnapshot>,
+    evaluationPolicyText: String,
+) {
     val firstSnapshot = snapshots.minBy { it.timestamp }
     val latestSnapshot = snapshots.maxBy { it.timestamp }
     val maxTemperature = snapshots.mapNotNull { it.temperatureCelsius }.maxOrNull()
@@ -126,6 +131,13 @@ private fun HistorySummary(snapshots: List<DiskSnapshot>) {
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         SectionTitle("History")
+        Text(
+            text = "$evaluationPolicyText · snapshots are re-evaluated using the current policy.",
+            style = MaterialTheme.typography.bodySmall,
+            color = Color(0xFFA7ADB3),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -269,7 +281,7 @@ private fun RangeEndpoint(
 }
 
 @Composable
-private fun HistoryTimelineRow(snapshot: DiskSnapshot) {
+private fun HistoryTimelineRow(snapshot: EvaluatedDiskSnapshot) {
     val universal = snapshot.metricsSnapshot.universal
     val lifeValue = universal.lifetimeRemainingPercent?.let { "$it% left" }
         ?: universal.percentageUsed?.let { "$it% used" }

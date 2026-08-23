@@ -9,6 +9,9 @@ import com.milkcocoa.info.sapphire.agent.usecase.LatestSnapshotsQueryService
 import com.milkcocoa.info.sapphire.agent.usecase.SnapshotUseCase
 import com.milkcocoa.info.sapphire.agent.datastore.PrincipalType
 import com.milkcocoa.info.sapphire.core.api.ApiResponse
+import com.milkcocoa.info.sapphire.core.health.DefaultHealthPolicy
+import com.milkcocoa.info.sapphire.core.health.HealthPolicy
+import com.milkcocoa.info.sapphire.core.snapshot.toEvaluatedDiskSnapshot
 import com.milkcocoa.info.sapphire.core.auth.AuthPurpose
 import com.milkcocoa.info.sapphire.core.auth.CanonicalRequest
 import com.milkcocoa.info.sapphire.core.auth.CanonicalRequestCodec
@@ -42,6 +45,7 @@ data class StandaloneAuthDependencies(
     val snapshotUseCase: SnapshotUseCase,
     val nonceTtl: Duration,
     val maximumRequestBodyBytes: Long,
+    val healthPolicy: HealthPolicy = DefaultHealthPolicy,
 )
 
 @OptIn(ExperimentalUuidApi::class)
@@ -116,7 +120,7 @@ fun Application.installStandaloneSecureApi(dependencies: StandaloneAuthDependenc
                     dependencies.signedRequestVerifier,
                     dependencies.nonceTtl,
                     verified,
-                    ApiResponse.Success(snapshot),
+                    ApiResponse.Success(snapshot.toEvaluatedDiskSnapshot(dependencies.healthPolicy)),
                 )
             }
         }

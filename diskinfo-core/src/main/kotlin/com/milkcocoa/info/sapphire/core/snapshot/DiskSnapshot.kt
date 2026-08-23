@@ -1,9 +1,6 @@
 package com.milkcocoa.info.sapphire.core.snapshot
 
 import com.milkcocoa.info.colotok.core.formatter.details.LogStructure
-import com.milkcocoa.info.sapphire.core.ata.AtaHealthRule
-import com.milkcocoa.info.sapphire.core.nvme.NvmeHealthRule
-import com.milkcocoa.info.sapphire.core.api.ResponsePayload
 import kotlinx.serialization.Serializable
 import kotlin.time.Instant
 
@@ -19,17 +16,8 @@ data class DiskSnapshot(
     val powerOnHours: Long?,
     val health: DiskHealth,
     val metricsSnapshot: MetricsSnapshot
-) : LogStructure, ResponsePayload {
-    val evaluations by lazy {
-        when (metricsSnapshot) {
-            is MetricsSnapshot.AtaMetricsSnapshot -> AtaHealthRule().evaluate(metricsSnapshot)
-            is MetricsSnapshot.NvmeMetricsSnapshot -> NvmeHealthRule().evaluate(metricsSnapshot)
-        }
-    }
-
+) : LogStructure {
     override fun stringify(): String {
-        val nonGoodEvaluations = evaluations.filter { it.status != AttributeStatus.GOOD }
-
         return buildString {
             appendLine("Disk Snapshot")
             appendLine("- timestamp: $timestamp")
@@ -46,21 +34,6 @@ data class DiskSnapshot(
             appendLine()
 
             appendLine(metricsSnapshot.stringify())
-            appendLine()
-
-            appendLine("Evaluations")
-            appendLine("- checks: ${evaluations.size}")
-            if (nonGoodEvaluations.isEmpty()) {
-                appendLine("- result: all checks are GOOD")
-            } else {
-                appendLine("- non-good: ${nonGoodEvaluations.size}")
-                nonGoodEvaluations.forEach {
-                    appendLine("- ${it.key}: ${it.status.name} (value=${it.value ?: "-"}, threshold=${it.threshold ?: "-"})")
-                    it.reason?.let { reason ->
-                        appendLine("  reason: $reason")
-                    }
-                }
-            }
         }.trimEnd()
     }
 }
@@ -90,7 +63,5 @@ class DiskSnapshotMapper : AttributeMapper<DiskSnapshot> {
                 put("protocol", protocolSnapshot.protocol.name)
             }
         }
-
-        put("evaluations", value.evaluations)
     }
 }

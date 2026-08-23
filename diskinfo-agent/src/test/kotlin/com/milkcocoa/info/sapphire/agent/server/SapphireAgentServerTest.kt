@@ -2,20 +2,27 @@ package com.milkcocoa.info.sapphire.agent.server
 
 import com.milkcocoa.info.sapphire.agent.datastore.HistoryOrder
 import com.milkcocoa.info.sapphire.agent.datastore.HistoryQuery
+import com.milkcocoa.info.sapphire.agent.datastore.LatestSnapshotPage
+import com.milkcocoa.info.sapphire.agent.datastore.LatestSnapshotPageRequest
+import com.milkcocoa.info.sapphire.agent.datastore.RawNodeDeviceHistory
+import com.milkcocoa.info.sapphire.agent.datastore.RawNodeSnapshot
+import com.milkcocoa.info.sapphire.agent.datastore.SnapshotOrigin
+import com.milkcocoa.info.sapphire.agent.datastore.StoredDiskSnapshot
 import com.milkcocoa.info.sapphire.agent.testDiskSnapshot
 import com.milkcocoa.info.sapphire.agent.testNodeId
 import com.milkcocoa.info.sapphire.agent.usecase.SnapshotUseCase
 import com.milkcocoa.info.sapphire.core.api.ApiError
 import com.milkcocoa.info.sapphire.core.api.LatestSnapshotsPayload
 import com.milkcocoa.info.sapphire.core.api.NodeDeviceHistoryPayload
-import com.milkcocoa.info.sapphire.core.api.NodeSnapshot
 import com.milkcocoa.info.sapphire.core.snapshot.DiskSnapshot
+import com.milkcocoa.info.sapphire.core.snapshot.EvaluatedDiskSnapshot
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.testApplication
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import java.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.uuid.ExperimentalUuidApi
@@ -31,12 +38,18 @@ class SapphireAgentServerTest {
     fun `latest snapshots endpoint returns latest snapshot for each node`() = testApplication {
         val snapshot = testDiskSnapshot(deviceKeyA, timestampMillis = 1_000)
         val snapshotUseCase = FakeSnapshotUseCase(
-            latestNodes = listOf(
-                NodeSnapshot(
-                    nodeId = testNodeId(1).toString(),
-                    nodeName = "node-a",
-                    devices = listOf(snapshot),
+            latestPage = LatestSnapshotPage(
+                rows = listOf(
+                    StoredDiskSnapshot(
+                        snapshotId = testNodeId(2),
+                        ingestId = testNodeId(3),
+                        origin = SnapshotOrigin(testNodeId(1), "node-a"),
+                        snapshot = snapshot,
+                        receivedAt = Instant.EPOCH,
+                    ),
                 ),
+                hasMore = true,
+                nextCursor = null,
             ),
         )
 
@@ -50,7 +63,14 @@ class SapphireAgentServerTest {
         val payload = TestJson.decodeFromString<LatestSnapshotsSuccessResponse>(response.bodyAsText()).payload
         assertEquals(1, payload.nodes.size)
         assertEquals("node-a", payload.nodes.single().nodeName)
-        assertEquals(snapshot, payload.nodes.single().devices.single())
+        assertEquals(snapshot.timestamp, payload.nodes.single().devices.single().timestamp)
+        assertEquals(snapshot.health, payload.nodes.single().devices.single().reportedHealth)
+        assertEquals("default", payload.evaluationPolicy?.policyName)
+        assertEquals(
+            listOf(LatestSnapshotPageRequest(limit = LatestSnapshotPageRequest.MAX_LIMIT)),
+            snapshotUseCase.latestPageRequests,
+        )
+        assertEquals(true, payload.pagination?.hasMore)
     }
 
     @Test
@@ -69,8 +89,8 @@ class SapphireAgentServerTest {
 
         assertEquals(HttpStatusCode.OK, foundResponse.status)
         assertEquals(
-            snapshot,
-            TestJson.decodeFromString<LatestDeviceSuccessResponse>(foundResponse.bodyAsText()).payload,
+            snapshot.timestamp,
+            TestJson.decodeFromString<LatestDeviceSuccessResponse>(foundResponse.bodyAsText()).payload.timestamp,
         )
         assertEquals(HttpStatusCode.NotFound, missingResponse.status)
         assertEquals(
@@ -85,7 +105,7 @@ class SapphireAgentServerTest {
         val nodeId = testNodeId(1)
         val deviceKey = deviceKeyA
         val snapshotUseCase = FakeSnapshotUseCase(
-            historyPayload = NodeDeviceHistoryPayload(
+            historyPayload = RawNodeDeviceHistory(
                 nodeId = nodeId.toString(),
                 nodeName = "node-a",
                 deviceKey = deviceKey,
@@ -120,7 +140,7 @@ class SapphireAgentServerTest {
     fun `history endpoint returns empty snapshots for unknown node device`() = testApplication {
         val nodeId = testNodeId(1)
         val snapshotUseCase = FakeSnapshotUseCase(
-            historyPayload = NodeDeviceHistoryPayload(
+            historyPayload = RawNodeDeviceHistory(
                 nodeId = nodeId.toString(),
                 nodeName = "",
                 deviceKey = "missing",
@@ -179,7 +199,7 @@ private data class LatestSnapshotsSuccessResponse(
 
 @Serializable
 private data class LatestDeviceSuccessResponse(
-    val payload: DiskSnapshot,
+    val payload: EvaluatedDiskSnapshot,
 )
 
 @Serializable
@@ -199,9 +219,10 @@ private data class HistoryRequest(
 )
 
 private class FakeSnapshotUseCase(
-    private val latestNodes: List<NodeSnapshot> = emptyList(),
+    private val latestNodes: List<RawNodeSnapshot> = emptyList(),
+    private val latestPage: LatestSnapshotPage = LatestSnapshotPage(emptyList(), hasMore = false, nextCursor = null),
     private val latestByDeviceKey: Map<String, DiskSnapshot> = emptyMap(),
-    private val historyPayload: NodeDeviceHistoryPayload = NodeDeviceHistoryPayload(
+    private val historyPayload: RawNodeDeviceHistory = RawNodeDeviceHistory(
         nodeId = "",
         nodeName = "",
         deviceKey = "",
@@ -210,10 +231,16 @@ private class FakeSnapshotUseCase(
 ) : SnapshotUseCase {
     val historyRequests = mutableListOf<HistoryRequest>()
     val latestDeviceRequests = mutableListOf<String>()
+    val latestPageRequests = mutableListOf<LatestSnapshotPageRequest>()
 
     override suspend fun saveSnapshot(snapshot: DiskSnapshot) = Unit
 
-    override suspend fun findLatestNodes(): List<NodeSnapshot> = latestNodes
+    override suspend fun findLatestNodes(): List<RawNodeSnapshot> = latestNodes
+
+    override suspend fun findLatestPage(request: LatestSnapshotPageRequest): LatestSnapshotPage {
+        latestPageRequests += request
+        return latestPage
+    }
 
     override suspend fun findLatestByDeviceKey(deviceKey: String): DiskSnapshot? {
         latestDeviceRequests += deviceKey
@@ -225,7 +252,7 @@ private class FakeSnapshotUseCase(
         nodeId: Uuid,
         deviceKey: String,
         query: HistoryQuery,
-    ): NodeDeviceHistoryPayload {
+    ): RawNodeDeviceHistory {
         historyRequests += HistoryRequest(
             nodeId = nodeId.toString(),
             deviceKey = deviceKey,

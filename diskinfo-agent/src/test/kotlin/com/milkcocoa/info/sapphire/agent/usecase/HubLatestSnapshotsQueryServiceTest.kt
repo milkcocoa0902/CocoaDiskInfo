@@ -15,6 +15,10 @@ import com.milkcocoa.info.sapphire.agent.testDiskSnapshot
 import com.milkcocoa.info.sapphire.agent.testNodeId
 import com.milkcocoa.info.sapphire.agent.testSnapshotRecord
 import com.milkcocoa.info.sapphire.core.api.NodeStatus
+import com.milkcocoa.info.sapphire.core.health.HealthPolicy
+import com.milkcocoa.info.sapphire.core.health.HealthPolicyResult
+import com.milkcocoa.info.sapphire.core.snapshot.DiskHealth
+import com.milkcocoa.info.sapphire.core.snapshot.DiskSnapshot
 import kotlinx.coroutines.runBlocking
 import java.time.Clock
 import java.time.Instant
@@ -215,15 +219,46 @@ class HubLatestSnapshotsQueryServiceTest {
             assertNull(service.findNodeLatest(unknownNodeId, "device-a"))
         }
 
+    @Test
+    fun `read responses evaluate bounded raw rows with one policy without changing storage`() =
+        withHubStore { snapshots, registry, runner ->
+            val now = Instant.parse("2026-08-15T12:00:00Z")
+            val nodeId = testNodeId(401)
+            val raw = testDiskSnapshot("device-a", timestampMillis = 1_000).copy(health = DiskHealth.GOOD)
+            runner.readWrite {
+                registry.activate(NodeAgentRegistration(nodeId, "node-a", 60, now))
+                snapshots.insert(testSnapshotRecord(raw, nodeId, "node-a", receivedAt = now))
+            }
+            val policy = FixedPolicy(version = 2, health = DiskHealth.BAD)
+            val service = service(snapshots, registry, runner, now, policy)
+
+            val latest = service.findLatestPage(LatestSnapshotPageRequest(limit = 1))
+            val nodeLatest = assertNotNull(service.findNodeLatest(nodeId, "device-a"))
+            val history = assertNotNull(service.findNodeHistory(nodeId, "device-a", HistoryQuery(limit = 1)))
+            val reread = runner.readOnly { snapshots.findLatest(nodeId, "device-a") }
+
+            assertEquals(3, policy.calls)
+            assertEquals(DiskHealth.BAD, latest.payload.nodes.single().devices.single().health)
+            assertEquals(DiskHealth.GOOD, latest.payload.nodes.single().devices.single().reportedHealth)
+            assertEquals(policy.metadata, latest.payload.evaluationPolicy)
+            assertEquals(policy.metadata, latest.payload.nodes.single().devices.single().evaluationPolicy)
+            assertEquals(DiskHealth.BAD, nodeLatest.snapshot?.health)
+            assertEquals(policy.metadata, history.payload.evaluationPolicy)
+            assertEquals(DiskHealth.BAD, history.payload.snapshots.single().health)
+            assertEquals(raw, reread?.snapshot)
+        }
+
     private fun service(
         snapshots: ExposedDiskSnapshotRepository,
         registry: ExposedNodeAgentRegistryRepository,
         runner: ExposedTransactionRunner,
         now: Instant,
+        policy: HealthPolicy = FixedPolicy(version = 1, health = DiskHealth.GOOD),
     ): HubLatestSnapshotsQueryService = HubLatestSnapshotsQueryService(
         snapshotRepository = snapshots,
         registryRepository = registry,
         transactionRunner = runner,
+        healthPolicy = policy,
         clock = Clock.fixed(now, ZoneOffset.UTC),
     )
 
@@ -249,4 +284,17 @@ class HubLatestSnapshotsQueryServiceTest {
 
     private fun kotlin.time.Instant.toJavaInstant(): Instant =
         Instant.ofEpochMilli(toEpochMilliseconds())
+
+    private class FixedPolicy(
+        version: Int,
+        private val health: DiskHealth,
+    ) : HealthPolicy("test", version) {
+        var calls = 0
+            private set
+
+        override fun evaluate(snapshot: DiskSnapshot): HealthPolicyResult {
+            calls += 1
+            return HealthPolicyResult(snapshot.health, health, emptyList())
+        }
+    }
 }

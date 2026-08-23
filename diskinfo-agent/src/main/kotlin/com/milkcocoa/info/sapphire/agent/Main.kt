@@ -272,12 +272,16 @@ private class OneshotCommand(
     private val dbUrl: String? by option("--db-url")
         .help("JDBC URL for local history storage")
 
+    private val healthPolicy: String? by option("--health-policy")
+        .help("Health policy for output (available: default)")
+
     override fun run() {
         val effective = resolveOneshotConfig(
             deviceOverrides().copy(
                 outputMode = output,
                 persist = persist,
                 jdbcUrl = dbUrl,
+                healthPolicy = healthPolicy,
             ),
         )
 
@@ -288,6 +292,7 @@ private class OneshotCommand(
                 persist = effective.persist,
                 storage = effective.storage,
                 deviceIdentityNamespaceSalt = effective.deviceIdentityNamespaceSalt,
+                healthPolicy = effective.healthPolicy,
             ),
         )
     }
@@ -318,6 +323,9 @@ private class StandaloneCommand(
     private val dbUrl: String? by option("--db-url")
         .help("JDBC URL for local history storage")
 
+    private val healthPolicy: String? by option("--health-policy")
+        .help("Health policy for Standalone API evaluation and console output (available: default)")
+
     override fun run() {
         if (currentContext.invokedSubcommand != null) return
         val effective = resolveStandaloneConfig(
@@ -327,6 +335,7 @@ private class StandaloneCommand(
                 host = host,
                 port = port,
                 jdbcUrl = dbUrl,
+                healthPolicy = healthPolicy,
             ),
         )
 
@@ -343,6 +352,7 @@ private class StandaloneCommand(
                 cleanupOnStartup = effective.cleanupOnStartup,
                 cleanupIntervalHours = effective.cleanupIntervalHours,
                 vacuumAfterCleanup = effective.vacuumAfterCleanup,
+                healthPolicy = effective.healthPolicy,
             ),
         )
     }
@@ -380,6 +390,9 @@ private class HubCommand(
         .long()
         .help("Maximum authenticated request body size")
 
+    private val healthPolicy: String? by option("--health-policy")
+        .help("Health policy for Hub API evaluation (available: default)")
+
     override fun run() {
         if (currentContext.invokedSubcommand != null) return
         val effective = resolveHubConfig(
@@ -391,6 +404,7 @@ private class HubCommand(
                 jdbcUrl = dbUrl,
                 nonceTtlSeconds = nonceTtlSeconds,
                 maxRequestBodyBytes = maxRequestBodyBytes,
+                healthPolicy = healthPolicy,
             ),
         )
         runtime.run(
@@ -405,6 +419,7 @@ private class HubCommand(
                 cleanupOnStartup = effective.cleanupOnStartup,
                 cleanupIntervalHours = effective.cleanupIntervalHours,
                 vacuumAfterCleanup = effective.vacuumAfterCleanup,
+                healthPolicy = effective.healthPolicy,
             ),
         )
     }
@@ -552,6 +567,9 @@ private class NodeAgentCommand(
         .int()
         .help("Immediate delivery retries after the first attempt")
 
+    private val healthPolicy: String? by option("--health-policy")
+        .help("Health policy for local console output only; does not affect Hub-side history evaluation (available: default)")
+
     override fun run() {
         if (currentContext.invokedSubcommand != null) return
         val effective = resolveNodeAgentConfig(
@@ -565,6 +583,7 @@ private class NodeAgentCommand(
                 heartbeatIntervalSeconds = heartbeatIntervalSeconds,
                 requestTimeoutSeconds = requestTimeoutSeconds,
                 maxRetries = maxRetries,
+                healthPolicy = healthPolicy,
             ),
         )
         runtime.run(
@@ -580,6 +599,7 @@ private class NodeAgentCommand(
                 requestTimeoutSeconds = effective.requestTimeoutSeconds,
                 maxRetries = effective.maxRetries,
                 deviceIdentityNamespaceSalt = effective.deviceIdentityNamespaceSalt,
+                healthPolicy = effective.healthPolicy,
             ),
         )
     }

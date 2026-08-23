@@ -677,7 +677,8 @@ components:
       type: "object"
       description: |
         Cache-first current state. Metadata fields are additive and may be absent when an older
-        compatible implementation returns only `nodes`.
+        compatible implementation returns only `nodes`. All returned snapshots are evaluated by
+        `evaluationPolicy`; raw ingest/storage snapshots are never policy-derived.
       properties:
         nodes:
           type: "array"
@@ -701,6 +702,10 @@ components:
           oneOf:
             - $ref: "#/components/schemas/PageMetadata"
             - type: "null"
+        evaluationPolicy:
+          oneOf:
+            - $ref: "#/components/schemas/HealthPolicyMetadata"
+            - type: "null"
       required: ["nodes"]
 
     NodeSnapshot:
@@ -714,7 +719,7 @@ components:
         devices:
           type: "array"
           items:
-            $ref: "#/components/schemas/DiskSnapshot"
+            $ref: "#/components/schemas/EvaluatedDiskSnapshot"
         status:
           type: ["string", "null"]
           enum: ["ACTIVE", "DISABLED", null]
@@ -786,7 +791,7 @@ components:
         snapshots:
           type: "array"
           items:
-            $ref: "#/components/schemas/DiskSnapshot"
+            $ref: "#/components/schemas/EvaluatedDiskSnapshot"
         status:
           type: ["string", "null"]
           enum: ["ACTIVE", "DISABLED", null]
@@ -800,6 +805,10 @@ components:
         currentError:
           oneOf:
             - $ref: "#/components/schemas/NodeApiError"
+            - type: "null"
+        evaluationPolicy:
+          oneOf:
+            - $ref: "#/components/schemas/HealthPolicyMetadata"
             - type: "null"
       required: ["nodeId", "nodeName", "deviceKey", "snapshots"]
 
@@ -839,6 +848,60 @@ components:
         - "capacityBytes"
         - "health"
         - "metricsSnapshot"
+
+    EvaluatedDiskSnapshot:
+      allOf:
+        - $ref: "#/components/schemas/DiskSnapshot"
+        - type: "object"
+          description: |
+            Read-model projection. `health` is calculated by the enclosing response-level
+            `evaluationPolicy` when present, or by this snapshot's `evaluationPolicy` for a
+            bare single-snapshot response. `reportedHealth` is the device-reported raw signal.
+            The three additive fields can be absent when decoding a legacy server response.
+          properties:
+            reportedHealth:
+              type: ["string", "null"]
+              enum: ["GOOD", "CAUTION", "BAD", "UNKNOWN", null]
+            evaluations:
+              type: "array"
+              default: []
+              items:
+                $ref: "#/components/schemas/AttributeEvaluation"
+            evaluationPolicy:
+              oneOf:
+                - $ref: "#/components/schemas/HealthPolicyMetadata"
+                - type: "null"
+
+    HealthPolicyMetadata:
+      type: "object"
+      properties:
+        policyName:
+          type: "string"
+        policyVersion:
+          type: "integer"
+          format: "int32"
+          minimum: 1
+      required: ["policyName", "policyVersion"]
+
+    AttributeEvaluation:
+      type: "object"
+      properties:
+        key:
+          type: "string"
+        ruleKey:
+          type: "string"
+        value:
+          type: ["integer", "null"]
+          format: "int64"
+        status:
+          type: "string"
+          enum: ["GOOD", "CAUTION", "BAD", "UNKNOWN"]
+        threshold:
+          type: ["integer", "null"]
+          format: "int64"
+        reason:
+          type: ["string", "null"]
+      required: ["key", "ruleKey", "value", "status", "threshold", "reason"]
 
     MetricsSnapshot:
       oneOf:
@@ -954,7 +1017,7 @@ components:
       type: "object"
       properties:
         payload:
-          $ref: "#/components/schemas/DiskSnapshot"
+          $ref: "#/components/schemas/EvaluatedDiskSnapshot"
       required: ["payload"]
 
     SuccessLatestSnapshotsPayload:

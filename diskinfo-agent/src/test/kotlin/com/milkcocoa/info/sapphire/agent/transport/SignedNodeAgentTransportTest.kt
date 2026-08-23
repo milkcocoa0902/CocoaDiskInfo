@@ -36,6 +36,7 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.ZERO
 import kotlin.time.Instant
@@ -71,7 +72,11 @@ class SignedNodeAgentTransportTest {
                     val expectedNonce = if (ingestRequests == 0) issuedNonce else nextNonce
                     val bodyBytes = request.rawBodyBytes()
                     verifySignedBody(request, bodyBytes, expectedNonce)
-                    val ingest = NodeAgentJson.decodeFromString<SnapshotIngestRequest>(bodyBytes.decodeToString())
+                    val bodyText = bodyBytes.decodeToString()
+                    assertFalse(bodyText.contains("evaluationPolicy"))
+                    assertFalse(bodyText.contains("reportedHealth"))
+                    assertFalse(bodyText.contains("evaluations"))
+                    val ingest = NodeAgentJson.decodeFromString<SnapshotIngestRequest>(bodyText)
                     ingestRequests += 1
                     respondJson(
                         SnapshotIngestResponse(

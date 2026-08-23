@@ -16,7 +16,10 @@ import com.milkcocoa.info.sapphire.core.api.NodeDeviceHistoryPayload
 import com.milkcocoa.info.sapphire.core.api.NodeSnapshot
 import com.milkcocoa.info.sapphire.core.api.NodeStatus
 import com.milkcocoa.info.sapphire.core.api.PageMetadata
-import com.milkcocoa.info.sapphire.core.snapshot.DiskSnapshot
+import com.milkcocoa.info.sapphire.core.health.DefaultHealthPolicy
+import com.milkcocoa.info.sapphire.core.health.HealthPolicy
+import com.milkcocoa.info.sapphire.core.snapshot.EvaluatedDiskSnapshot
+import com.milkcocoa.info.sapphire.core.snapshot.toEvaluatedDiskSnapshot
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -40,7 +43,7 @@ data class NodeScopedFreshnessContext(
 )
 
 data class HubNodeLatestQueryResult(
-    val snapshot: DiskSnapshot?,
+    val snapshot: EvaluatedDiskSnapshot?,
     val freshness: NodeScopedFreshnessContext,
 )
 
@@ -61,6 +64,7 @@ class HubLatestSnapshotsQueryService(
     private val snapshotRepository: DiskSnapshotRepository,
     private val registryRepository: NodeAgentRegistryRepository,
     private val transactionRunner: TransactionRunner,
+    private val healthPolicy: HealthPolicy = DefaultHealthPolicy,
     private val clock: Clock = Clock.systemUTC(),
     private val errorLimit: Int = DEFAULT_ERROR_LIMIT,
 ) : LatestSnapshotsQueryService {
@@ -92,7 +96,9 @@ class HubLatestSnapshotsQueryService(
                 NodeSnapshot(
                     nodeId = nodeId.toString(),
                     nodeName = registry.nodeName,
-                    devices = rows.map(StoredDiskSnapshot::snapshot),
+                    devices = rows.map(StoredDiskSnapshot::snapshot).map { snapshot ->
+                        snapshot.toEvaluatedDiskSnapshot(healthPolicy)
+                    },
                     status = NodeStatus.ACTIVE,
                     lastSeenAt = registry.lastSeenAt?.toKotlinInstant(),
                     deviceStates = rows.map { row ->
@@ -152,6 +158,7 @@ class HubLatestSnapshotsQueryService(
                     nextCursor = null,
                     hasMore = page.hasMore,
                 ),
+                evaluationPolicy = healthPolicy.metadata,
             ),
             nextCursor = page.nextCursor,
         )
@@ -167,7 +174,7 @@ class HubLatestSnapshotsQueryService(
         }
         registry ?: return null
         return HubNodeLatestQueryResult(
-            snapshot = latest?.snapshot,
+            snapshot = latest?.snapshot?.toEvaluatedDiskSnapshot(healthPolicy),
             freshness = freshnessContext(registry, deviceKey, latest, now),
         )
     }
@@ -187,7 +194,13 @@ class HubLatestSnapshotsQueryService(
         }
         registry ?: return null
         return HubNodeHistoryQueryResult(
-            payload = history.copy(nodeName = registry.nodeName),
+            payload = NodeDeviceHistoryPayload(
+                nodeId = history.nodeId,
+                nodeName = registry.nodeName,
+                deviceKey = history.deviceKey,
+                snapshots = history.snapshots.map { it.toEvaluatedDiskSnapshot(healthPolicy) },
+                evaluationPolicy = healthPolicy.metadata,
+            ),
             freshness = freshnessContext(registry, deviceKey, latest, now),
         )
     }

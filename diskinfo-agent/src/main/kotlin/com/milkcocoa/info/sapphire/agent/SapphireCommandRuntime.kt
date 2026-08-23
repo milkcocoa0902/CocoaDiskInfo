@@ -33,6 +33,8 @@ import com.milkcocoa.info.sapphire.agent.usecase.SnapshotUseCase
 import com.milkcocoa.info.sapphire.agent.usecase.SnapshotCleanupRequest
 import com.milkcocoa.info.sapphire.agent.usecase.SnapshotMaintenanceUseCase
 import com.milkcocoa.info.sapphire.agent.usecase.StandaloneLatestSnapshotsQueryService
+import com.milkcocoa.info.sapphire.core.health.DefaultHealthPolicy
+import com.milkcocoa.info.sapphire.core.health.HealthPolicy
 import kotlinx.coroutines.runBlocking
 import java.time.Instant
 import kotlin.time.Duration.Companion.hours
@@ -47,6 +49,7 @@ internal sealed interface SapphireCommandRequest {
         val persist: Boolean,
         val storage: StorageSettings,
         val deviceIdentityNamespaceSalt: String,
+        val healthPolicy: HealthPolicy = DefaultHealthPolicy,
     ) : SapphireCommandRequest {
         constructor(
             target: TargetDevice,
@@ -78,6 +81,7 @@ internal sealed interface SapphireCommandRequest {
         val cleanupOnStartup: Boolean,
         val cleanupIntervalHours: Long,
         val vacuumAfterCleanup: Boolean,
+        val healthPolicy: HealthPolicy = DefaultHealthPolicy,
     ) : SapphireCommandRequest {
         constructor(
             target: TargetDevice,
@@ -120,6 +124,7 @@ internal sealed interface SapphireCommandRequest {
         val cleanupOnStartup: Boolean,
         val cleanupIntervalHours: Long,
         val vacuumAfterCleanup: Boolean,
+        val healthPolicy: HealthPolicy = DefaultHealthPolicy,
     ) : SapphireCommandRequest
 
     data class BootstrapTokenCreate(
@@ -148,6 +153,7 @@ internal sealed interface SapphireCommandRequest {
         val requestTimeoutSeconds: Long,
         val maxRetries: Int,
         val deviceIdentityNamespaceSalt: String,
+        val healthPolicy: HealthPolicy = DefaultHealthPolicy,
     ) : SapphireCommandRequest
 
     data class NodeAgentJoin(
@@ -266,6 +272,7 @@ internal class ProductionSapphireCommandRuntime(
 
     private fun runOneshot(request: SapphireCommandRequest.Oneshot) {
         setupConsoleOutput(request.outputMode)
+        logHealthPolicy(request.healthPolicy, authority = "console")
 
         if (request.persist) {
             storageConnectionProvider.connect(request.storage).use { connection ->
@@ -275,7 +282,7 @@ internal class ProductionSapphireCommandRuntime(
                     SapphireExecutor.Oneshot(
                         device = request.target,
                         collector = createCollector(request.deviceIdentityNamespaceSalt),
-                        sink = createSnapshotSink(snapshotUseCase),
+                        sink = createSnapshotSink(snapshotUseCase, request.healthPolicy),
                     ),
                 )
             }
@@ -284,7 +291,7 @@ internal class ProductionSapphireCommandRuntime(
                 SapphireExecutor.Oneshot(
                     device = request.target,
                     collector = createCollector(request.deviceIdentityNamespaceSalt),
-                    sink = createSnapshotSink(snapshotUseCase = null),
+                    sink = createSnapshotSink(snapshotUseCase = null, healthPolicy = request.healthPolicy),
                 ),
             )
         }
@@ -293,6 +300,7 @@ internal class ProductionSapphireCommandRuntime(
     @OptIn(ExperimentalUuidApi::class)
     private fun runStandalone(request: SapphireCommandRequest.Standalone) {
         setupConsoleOutput(request.outputMode)
+        logHealthPolicy(request.healthPolicy, authority = "standalone-api-and-console")
         // Standalone now owns authentication tables as well as snapshot history.
         // Validate before opening the runtime pool so an operator gets the same
         // explicit migration boundary as Hub startup.
@@ -322,7 +330,7 @@ internal class ProductionSapphireCommandRuntime(
                     device = request.target,
                     collectionInterval = request.intervalSeconds.seconds,
                     collector = createCollector(request.deviceIdentityNamespaceSalt),
-                    sink = createSnapshotSink(snapshotUseCase),
+                    sink = createSnapshotSink(snapshotUseCase, request.healthPolicy),
                     server = SapphireAgentServer(
                         snapshotUseCase = snapshotUseCase,
                         host = request.host,
@@ -338,10 +346,14 @@ internal class ProductionSapphireCommandRuntime(
                                 nonceStore = nonces,
                             ),
                             signedRequestVerifier = verifier,
-                            queryService = StandaloneLatestSnapshotsQueryService(snapshotUseCase),
+                            queryService = StandaloneLatestSnapshotsQueryService(
+                                snapshotUseCase = snapshotUseCase,
+                                healthPolicy = request.healthPolicy,
+                            ),
                             snapshotUseCase = snapshotUseCase,
                             nonceTtl = AgentConfigDefaults.NONCE_TTL_SECONDS.seconds,
                             maximumRequestBodyBytes = AgentConfigDefaults.MAX_REQUEST_BODY_BYTES,
+                            healthPolicy = request.healthPolicy,
                         ),
                     ),
                     maintenanceRunner = maintenanceRunner,
@@ -362,14 +374,28 @@ internal class ProductionSapphireCommandRuntime(
             .also { ColotokLoggerContext.setDefault(it) }
     }
 
+    private fun logHealthPolicy(healthPolicy: HealthPolicy, authority: String) {
+        Colotok.info(
+            msg = "Using health policy.",
+            attr = mapOf(
+                "policy_name" to healthPolicy.metadata.policyName,
+                "policy_version" to healthPolicy.metadata.policyVersion.toString(),
+                "policy_authority" to authority,
+            ),
+        )
+    }
+
     private fun createCollector(namespaceSalt: String): SmartctlCollector {
         return SmartctlCollector(
             deviceKeyDeriver = UuidV5DeviceKeyDeriver(namespaceSalt),
         )
     }
 
-    private fun createSnapshotSink(snapshotUseCase: SnapshotUseCase?): SnapshotSink {
-        val outputSink = ColotokSnapshotSink()
+    private fun createSnapshotSink(
+        snapshotUseCase: SnapshotUseCase?,
+        healthPolicy: HealthPolicy = DefaultHealthPolicy,
+    ): SnapshotSink {
+        val outputSink = ColotokSnapshotSink(healthPolicy)
         return if (snapshotUseCase == null) {
             outputSink
         } else {

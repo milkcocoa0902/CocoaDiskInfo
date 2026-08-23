@@ -1,17 +1,19 @@
 package com.milkcocoa.info.sapphire.agent.usecase
 
 import com.milkcocoa.info.sapphire.agent.datastore.HistoryQuery
-import com.milkcocoa.info.sapphire.agent.datastore.LatestSnapshotCursor
 import com.milkcocoa.info.sapphire.agent.datastore.LatestSnapshotPageRequest
 import com.milkcocoa.info.sapphire.core.api.DeviceState
 import com.milkcocoa.info.sapphire.core.api.LatestSnapshotsPayload
 import com.milkcocoa.info.sapphire.core.api.NodeSnapshot
 import com.milkcocoa.info.sapphire.core.api.NodeStatus
 import com.milkcocoa.info.sapphire.core.api.PageMetadata
+import com.milkcocoa.info.sapphire.core.api.NodeDeviceHistoryPayload
+import com.milkcocoa.info.sapphire.core.health.DefaultHealthPolicy
+import com.milkcocoa.info.sapphire.core.health.HealthPolicy
+import com.milkcocoa.info.sapphire.core.snapshot.toEvaluatedDiskSnapshot
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
-import java.util.UUID
 import kotlin.time.Instant as KotlinInstant
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
@@ -20,40 +22,34 @@ import kotlin.uuid.Uuid
 class StandaloneLatestSnapshotsQueryService(
     private val snapshotUseCase: SnapshotUseCase,
     private val clock: Clock = Clock.systemUTC(),
+    private val healthPolicy: HealthPolicy = DefaultHealthPolicy,
 ) : LatestSnapshotsQueryService {
     override suspend fun findLatestPage(request: LatestSnapshotPageRequest): HubLatestSnapshotsQueryResult {
-        val rows = snapshotUseCase.findLatestNodes()
-            .flatMap { node -> node.devices.map { snapshot -> Row(node, snapshot) } }
-            .sortedWith(compareBy<Row>({ it.node.nodeId.toUuid() }, { it.snapshot.deviceKey }))
-            .filter { row -> request.cursor == null || row.isAfter(request.cursor) }
-        val selected = rows.take(request.limit)
-        val hasMore = rows.size > selected.size
-        val grouped = selected.groupBy { it.node.nodeId }.map { (_, nodeRows) ->
-            val source = nodeRows.first().node
+        val page = snapshotUseCase.findLatestPage(request)
+        val grouped = page.rows.groupBy { it.origin.nodeId }.map { (_, nodeRows) ->
+            val source = nodeRows.first().origin
             NodeSnapshot(
-                nodeId = source.nodeId,
+                nodeId = source.nodeId.toString(),
                 nodeName = source.nodeName,
-                devices = nodeRows.map { it.snapshot },
+                devices = nodeRows.map { it.snapshot.toEvaluatedDiskSnapshot(healthPolicy) },
                 status = NodeStatus.ACTIVE,
             )
-        }
-        val next = selected.lastOrNull()?.takeIf { hasMore }?.let {
-            LatestSnapshotCursor(it.node.nodeId.toUuid(), it.snapshot.deviceKey)
         }
         return HubLatestSnapshotsQueryResult(
             payload = LatestSnapshotsPayload(
                 nodes = grouped,
                 generatedAt = clock.instant().toKotlinInstant(),
-                pagination = PageMetadata(limit = request.limit, hasMore = hasMore),
+                pagination = PageMetadata(limit = request.limit, hasMore = page.hasMore),
+                evaluationPolicy = healthPolicy.metadata,
             ),
-            nextCursor = next,
+            nextCursor = page.nextCursor,
         )
     }
 
     override suspend fun findNodeLatest(nodeId: Uuid, deviceKey: String): HubNodeLatestQueryResult? {
         val stored = snapshotUseCase.findLatest(nodeId, deviceKey) ?: return null
         return HubNodeLatestQueryResult(
-            snapshot = stored.snapshot,
+            snapshot = stored.snapshot.toEvaluatedDiskSnapshot(healthPolicy),
             freshness = NodeScopedFreshnessContext(
                 nodeId = nodeId.toString(),
                 nodeName = stored.origin.nodeName,
@@ -75,7 +71,13 @@ class StandaloneLatestSnapshotsQueryService(
         val stored = snapshotUseCase.findLatest(nodeId, deviceKey)
         val nodeName = stored?.origin?.nodeName ?: history.nodeName
         return HubNodeHistoryQueryResult(
-            payload = history.copy(nodeName = nodeName),
+            payload = NodeDeviceHistoryPayload(
+                nodeId = history.nodeId,
+                nodeName = nodeName,
+                deviceKey = history.deviceKey,
+                snapshots = history.snapshots.map { it.toEvaluatedDiskSnapshot(healthPolicy) },
+                evaluationPolicy = healthPolicy.metadata,
+            ),
             freshness = NodeScopedFreshnessContext(
                 nodeId = nodeId.toString(),
                 nodeName = nodeName,
@@ -98,20 +100,5 @@ class StandaloneLatestSnapshotsQueryService(
         )
     }
 
-    private fun Row.isAfter(cursor: LatestSnapshotCursor): Boolean {
-        val nodeId = node.nodeId.toUuid()
-        return nodeId > cursor.nodeId || (nodeId == cursor.nodeId && snapshot.deviceKey > cursor.deviceKey)
-    }
-
-    private fun String.toUuid(): Uuid {
-        val value = UUID.fromString(this)
-        return Uuid.fromLongs(value.mostSignificantBits, value.leastSignificantBits)
-    }
-
     private fun Instant.toKotlinInstant(): KotlinInstant = KotlinInstant.fromEpochMilliseconds(toEpochMilli())
-
-    private data class Row(
-        val node: NodeSnapshot,
-        val snapshot: com.milkcocoa.info.sapphire.core.snapshot.DiskSnapshot,
-    )
 }

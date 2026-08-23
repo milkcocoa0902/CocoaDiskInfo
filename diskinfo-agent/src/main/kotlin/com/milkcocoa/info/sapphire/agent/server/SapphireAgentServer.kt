@@ -3,11 +3,18 @@ package com.milkcocoa.info.sapphire.agent.server
 import com.milkcocoa.info.sapphire.agent.datastore.DEFAULT_HISTORY_LIMIT
 import com.milkcocoa.info.sapphire.agent.datastore.HistoryOrder
 import com.milkcocoa.info.sapphire.agent.datastore.HistoryQuery
+import com.milkcocoa.info.sapphire.agent.datastore.LatestSnapshotPageRequest
 import com.milkcocoa.info.sapphire.agent.datastore.MAX_HISTORY_LIMIT
 import com.milkcocoa.info.sapphire.agent.usecase.SnapshotUseCase
 import com.milkcocoa.info.sapphire.core.api.ApiError
 import com.milkcocoa.info.sapphire.core.api.ApiResponse
 import com.milkcocoa.info.sapphire.core.api.LatestSnapshotsPayload
+import com.milkcocoa.info.sapphire.core.api.NodeDeviceHistoryPayload
+import com.milkcocoa.info.sapphire.core.api.NodeSnapshot
+import com.milkcocoa.info.sapphire.core.api.PageMetadata
+import com.milkcocoa.info.sapphire.core.health.DefaultHealthPolicy
+import com.milkcocoa.info.sapphire.core.health.HealthPolicy
+import com.milkcocoa.info.sapphire.core.snapshot.toEvaluatedDiskSnapshot
 import io.ktor.http.HttpStatusCode
 import io.ktor.resources.Resource
 import io.ktor.serialization.kotlinx.json.json
@@ -90,6 +97,7 @@ class SapphireHubServer(
 @OptIn(ExperimentalUuidApi::class)
 fun Application.installSapphireAgentApi(
     snapshotUseCase: SnapshotUseCase,
+    healthPolicy: HealthPolicy = DefaultHealthPolicy,
 ) {
     install(ContentNegotiation) {
         json(Json)
@@ -98,10 +106,20 @@ fun Application.installSapphireAgentApi(
 
     routing {
         get<LatestSnapshotsResource> {
+            val pageRequest = LatestSnapshotPageRequest(limit = LatestSnapshotPageRequest.MAX_LIMIT)
+            val page = snapshotUseCase.findLatestPage(pageRequest)
             call.respond(
                 ApiResponse.Success(
                     LatestSnapshotsPayload(
-                        nodes = snapshotUseCase.findLatestNodes(),
+                        nodes = page.rows.groupBy { it.origin }.map { (origin, rows) ->
+                            NodeSnapshot(
+                                nodeId = origin.nodeId.toString(),
+                                nodeName = origin.nodeName,
+                                devices = rows.map { it.snapshot.toEvaluatedDiskSnapshot(healthPolicy) },
+                            )
+                        },
+                        pagination = PageMetadata(limit = pageRequest.limit, hasMore = page.hasMore),
+                        evaluationPolicy = healthPolicy.metadata,
                     ),
                 ),
             )
@@ -136,7 +154,7 @@ fun Application.installSapphireAgentApi(
                 return@get
             }
 
-            call.respond(ApiResponse.Success(snapshot))
+            call.respond(ApiResponse.Success(snapshot.toEvaluatedDiskSnapshot(healthPolicy)))
         }
 
         get<DeviceHistoryResource> { resource ->
@@ -166,7 +184,15 @@ fun Application.installSapphireAgentApi(
                         nodeId = nodeId,
                         deviceKey = resource.deviceKey,
                         query = query,
-                    ),
+                    ).let { history ->
+                        NodeDeviceHistoryPayload(
+                            nodeId = history.nodeId,
+                            nodeName = history.nodeName,
+                            deviceKey = history.deviceKey,
+                            snapshots = history.snapshots.map { it.toEvaluatedDiskSnapshot(healthPolicy) },
+                            evaluationPolicy = healthPolicy.metadata,
+                        )
+                    },
                 ),
             )
         }

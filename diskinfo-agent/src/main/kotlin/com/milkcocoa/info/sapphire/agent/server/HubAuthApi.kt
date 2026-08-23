@@ -26,6 +26,7 @@ import com.milkcocoa.info.sapphire.core.auth.CocoaAuthErrorCodes
 import com.milkcocoa.info.sapphire.core.auth.CocoaAuthProtocol
 import com.milkcocoa.info.sapphire.core.auth.NonceIssueRequest
 import com.milkcocoa.info.sapphire.core.auth.NonceIssueResponse
+import com.milkcocoa.info.sapphire.core.snapshot.SnapshotEvaluationException
 import io.ktor.http.CacheControl
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -309,6 +310,12 @@ internal suspend fun ApplicationCall.handleApiErrors(block: suspend () -> Unit) 
         respondFailure(HttpStatusCode.Unauthorized, "authentication_invalid", error.message)
     } catch (error: UnsupportedContentEncodingException) {
         respondFailure(HttpStatusCode.UnsupportedMediaType, "content_encoding_not_supported", error.message)
+    } catch (error: SnapshotEvaluationException) {
+        respondFailure(
+            HttpStatusCode.InternalServerError,
+            "health_policy_evaluation_failed",
+            "Configured health policy could not evaluate a stored snapshot.",
+        )
     } catch (error: CancellationException) {
         throw error
     } catch (_: Exception) {

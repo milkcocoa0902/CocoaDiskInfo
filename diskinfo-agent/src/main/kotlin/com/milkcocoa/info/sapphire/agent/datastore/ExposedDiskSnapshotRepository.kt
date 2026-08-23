@@ -1,7 +1,5 @@
 package com.milkcocoa.info.sapphire.agent.datastore
 
-import com.milkcocoa.info.sapphire.core.api.NodeSnapshot
-import com.milkcocoa.info.sapphire.core.api.NodeDeviceHistoryPayload
 import com.milkcocoa.info.sapphire.core.ata.AtaSmartAttributeId
 import com.milkcocoa.info.sapphire.core.snapshot.DiskSnapshot
 import com.milkcocoa.info.sapphire.core.snapshot.MetricsSnapshot
@@ -102,14 +100,14 @@ class ExposedDiskSnapshotRepository : DiskSnapshotRepository {
     }
 
     @OptIn(ExperimentalUuidApi::class)
-    override fun findLatestNodes(): List<NodeSnapshot> =
+    override fun findLatestNodes(): List<RawNodeSnapshot> =
         DiskSnapshotTable
             .selectAll()
             .orderBy(DiskSnapshotTable.collectTimeStamp to SortOrder.DESC)
             .distinctBy { it[DiskSnapshotTable.nodeId] to it[DiskSnapshotTable.deviceKey] }
             .groupBy { it[DiskSnapshotTable.nodeId] to it[DiskSnapshotTable.nodeName] }
             .map { (node, rows) ->
-                NodeSnapshot(
+                RawNodeSnapshot(
                     nodeId = node.first.toString(),
                     nodeName = node.second,
                     devices = rows
@@ -212,7 +210,7 @@ class ExposedDiskSnapshotRepository : DiskSnapshotRepository {
         nodeId: Uuid,
         deviceKey: String,
         query: HistoryQuery,
-    ): NodeDeviceHistoryPayload {
+    ): RawNodeDeviceHistory {
         var condition: Op<Boolean> =
             (DiskSnapshotTable.nodeId eq nodeId) and (DiskSnapshotTable.deviceKey eq deviceKey)
 
@@ -235,7 +233,7 @@ class ExposedDiskSnapshotRepository : DiskSnapshotRepository {
             .limit(query.limit)
             .toList()
 
-        return NodeDeviceHistoryPayload(
+        return RawNodeDeviceHistory(
             nodeId = nodeId.toString(),
             nodeName = rows.firstOrNull()?.get(DiskSnapshotTable.nodeName).orEmpty(),
             deviceKey = deviceKey,

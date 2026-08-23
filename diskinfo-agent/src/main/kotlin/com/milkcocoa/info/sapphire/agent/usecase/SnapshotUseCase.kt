@@ -5,12 +5,12 @@ import com.milkcocoa.info.sapphire.agent.datastore.HistoryQuery
 import com.milkcocoa.info.sapphire.agent.datastore.LatestSnapshotPage
 import com.milkcocoa.info.sapphire.agent.datastore.LatestSnapshotPageRequest
 import com.milkcocoa.info.sapphire.agent.datastore.NodeIdentity
+import com.milkcocoa.info.sapphire.agent.datastore.RawNodeDeviceHistory
+import com.milkcocoa.info.sapphire.agent.datastore.RawNodeSnapshot
 import com.milkcocoa.info.sapphire.agent.datastore.SnapshotOrigin
 import com.milkcocoa.info.sapphire.agent.datastore.SnapshotPersistenceRecord
 import com.milkcocoa.info.sapphire.agent.datastore.StoredDiskSnapshot
 import com.milkcocoa.info.sapphire.agent.datastore.TransactionRunner
-import com.milkcocoa.info.sapphire.core.api.NodeDeviceHistoryPayload
-import com.milkcocoa.info.sapphire.core.api.NodeSnapshot
 import com.milkcocoa.info.sapphire.core.snapshot.DiskSnapshot
 import java.time.Clock
 import kotlin.uuid.ExperimentalUuidApi
@@ -19,7 +19,7 @@ import kotlin.uuid.Uuid
 interface SnapshotUseCase {
     suspend fun saveSnapshot(snapshot: DiskSnapshot)
 
-    suspend fun findLatestNodes(): List<NodeSnapshot>
+    suspend fun findLatestNodes(): List<RawNodeSnapshot>
 
     suspend fun findLatestByDeviceKey(deviceKey: String): DiskSnapshot?
 
@@ -35,7 +35,7 @@ interface SnapshotUseCase {
         nodeId: Uuid,
         deviceKey: String,
         query: HistoryQuery,
-    ): NodeDeviceHistoryPayload
+    ): RawNodeDeviceHistory
 }
 
 @OptIn(ExperimentalUuidApi::class)
@@ -59,7 +59,7 @@ class TransactionalSnapshotUseCase(
         }
     }
 
-    override suspend fun findLatestNodes(): List<NodeSnapshot> =
+    override suspend fun findLatestNodes(): List<RawNodeSnapshot> =
         transactionRunner.readOnly {
             repository.findLatestNodes()
         }
@@ -85,7 +85,7 @@ class TransactionalSnapshotUseCase(
         nodeId: Uuid,
         deviceKey: String,
         query: HistoryQuery,
-    ): NodeDeviceHistoryPayload =
+    ): RawNodeDeviceHistory =
         transactionRunner.readOnly {
             repository.findHistory(
                 nodeId = nodeId,

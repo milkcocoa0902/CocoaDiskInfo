@@ -144,6 +144,7 @@ fun Application.installHubReadApi(dependencies: HubReadApiDependencies) {
                     ),
                     partial = freshness.snapshotMissing || freshness.deviceState.stale || freshness.currentError != null,
                     errors = listOfNotNull(freshness.currentError),
+                    evaluationPolicy = result.snapshot.evaluationPolicy,
                 )
                 call.respondWithNextNonce(
                     dependencies.signedRequestVerifier,

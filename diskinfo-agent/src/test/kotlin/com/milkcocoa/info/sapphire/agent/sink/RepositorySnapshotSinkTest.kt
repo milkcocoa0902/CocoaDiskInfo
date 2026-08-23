@@ -3,8 +3,8 @@ package com.milkcocoa.info.sapphire.agent.sink
 import com.milkcocoa.info.sapphire.agent.datastore.HistoryQuery
 import com.milkcocoa.info.sapphire.agent.testDiskSnapshot
 import com.milkcocoa.info.sapphire.agent.usecase.SnapshotUseCase
-import com.milkcocoa.info.sapphire.core.api.NodeDeviceHistoryPayload
-import com.milkcocoa.info.sapphire.core.api.NodeSnapshot
+import com.milkcocoa.info.sapphire.agent.datastore.RawNodeDeviceHistory
+import com.milkcocoa.info.sapphire.agent.datastore.RawNodeSnapshot
 import com.milkcocoa.info.sapphire.core.snapshot.DiskSnapshot
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
@@ -67,7 +67,7 @@ private class SaveOnlySnapshotUseCase(
 ) : SnapshotUseCase {
     override suspend fun saveSnapshot(snapshot: DiskSnapshot) = save(snapshot)
 
-    override suspend fun findLatestNodes(): List<NodeSnapshot> = error("Not used by RepositorySnapshotSink.")
+    override suspend fun findLatestNodes(): List<RawNodeSnapshot> = error("Not used by RepositorySnapshotSink.")
 
     override suspend fun findLatestByDeviceKey(deviceKey: String): DiskSnapshot? =
         error("Not used by RepositorySnapshotSink.")
@@ -76,5 +76,5 @@ private class SaveOnlySnapshotUseCase(
         nodeId: Uuid,
         deviceKey: String,
         query: HistoryQuery,
-    ): NodeDeviceHistoryPayload = error("Not used by RepositorySnapshotSink.")
+    ): RawNodeDeviceHistory = error("Not used by RepositorySnapshotSink.")
 }

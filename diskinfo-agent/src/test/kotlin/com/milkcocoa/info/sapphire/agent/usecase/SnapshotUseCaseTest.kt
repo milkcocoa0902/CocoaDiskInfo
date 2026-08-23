@@ -4,6 +4,8 @@ import com.milkcocoa.info.sapphire.agent.datastore.DiskSnapshotRepository
 import com.milkcocoa.info.sapphire.agent.datastore.HistoryQuery
 import com.milkcocoa.info.sapphire.agent.datastore.LatestSnapshotPage
 import com.milkcocoa.info.sapphire.agent.datastore.LatestSnapshotPageRequest
+import com.milkcocoa.info.sapphire.agent.datastore.RawNodeDeviceHistory
+import com.milkcocoa.info.sapphire.agent.datastore.RawNodeSnapshot
 import com.milkcocoa.info.sapphire.agent.datastore.SnapshotInsertResult
 import com.milkcocoa.info.sapphire.agent.datastore.SnapshotInsertStatus
 import com.milkcocoa.info.sapphire.agent.datastore.SnapshotOrigin
@@ -12,8 +14,6 @@ import com.milkcocoa.info.sapphire.agent.datastore.StoredDiskSnapshot
 import com.milkcocoa.info.sapphire.agent.datastore.TransactionRunner
 import com.milkcocoa.info.sapphire.agent.testDiskSnapshot
 import com.milkcocoa.info.sapphire.agent.testNodeId
-import com.milkcocoa.info.sapphire.core.api.NodeDeviceHistoryPayload
-import com.milkcocoa.info.sapphire.core.api.NodeSnapshot
 import com.milkcocoa.info.sapphire.core.snapshot.DiskSnapshot
 import kotlinx.coroutines.runBlocking
 import java.time.Clock
@@ -59,9 +59,9 @@ class SnapshotUseCaseTest {
         val nodeId = testNodeId(1)
         val snapshot = testDiskSnapshot(deviceKey, timestampMillis = 1_000)
         val repository = RecordingDiskSnapshotRepository(
-            latestNodesResult = listOf(NodeSnapshot(nodeId.toString(), "node-a", listOf(snapshot))),
+            latestNodesResult = listOf(RawNodeSnapshot(nodeId.toString(), "node-a", listOf(snapshot))),
             latestByDeviceKeyResult = snapshot,
-            historyResult = NodeDeviceHistoryPayload(
+            historyResult = RawNodeDeviceHistory(
                 nodeId = nodeId.toString(),
                 nodeName = "node-a",
                 deviceKey = deviceKey,
@@ -113,9 +113,9 @@ private class RecordingTransactionRunner : TransactionRunner {
 
 @OptIn(ExperimentalUuidApi::class)
 private class RecordingDiskSnapshotRepository(
-    private val latestNodesResult: List<NodeSnapshot> = emptyList(),
+    private val latestNodesResult: List<RawNodeSnapshot> = emptyList(),
     private val latestByDeviceKeyResult: DiskSnapshot? = null,
-    private val historyResult: NodeDeviceHistoryPayload = NodeDeviceHistoryPayload(
+    private val historyResult: RawNodeDeviceHistory = RawNodeDeviceHistory(
         nodeId = "",
         nodeName = "",
         deviceKey = "",
@@ -136,7 +136,7 @@ private class RecordingDiskSnapshotRepository(
         )
     }
 
-    override fun findLatestNodes(): List<NodeSnapshot> {
+    override fun findLatestNodes(): List<RawNodeSnapshot> {
         calls += "findLatestNodes"
         return latestNodesResult
     }
@@ -157,7 +157,7 @@ private class RecordingDiskSnapshotRepository(
         nodeId: Uuid,
         deviceKey: String,
         query: HistoryQuery,
-    ): NodeDeviceHistoryPayload {
+    ): RawNodeDeviceHistory {
         calls += "findHistory:$nodeId:$deviceKey:${query.limit}"
         return historyResult
     }

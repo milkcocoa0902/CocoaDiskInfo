@@ -158,7 +158,7 @@ class AgentApiClient(
             }
             .buildString()
         val response = signedGet(context, url, canonicalRequest)
-        return response.body<DeviceHistoryResponse>().payload
+        return response.body<DeviceHistoryResponse>().payload.also { it.requireConsistentEvaluationPolicy() }
     }
 
     override fun close() {
@@ -338,12 +338,31 @@ class AgentApiClient(
     }
 }
 
-class AgentApiException(
+open class AgentApiException(
     message: String,
     val statusCode: Int? = null,
     val errorCode: String? = null,
     cause: Throwable? = null,
 ) : RuntimeException(message, cause)
+
+class LatestSnapshotPolicyMismatchException(
+    message: String,
+) : AgentApiException(message)
+
+internal fun NodeDeviceHistoryPayload.requireConsistentEvaluationPolicy() {
+    val policies = buildList {
+        add(evaluationPolicy)
+        snapshots.forEach { add(it.evaluationPolicy) }
+    }
+    if (policies.all { it == null }) return
+
+    val knownPolicies = policies.filterNotNull().distinct()
+    if (policies.any { it == null } || knownPolicies.size != 1) {
+        throw LatestSnapshotPolicyMismatchException(
+            "Device history has inconsistent evaluation policy metadata. Reload after the server policy stabilizes.",
+        )
+    }
+}
 
 @Serializable
 private data class LatestSnapshotsResponse(

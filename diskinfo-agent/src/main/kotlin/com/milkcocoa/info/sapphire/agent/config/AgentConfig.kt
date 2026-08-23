@@ -14,6 +14,7 @@ data class AgentConfig(
     val auth: AuthConfig = AuthConfig(),
     val retention: RetentionConfig = RetentionConfig(),
     val maintenance: MaintenanceConfig = MaintenanceConfig(),
+    val health: HealthConfig = HealthConfig(),
 ) {
     data class SmartctlConfig(
         val scan: Boolean? = null,
@@ -74,6 +75,10 @@ data class AgentConfig(
         val cleanupIntervalHours: Long? = null,
         val vacuumAfterCleanup: Boolean? = null,
     )
+
+    data class HealthConfig(
+        val policy: String? = null,
+    )
 }
 
 object AgentConfigDefaults {
@@ -93,4 +98,5 @@ object AgentConfigDefaults {
     const val DEFAULT_CLEANUP_ON_STARTUP = true
     const val DEFAULT_CLEANUP_INTERVAL_HOURS = 24L
     const val DEFAULT_VACUUM_AFTER_CLEANUP = false
+    const val DEFAULT_HEALTH_POLICY = "default"
 }

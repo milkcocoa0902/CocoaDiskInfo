@@ -5,6 +5,8 @@ import com.milkcocoa.info.sapphire.agent.insertDiskSnapshot
 import com.milkcocoa.info.sapphire.agent.testDiskSnapshot
 import com.milkcocoa.info.sapphire.agent.testSnapshotRecord
 import com.milkcocoa.info.sapphire.agent.testNodeId
+import com.milkcocoa.info.sapphire.core.health.DefaultHealthPolicy
+import com.milkcocoa.info.sapphire.core.snapshot.toEvaluatedDiskSnapshot
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -19,6 +21,7 @@ import java.time.ZoneOffset
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.io.path.absolutePathString
 import kotlin.io.path.createTempFile
@@ -45,6 +48,24 @@ class ExposedDiskSnapshotRepositoryTest {
     }
 
     @Test
+    fun `storage JSON stays raw after an evaluated read`() {
+        val jdbcUrl = connectDiskSnapshotTestDatabase()
+        val repository = ExposedDiskSnapshotRepository()
+        val raw = testDiskSnapshot(deviceKeyA, timestampMillis = 1_000)
+        transaction { repository.insert(testSnapshotRecord(raw)) }
+
+        val before = snapshotJson(jdbcUrl)
+        transaction { repository.findLatestByDeviceKey(deviceKeyA) }
+            ?.toEvaluatedDiskSnapshot(DefaultHealthPolicy)
+        val after = snapshotJson(jdbcUrl)
+
+        assertEquals(before, after)
+        assertFalse(after.contains("evaluationPolicy"))
+        assertFalse(after.contains("reportedHealth"))
+        assertFalse(after.contains("evaluations"))
+    }
+
+    @Test
     fun `insert stores collect time with canonical UTC offset`() {
         val jdbcUrl = connectDiskSnapshotTestDatabase()
         val repository = ExposedDiskSnapshotRepository()
@@ -65,6 +86,15 @@ class ExposedDiskSnapshotRepositoryTest {
             ZoneOffset.UTC,
             OffsetDateTime.parse(storedCollectTime.replace(' ', 'T')).offset,
         )
+    }
+
+    private fun snapshotJson(jdbcUrl: String): String = DriverManager.getConnection(jdbcUrl).use { connection ->
+        connection.createStatement().use { statement ->
+            statement.executeQuery("SELECT snapshot_json FROM disk_snapshot").use { rows ->
+                check(rows.next())
+                rows.getString(1)
+            }
+        }
     }
 
     @Test

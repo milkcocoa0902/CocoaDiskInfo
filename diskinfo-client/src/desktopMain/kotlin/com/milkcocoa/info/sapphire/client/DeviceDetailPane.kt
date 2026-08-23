@@ -27,12 +27,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.milkcocoa.info.sapphire.core.api.NodeSnapshot
-import com.milkcocoa.info.sapphire.core.snapshot.DiskSnapshot
+import com.milkcocoa.info.sapphire.core.snapshot.EvaluatedDiskSnapshot
 
 @Composable
 internal fun DeviceDetailPane(
     node: NodeSnapshot,
-    snapshot: DiskSnapshot,
+    snapshot: EvaluatedDiskSnapshot,
     historySourceKey: String,
     loadDeviceHistory: DeviceHistoryLoader,
     modifier: Modifier = Modifier,
@@ -109,7 +109,7 @@ private fun DetailTabs(
 @Composable
 private fun CurrentDeviceDetail(
     node: NodeSnapshot,
-    snapshot: DiskSnapshot,
+    snapshot: EvaluatedDiskSnapshot,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -127,7 +127,7 @@ private fun CurrentDeviceDetail(
 @Composable
 private fun DetailHeader(
     node: NodeSnapshot,
-    snapshot: DiskSnapshot,
+    snapshot: EvaluatedDiskSnapshot,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -171,6 +171,20 @@ private fun DetailHeader(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+            Text(
+                text = snapshot.evaluationPolicy.policyProvenanceText(),
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFFA7ADB3),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = snapshot.healthComparisonText(),
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFF858C93),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
@@ -178,7 +192,7 @@ private fun DetailHeader(
 @Composable
 private fun FocusMetrics(
     node: NodeSnapshot,
-    snapshot: DiskSnapshot,
+    snapshot: EvaluatedDiskSnapshot,
 ) {
     val universal = snapshot.metricsSnapshot.universal
     val lifetimeRemaining = universal.lifetimeRemainingPercent
@@ -196,9 +210,15 @@ private fun FocusMetrics(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             HighlightMetric(
-                label = "Health",
+                label = "Evaluated Health",
                 value = snapshot.health.name,
                 accent = healthColor(snapshot.health),
+                modifier = Modifier.weight(1f),
+            )
+            HighlightMetric(
+                label = "Reported Health",
+                value = snapshot.reportedHealth?.name ?: "Unknown",
+                accent = snapshot.reportedHealth?.let(::healthColor) ?: Color(0xFF9AA1A8),
                 modifier = Modifier.weight(1f),
             )
             HighlightMetric(

@@ -57,6 +57,35 @@ class CliCommandTest {
     }
 
     @Test
+    fun `health policy option is limited to runtime modes and documented for node agent`() {
+        listOf("oneshot", "standalone", "hub").forEach { mode ->
+            val result = command().test(listOf(mode, "--help"))
+            assertEquals(0, result.statusCode, result.output)
+            assertContains(result.output, "--health-policy")
+        }
+
+        val nodeHelp = command().test(listOf("node-agent", "--help"))
+        assertEquals(0, nodeHelp.statusCode, nodeHelp.output)
+        assertContains(nodeHelp.output, "--health-policy")
+        assertContains(nodeHelp.output, "local console output only")
+        assertContains(nodeHelp.output, "Hub-side history evaluation")
+
+        val dbHelp = command().test(listOf("db", "migrate", "--help"))
+        assertEquals(0, dbHelp.statusCode, dbHelp.output)
+        assertTrue("--health-policy" !in dbHelp.output)
+    }
+
+    @Test
+    fun `health policy CLI override is validated before a request is run`() {
+        val runtime = RecordingRuntime()
+        val result = command(runtime).test("oneshot", "--scan", "--health-policy", "unknown")
+
+        assertTrue(result.statusCode != 0, result.output)
+        assertContains(result.output, "Available policies: default")
+        assertEquals(emptyList(), runtime.requests)
+    }
+
+    @Test
     fun `legacy mode flags are rejected`() {
         listOf(
             listOf("--oneshot", "--scan"),

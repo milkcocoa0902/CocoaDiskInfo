@@ -52,5 +52,10 @@ cleanupOnStartup = true
 cleanupIntervalHours = 24
 vacuumAfterCleanup = false
 
+[health]
+# Built-in policy used for API/console evaluation. The default policy is currently
+# the only supported policy; raw snapshots remain policy-neutral.
+policy = "default"
+
 [output]
 mode = "text"

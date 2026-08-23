@@ -13,6 +13,7 @@ import com.milkcocoa.info.sapphire.core.auth.CocoaAuthorization
 import com.milkcocoa.info.sapphire.core.auth.Ed25519Keys
 import com.milkcocoa.info.sapphire.core.auth.NonceIssueResponse
 import com.milkcocoa.info.sapphire.core.auth.SignedRequestJws
+import com.milkcocoa.info.sapphire.core.health.HealthPolicyMetadata
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -229,6 +230,40 @@ class AgentApiClientTest {
         assertEquals("principal_disabled", error.errorCode)
         assertEquals(1, nonceRequests)
         assertEquals(1, latestRequests)
+        api.close()
+    }
+
+    @Test
+    fun `client surfaces a latest-page policy mismatch`() = runBlocking {
+        var latestRequests = 0
+        val client = clientWithHandler { request ->
+            when (request.url.encodedPath) {
+                CocoaAuthProtocol.NONCE_PATH -> respondJson(
+                    NonceIssueResponse(nonce(7), Instant.DISTANT_FUTURE),
+                )
+
+                "/api/v1/snapshots/latest" -> {
+                    val policy = HealthPolicyMetadata("default", latestRequests + 1)
+                    val page = LatestSnapshotsPayload(
+                        nodes = emptyList(),
+                        pagination = if (latestRequests++ == 0) {
+                            com.milkcocoa.info.sapphire.core.api.PageMetadata(100, "next", hasMore = true)
+                        } else {
+                            com.milkcocoa.info.sapphire.core.api.PageMetadata(100)
+                        },
+                        evaluationPolicy = policy,
+                    )
+                    respondJson(ApiResponse.Success(page))
+                }
+
+                else -> error("Unexpected request: ${request.url}")
+            }
+        }
+        val api = apiClient(client)
+
+        val error = assertFailsWith<LatestSnapshotPolicyMismatchException> { api.fetchLatestSnapshots() }
+
+        assertTrue(error.message.orEmpty().contains("Reload"))
         api.close()
     }
 

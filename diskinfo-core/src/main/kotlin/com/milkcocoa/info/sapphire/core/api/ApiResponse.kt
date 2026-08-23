@@ -1,6 +1,7 @@
 package com.milkcocoa.info.sapphire.core.api
 
-import com.milkcocoa.info.sapphire.core.snapshot.DiskSnapshot
+import com.milkcocoa.info.sapphire.core.health.HealthPolicyMetadata
+import com.milkcocoa.info.sapphire.core.snapshot.EvaluatedDiskSnapshot
 import kotlinx.serialization.Serializable
 import kotlin.time.Instant
 
@@ -33,13 +34,15 @@ data class LatestSnapshotsPayload(
     val errors: List<NodeApiError> = emptyList(),
     val errorsTruncated: Boolean = false,
     val pagination: PageMetadata? = null,
+    /** The policy used consistently for every evaluated snapshot in this response. */
+    val evaluationPolicy: HealthPolicyMetadata? = null,
 ) : ResponsePayload
 
 @Serializable
 data class NodeSnapshot(
     val nodeId: String,
     val nodeName: String,
-    val devices: List<DiskSnapshot>,
+    val devices: List<EvaluatedDiskSnapshot>,
     val status: NodeStatus? = null,
     val lastSeenAt: Instant? = null,
     val deviceStates: List<DeviceState> = emptyList(),
@@ -78,9 +81,11 @@ data class NodeDeviceHistoryPayload(
     val nodeId: String,
     val nodeName: String,
     val deviceKey: String,
-    val snapshots: List<DiskSnapshot>,
+    val snapshots: List<EvaluatedDiskSnapshot>,
     val status: NodeStatus? = null,
     val lastSeenAt: Instant? = null,
     val deviceState: DeviceState? = null,
     val currentError: NodeApiError? = null,
+    /** The policy used consistently for every evaluated snapshot in this response. */
+    val evaluationPolicy: HealthPolicyMetadata? = null,
 ) : ResponsePayload

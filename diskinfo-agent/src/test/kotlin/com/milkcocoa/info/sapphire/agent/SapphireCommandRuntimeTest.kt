@@ -9,8 +9,8 @@ import com.milkcocoa.info.sapphire.agent.usecase.SnapshotCleanupRequest
 import com.milkcocoa.info.sapphire.agent.usecase.SnapshotCleanupResult
 import com.milkcocoa.info.sapphire.agent.usecase.SnapshotMaintenanceUseCase
 import com.milkcocoa.info.sapphire.agent.usecase.SnapshotUseCase
-import com.milkcocoa.info.sapphire.core.api.NodeDeviceHistoryPayload
-import com.milkcocoa.info.sapphire.core.api.NodeSnapshot
+import com.milkcocoa.info.sapphire.agent.datastore.RawNodeDeviceHistory
+import com.milkcocoa.info.sapphire.agent.datastore.RawNodeSnapshot
 import com.milkcocoa.info.sapphire.core.snapshot.DiskSnapshot
 import kotlin.io.path.absolutePathString
 import kotlin.io.path.createTempFile
@@ -148,7 +148,7 @@ class SapphireCommandRuntimeTest {
 private fun unusedSnapshotUseCase(): SnapshotUseCase = object : SnapshotUseCase {
     override suspend fun saveSnapshot(snapshot: DiskSnapshot) = error("Executor must not run in this test.")
 
-    override suspend fun findLatestNodes(): List<NodeSnapshot> = error("Executor must not run in this test.")
+    override suspend fun findLatestNodes(): List<RawNodeSnapshot> = error("Executor must not run in this test.")
 
     override suspend fun findLatestByDeviceKey(deviceKey: String): DiskSnapshot? =
         error("Executor must not run in this test.")
@@ -158,7 +158,7 @@ private fun unusedSnapshotUseCase(): SnapshotUseCase = object : SnapshotUseCase 
         nodeId: Uuid,
         deviceKey: String,
         query: HistoryQuery,
-    ): NodeDeviceHistoryPayload = error("Executor must not run in this test.")
+    ): RawNodeDeviceHistory = error("Executor must not run in this test.")
 }
 
 private fun unusedSnapshotMaintenanceUseCase(): SnapshotMaintenanceUseCase =

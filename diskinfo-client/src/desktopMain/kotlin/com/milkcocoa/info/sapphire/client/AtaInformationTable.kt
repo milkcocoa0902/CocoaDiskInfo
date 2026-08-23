@@ -15,11 +15,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.milkcocoa.info.sapphire.core.ata.AtaSmartAttributeId
+import com.milkcocoa.info.sapphire.core.ata.healthRuleKey
 import com.milkcocoa.info.sapphire.core.snapshot.AtaAttribute
 import com.milkcocoa.info.sapphire.core.snapshot.AttributeEvaluation
 import com.milkcocoa.info.sapphire.core.snapshot.AttributeStatus
-import com.milkcocoa.info.sapphire.core.snapshot.DiskSnapshot
+import com.milkcocoa.info.sapphire.core.snapshot.EvaluatedDiskSnapshot
 import com.milkcocoa.info.sapphire.core.snapshot.MetricsSnapshot
 
 @Composable
@@ -125,10 +125,10 @@ private fun EvaluationBadge(status: AttributeStatus) {
 }
 
 internal fun ataInformationRows(
-    snapshot: DiskSnapshot,
+    snapshot: EvaluatedDiskSnapshot,
     metrics: MetricsSnapshot.AtaMetricsSnapshot,
 ): List<AtaInformationRowValue> {
-    val evaluations = snapshot.evaluations.associateBy { it.key }
+    val evaluations = snapshot.evaluations.associateBy { it.ruleKey }
     return metrics.attributes
         .sortedWith(compareBy<AtaAttribute> { ataStatusRank(it.evaluationStatus(evaluations)) }.thenBy { it.id.id })
         .map { attribute ->
@@ -152,26 +152,7 @@ private fun ataStatusRank(status: AttributeStatus): Int {
 }
 
 private fun AtaAttribute.evaluationStatus(evaluations: Map<String, AttributeEvaluation>): AttributeStatus {
-    val explicitStatus = evaluationKey()?.let { evaluations[it]?.status }
-    return explicitStatus ?: smartCurrentThresholdStatus()
-}
-
-private fun AtaAttribute.evaluationKey(): String? {
-    return when (id) {
-        AtaSmartAttributeId.ReallocatedSectorCt -> "ata.reallocated_sector_count"
-        AtaSmartAttributeId.CurrentPendingSector -> "ata.current_pending_sector_count"
-        AtaSmartAttributeId.OfflineUncorrectable -> "ata.offline_uncorrectable_count"
-        AtaSmartAttributeId.UdmaCrcErrorCount -> "ata.udma_crc_error_count"
-        AtaSmartAttributeId.PercentLifetimeRemain -> "ata.percent_lifetime_remaining"
-        else -> null
-    }
-}
-
-private fun AtaAttribute.smartCurrentThresholdStatus(): AttributeStatus {
-    return when {
-        threshold > 0 && value <= threshold -> AttributeStatus.BAD
-        else -> AttributeStatus.GOOD
-    }
+    return evaluations[id.healthRuleKey()]?.status ?: AttributeStatus.UNKNOWN
 }
 
 private fun AtaAttribute.displayLabel(): String {

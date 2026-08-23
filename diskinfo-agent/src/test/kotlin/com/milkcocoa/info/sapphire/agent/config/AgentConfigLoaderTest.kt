@@ -34,6 +34,7 @@ class AgentConfigLoaderTest {
         assertNull(config.maintenance.cleanupOnStartup)
         assertNull(config.maintenance.cleanupIntervalHours)
         assertNull(config.maintenance.vacuumAfterCleanup)
+        assertNull(config.health.policy)
     }
 
     @Test
@@ -105,6 +106,9 @@ class AgentConfigLoaderTest {
                 cleanupOnStartup = false
                 cleanupIntervalHours = 12
                 vacuumAfterCleanup = true
+
+                [health]
+                policy = "default"
                 """.trimIndent(),
             )
         }
@@ -137,6 +141,7 @@ class AgentConfigLoaderTest {
         assertEquals(false, config.maintenance.cleanupOnStartup)
         assertEquals(12, config.maintenance.cleanupIntervalHours)
         assertEquals(true, config.maintenance.vacuumAfterCleanup)
+        assertEquals("default", config.health.policy)
     }
 
     @Test
