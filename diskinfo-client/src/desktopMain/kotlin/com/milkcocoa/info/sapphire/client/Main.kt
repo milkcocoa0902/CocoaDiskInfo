@@ -2,6 +2,7 @@ package com.milkcocoa.info.sapphire.client
 
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
+import com.milkcocoa.info.sapphire.client.ui.CocoaDiskInfoApp
 
 fun main() = application {
     Window(
