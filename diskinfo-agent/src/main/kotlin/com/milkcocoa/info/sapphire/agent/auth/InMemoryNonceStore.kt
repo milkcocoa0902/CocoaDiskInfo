@@ -7,24 +7,45 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
+/** A nonce value and its absolute expiry time. */
 data class IssuedNonce(
+    /** Cryptographically random base64url nonce. */
     val value: String,
+    /** Time after which [value] cannot be consumed. */
     val expiresAt: Instant,
 )
 
+/** Outcome of attempting to atomically consume a nonce. */
 enum class NonceConsumeResult {
+    /** The nonce matched its binding and was removed. */
     CONSUMED,
+    /** The nonce was absent, expired, or bound to another subject/purpose. */
     UNAVAILABLE,
 }
 
+/** Storage boundary for expiring, binding-aware, single-use authentication nonces. */
 interface NonceStore {
+    /**
+     * Issues a nonce for [binding] for at most the implementation's capacity and TTL limits.
+     * @throws NonceCapacityExceededException when global or subject capacity is exhausted.
+     * @throws IllegalArgumentException when [ttl] is outside the implementation's allowed range.
+     */
     fun issue(binding: NonceBinding, ttl: Duration = InMemoryNonceStore.DEFAULT_TTL): IssuedNonce
+
+    /**
+     * Compares [expectedBinding] and removes a matching, unexpired [nonce] as one operation.
+     * Implementations must preserve this atomicity so concurrent requests cannot replay it.
+     */
     fun consume(nonce: String, expectedBinding: NonceBinding): NonceConsumeResult
+
+    /** Removes expired entries and returns the number removed. */
     fun purgeExpired(): Int
 }
 
+/** Indicates that nonce capacity policy prevented issuing another nonce. */
 class NonceCapacityExceededException(message: String) : IllegalStateException(message)
 
+/** In-process nonce store with expiry, subject quotas, and monitor-protected consume semantics. */
 class InMemoryNonceStore(
     private val now: () -> Instant = { kotlin.time.Clock.System.now() },
     private val secureRandom: SecureRandom = SecureRandom(),

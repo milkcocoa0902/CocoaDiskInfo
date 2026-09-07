@@ -3,9 +3,19 @@ package com.milkcocoa.info.sapphire.agent.config
 import java.nio.file.Files
 import java.nio.file.Path
 
+/** Raised when the intentionally small TOML reader cannot parse the config file. */
 class AgentConfigParseException(message: String) : IllegalArgumentException(message)
 
+/** Loads an optional TOML file and leaves source precedence to [AgentConfigResolver]. */
 object AgentConfigLoader {
+    /**
+     * Loads [path], or the installed default file when [path] is absent and [defaultPath]
+     * exists. When no default file exists, the optional source produces an empty configuration;
+     * malformed files fail
+     * with a path and line number through [AgentConfigParseException].
+     *
+     * @return raw nullable values; defaults and validation are applied later by the resolver.
+     */
     fun load(
         path: Path?,
         defaultPath: Path? = Path.of(AgentConfigDefaults.DEFAULT_CONFIG_PATH),
@@ -71,6 +81,7 @@ object AgentConfigLoader {
     }
 }
 
+/** Strict parser for the supported section/key subset, with actionable line diagnostics. */
 private object MinimalTomlParser {
     private val allowedKeys = mapOf(
         "smartctl" to setOf("scan", "device"),
@@ -95,6 +106,7 @@ private object MinimalTomlParser {
         "health" to setOf("policy"),
     )
 
+    /** Parses a regular file and rejects unknown sections, keys, and value forms. */
     fun parse(path: Path): TomlEntries {
         var section = ""
         val values = mutableMapOf<Pair<String, String>, TomlValue>()
@@ -132,6 +144,7 @@ private object MinimalTomlParser {
         return TomlEntries(path, values)
     }
 
+    /** Removes `#` comments only when outside a quoted string. */
     private fun stripComment(line: String): String {
         var inString = false
         var escaped = false
@@ -146,6 +159,7 @@ private object MinimalTomlParser {
         return line
     }
 
+    /** Parses one supported scalar and reports malformed values with source location. */
     private fun parseValue(path: Path, lineNumber: Int, rawValue: String): TomlValue {
         if (rawValue.isBlank()) {
             throw AgentConfigParseException("${path}:$lineNumber value must not be blank.")
@@ -161,6 +175,7 @@ private object MinimalTomlParser {
         }
     }
 
+    /** Decodes quoted TOML strings and the small escape set accepted by this parser. */
     private fun parseString(path: Path, lineNumber: Int, rawValue: String): String {
         if (!rawValue.endsWith("\"") || rawValue.length < 2) {
             throw AgentConfigParseException("${path}:$lineNumber unterminated string.")
@@ -195,28 +210,34 @@ private object MinimalTomlParser {
     }
 }
 
+/** Typed scalar values retained until they are mapped to [AgentConfig]. */
 private sealed interface TomlValue {
     data class StringValue(val value: String) : TomlValue
     data class BooleanValue(val value: Boolean) : TomlValue
     data class LongValue(val value: Long) : TomlValue
 }
 
+/** Typed view over parsed entries; mismatched types are configuration errors, not nulls. */
 private class TomlEntries(
     private val path: Path,
     private val values: Map<Pair<String, String>, TomlValue>,
 ) {
+    /** Returns a string value or `null` when the key was not present. */
     fun string(section: String, key: String): String? {
         return value<TomlValue.StringValue>(section, key)?.value
     }
 
+    /** Returns a boolean value or `null` when the key was not present. */
     fun boolean(section: String, key: String): Boolean? {
         return value<TomlValue.BooleanValue>(section, key)?.value
     }
 
+    /** Returns an integer value or `null` when the key was not present. */
     fun long(section: String, key: String): Long? {
         return value<TomlValue.LongValue>(section, key)?.value
     }
 
+    /** Converts an integer value to [Int], failing when it exceeds the platform range. */
     fun int(section: String, key: String): Int? {
         val value = long(section, key) ?: return null
         if (value !in Int.MIN_VALUE..Int.MAX_VALUE) {

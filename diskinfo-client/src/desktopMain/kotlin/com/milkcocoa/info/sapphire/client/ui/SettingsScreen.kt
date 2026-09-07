@@ -37,6 +37,13 @@ import kotlinx.coroutines.withContext
 import java.net.URI
 import java.util.Locale
 
+/**
+ * Edits the persisted connection profile and pairing inputs.
+ *
+ * Pairing runs on IO, clears the token fields immediately after submission, and writes the
+ * owner-only credential before saving the profile. Saving a profile does not retain the token
+ * secret; HTTP endpoints remain blocked unless the explicit insecure-transport checkbox is set.
+ */
 @Composable
 internal fun SettingsScreen() {
     val profileStore = remember { PreferencesConnectionProfileStore() }

@@ -5,7 +5,12 @@ import com.milkcocoa.info.sapphire.core.snapshot.AttributeStatus
 import com.milkcocoa.info.sapphire.core.snapshot.HealthRule
 import com.milkcocoa.info.sapphire.core.snapshot.MetricsSnapshot
 
+/** Evaluates NVMe endurance, spare, media-error, and critical-warning indicators. */
 class NvmeHealthRule : HealthRule<MetricsSnapshot.NvmeMetricsSnapshot> {
+    /**
+     * Returns four stable rule results. Missing values are [AttributeStatus.UNKNOWN]; percentage
+     * thresholds are inclusive at 80/100 used and 20/10 spare, while counters must remain zero.
+     */
     override fun evaluate(snapshot: MetricsSnapshot.NvmeMetricsSnapshot): List<AttributeEvaluation> {
         val percentageUsed = snapshot.percentageUsed?.toLong()
         val percentageUsedStatus = when {

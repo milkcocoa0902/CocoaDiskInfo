@@ -33,32 +33,62 @@ import java.nio.file.InvalidPathException
 import java.nio.file.Path
 import java.security.KeyPair
 
+/**
+ * One-time inputs for registering this desktop as a client principal.
+ *
+ * The pairing flow clears the decoded [tokenSecret] bytes before returning. The secret is never
+ * written to the profile or credential file.
+ */
 internal data class ClientPairingMaterial(
+    /** Hub or standalone endpoint to pair against. */
     val endpoint: String,
+    /** Stable Hub identity expected in the pairing response. */
     val hubId: String,
+    /** One-time pairing-token identifier. */
     val tokenId: String,
+    /** Unpadded Base64URL encoding of the exact 32-byte one-time token secret. */
     val tokenSecret: String,
+    /** Display name bound into the pairing proof. */
     val displayName: String,
+    /** Explicit opt-in permitting clear-text HTTP for pairing. */
     val allowInsecureTransport: Boolean = false,
+    /** Optional PEM CA file that supplements platform trust for HTTPS. */
     val pemCaPath: String? = null,
+    /** Destination for the owner-only client credential file. */
     val credentialPath: String,
 )
 
+/** Result of pairing after the credential and connection profile have been persisted. */
 internal data class ClientPairingResult(
     val profile: ConnectionProfile,
     val kid: String,
 )
 
 internal fun interface ClientKeyPairFactory {
+    /** Generates the private/public key pair that becomes this client's long-lived identity. */
     fun generate(): KeyPair
 }
 
+/**
+ * Performs token-based client pairing and stores the resulting signing credential.
+ *
+ * Pairing validates the endpoint and opt-in, proves possession of the token secret with an HMAC,
+ * checks the Hub response's identity binding against the generated key, then saves the credential
+ * before exposing the profile. Transport and decoded token bytes are released in all outcomes.
+ */
 internal class ClientPairingClient(
     private val profileStore: ConnectionProfileStore = PreferencesConnectionProfileStore(),
     private val credentialStore: ClientCredentialStore = OwnerOnlyJsonClientCredentialStore(),
     private val httpClientFactory: ConnectionHttpClientFactory = DefaultConnectionHttpClientFactory,
     private val keyPairFactory: ClientKeyPairFactory = ClientKeyPairFactory(Ed25519Keys::generate),
 ) {
+    /**
+     * Registers the client represented by [material].
+     *
+     * @return the saved profile and generated key identifier (`kid`).
+     * @throws IllegalArgumentException for malformed endpoint, identifiers, or token input.
+     * @throws AgentApiException for transport, Hub, response-validation, or persistence failures.
+     */
     suspend fun pair(material: ClientPairingMaterial): ClientPairingResult {
         val profile = material.toProfile()
         validateTransportOptIn(profile)
@@ -214,6 +244,7 @@ internal class ClientPairingClient(
     }
 }
 
+/** Wire request proving possession of a one-time pairing token. */
 @Serializable
 internal data class ClientPairRequest(
     val pairingTokenId: String,
@@ -224,6 +255,7 @@ internal data class ClientPairRequest(
     val proof: String,
 )
 
+/** Wire response binding the newly registered principal to the generated client key. */
 @Serializable
 internal data class ClientPairResponse(
     val hubId: String,

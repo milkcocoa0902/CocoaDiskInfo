@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import com.milkcocoa.info.sapphire.client.presentation.healthColor
 import com.milkcocoa.info.sapphire.core.snapshot.DiskHealth
 
+/** Shared section heading used to keep detail cards visually consistent. */
 @Composable
 internal fun SectionTitle(text: String) {
     Text(
@@ -32,6 +33,7 @@ internal fun SectionTitle(text: String) {
     )
 }
 
+/** Shows evaluated health using the same semantic colors as metric cards and lists. */
 @Composable
 internal fun HealthBadge(health: DiskHealth) {
     Surface(
@@ -48,6 +50,7 @@ internal fun HealthBadge(health: DiskHealth) {
     }
 }
 
+/** Centered loading state for the current snapshot list. */
 @Composable
 internal fun LoadingDeviceList(
     modifier: Modifier = Modifier,
@@ -70,6 +73,7 @@ internal fun LoadingDeviceList(
     }
 }
 
+/** Centered empty/error state; [message] is intentionally supplied by the owning screen. */
 @Composable
 internal fun MessagePanel(
     title: String,

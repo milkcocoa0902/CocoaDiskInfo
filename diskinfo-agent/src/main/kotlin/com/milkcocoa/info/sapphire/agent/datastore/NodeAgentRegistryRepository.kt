@@ -19,12 +19,14 @@ import java.time.ZoneOffset
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
+/** Lifecycle state of a registered node; disabled entries remain queryable for history context. */
 enum class NodeAgentStatus {
     ACTIVE,
     DISABLED,
 }
 
 @OptIn(ExperimentalUuidApi::class)
+/** Registration input persisted as current node-agent inventory, not heartbeat history. */
 data class NodeAgentRegistration(
     val nodeId: Uuid,
     val nodeName: String,
@@ -41,6 +43,7 @@ data class NodeAgentRegistration(
 }
 
 @OptIn(ExperimentalUuidApi::class)
+/** Materialized current node-agent status and latest operational observations. */
 data class NodeAgentRegistryEntry(
     val nodeId: Uuid,
     val nodeName: String,
@@ -54,11 +57,13 @@ data class NodeAgentRegistryEntry(
     val lastFailureAt: Instant?,
 )
 
+/** A bounded registry result; [hasMore] indicates that more entries exist beyond the page. */
 data class BoundedNodeAgentRegistryEntries(
     val entries: List<NodeAgentRegistryEntry>,
     val hasMore: Boolean,
 )
 
+/** Latest structured failure to retain on a node registry entry. */
 data class NodeAgentFailure(
     val code: String,
     val message: String,
@@ -72,31 +77,48 @@ data class NodeAgentFailure(
 }
 
 @OptIn(ExperimentalUuidApi::class)
+/**
+ * Repository for current node-agent registry state.
+ *
+ * Heartbeats and latest timestamps are monotonic updates: older observations do not move a
+ * persisted clock backwards. The repository stores current status/error state, not an unbounded
+ * heartbeat event stream; inactive retention is a separate maintenance policy.
+ */
 interface NodeAgentRegistryRepository {
+    /** Activates or refreshes [registration], preserving the node's existing identity. */
     fun activate(registration: NodeAgentRegistration): NodeAgentRegistryEntry
 
+    /** Records an active heartbeat; returns false when [nodeId] is absent or disabled. */
     fun recordHeartbeat(
         nodeId: Uuid,
         expectedCollectionIntervalSeconds: Long,
         seenAt: Instant,
     ): Boolean
 
+    /** Records a successfully stored snapshot and clears the current error. */
     fun recordStoredSnapshot(nodeId: Uuid, receivedAt: Instant): Boolean
 
+    /** Records an idempotent duplicate ingest as activity without changing history. */
     fun recordDuplicate(nodeId: Uuid, seenAt: Instant): Boolean
 
+    /** Updates the latest failure only when [failure.failedAt] is newer. */
     fun recordFailure(nodeId: Uuid, failure: NodeAgentFailure): Boolean
 
+    /** Disables a registry entry without deleting its current context. */
     fun disable(nodeId: Uuid): Boolean
 
+    /** Returns one registry entry, including disabled entries, when present. */
     fun findById(nodeId: Uuid): NodeAgentRegistryEntry?
 
+    /** Returns all entries in deterministic display-name/node-id order. */
     fun findAll(): List<NodeAgentRegistryEntry>
 
+    /** Returns active agents with no snapshots, bounded by [limit] and marked when more exist. */
     fun findActiveWithoutSnapshots(limit: Int): BoundedNodeAgentRegistryEntries
 }
 
 @OptIn(ExperimentalUuidApi::class)
+/** Exposed mapping for current node-agent registry state; schema is owned by Flyway migrations. */
 object NodeAgentRegistryTable : Table("node_agent_registry") {
     val nodeId = uuid("node_id")
     val nodeName = varchar("node_name", 255)
@@ -117,7 +139,9 @@ object NodeAgentRegistryTable : Table("node_agent_registry") {
 }
 
 @OptIn(ExperimentalUuidApi::class)
+/** Exposed implementation that updates only current node registry state. */
 class ExposedNodeAgentRegistryRepository : NodeAgentRegistryRepository {
+    /** Inserts a node once or reactivates/refreshes its existing registry row. */
     override fun activate(registration: NodeAgentRegistration): NodeAgentRegistryEntry {
         val inserted = NodeAgentRegistryTable.insertIgnore {
             it[nodeId] = registration.nodeId
@@ -144,6 +168,7 @@ class ExposedNodeAgentRegistryRepository : NodeAgentRegistryRepository {
         }
     }
 
+    /** Applies a heartbeat only to active rows and monotonically advances last-seen time. */
     override fun recordHeartbeat(
         nodeId: Uuid,
         expectedCollectionIntervalSeconds: Long,
@@ -164,6 +189,7 @@ class ExposedNodeAgentRegistryRepository : NodeAgentRegistryRepository {
         return true
     }
 
+    /** Records successful ingest activity and monotonically advances snapshot receipt time. */
     override fun recordStoredSnapshot(nodeId: Uuid, receivedAt: Instant): Boolean {
         val active = clearCurrentError(nodeId)
         if (!active) return false
@@ -180,6 +206,7 @@ class ExposedNodeAgentRegistryRepository : NodeAgentRegistryRepository {
         return true
     }
 
+    /** Treats a duplicate ingest as valid activity while leaving snapshot history unchanged. */
     override fun recordDuplicate(nodeId: Uuid, seenAt: Instant): Boolean {
         val active = clearCurrentError(nodeId)
         if (!active) return false
@@ -188,6 +215,7 @@ class ExposedNodeAgentRegistryRepository : NodeAgentRegistryRepository {
         return true
     }
 
+    /** Stores only a newer failure, preserving the latest-error semantics of the registry. */
     override fun recordFailure(nodeId: Uuid, failure: NodeAgentFailure): Boolean {
         val failedAt = failure.failedAt.asOffsetDateTime()
         return NodeAgentRegistryTable.update({
@@ -202,11 +230,13 @@ class ExposedNodeAgentRegistryRepository : NodeAgentRegistryRepository {
         } > 0
     }
 
+    /** Marks the node disabled without removing its inventory context. */
     override fun disable(nodeId: Uuid): Boolean =
         NodeAgentRegistryTable.update({ NodeAgentRegistryTable.nodeId eq nodeId }) {
             it[status] = NodeAgentStatus.DISABLED.name
         } > 0
 
+    /** Reads one current registry row regardless of status. */
     override fun findById(nodeId: Uuid): NodeAgentRegistryEntry? =
         NodeAgentRegistryTable
             .selectAll()
@@ -215,6 +245,7 @@ class ExposedNodeAgentRegistryRepository : NodeAgentRegistryRepository {
             .singleOrNull()
             ?.toRegistryEntry()
 
+    /** Reads all current rows in deterministic display order. */
     override fun findAll(): List<NodeAgentRegistryEntry> =
         NodeAgentRegistryTable
             .selectAll()
@@ -224,6 +255,7 @@ class ExposedNodeAgentRegistryRepository : NodeAgentRegistryRepository {
             )
             .map { it.toRegistryEntry() }
 
+    /** Finds active inventory entries lacking any raw snapshot, with one-row lookahead paging. */
     override fun findActiveWithoutSnapshots(limit: Int): BoundedNodeAgentRegistryEntries {
         require(limit in 1 until Int.MAX_VALUE) {
             "limit must be between 1 and ${Int.MAX_VALUE - 1}."

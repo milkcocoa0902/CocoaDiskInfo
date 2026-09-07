@@ -3,6 +3,7 @@ package com.milkcocoa.info.sapphire.agent.smartctl.model.ata
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
+/** ATA specification version reported by smartctl. */
 @Serializable
 @SerialName("smart_ata_version")
 data class SmartAtaVersion(

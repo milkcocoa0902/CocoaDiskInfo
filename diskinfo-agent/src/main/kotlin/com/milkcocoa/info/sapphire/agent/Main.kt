@@ -43,10 +43,15 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import kotlin.io.path.absolutePathString
 
+/** Root CLI command; concrete lifecycle behavior lives in its mode subcommands. */
 class SapphireAgent : CliktCommand(name = "cocoadiskinfo-agent") {
     override fun run() = Unit
 }
 
+/**
+ * Builds the command tree with injectable runtime and configuration sources.
+ * Injection keeps CLI parsing independent from production storage/network side effects.
+ */
 internal fun createSapphireAgentCommand(
     runtime: SapphireCommandRuntime = createProductionSapphireCommandRuntime(),
     environment: Map<String, String> = System.getenv(),
@@ -100,6 +105,7 @@ internal fun createSapphireAgentCommand(
         ),
     )
 
+/** Wires repository-backed local and distributed runtimes used by the executable. */
 private fun createProductionSapphireCommandRuntime(): SapphireCommandRuntime {
     val maintenanceUseCaseFactory = SnapshotMaintenanceUseCaseFactory { connection ->
         TransactionalSnapshotMaintenanceUseCase(
@@ -120,6 +126,7 @@ private fun createProductionSapphireCommandRuntime(): SapphireCommandRuntime {
     )
 }
 
+/** Shared config loading and validation boundary for commands with TOML support. */
 private abstract class ConfiguredCommand(
     name: String,
     protected val runtime: SapphireCommandRuntime,
@@ -137,6 +144,7 @@ private abstract class ConfiguredCommand(
         )
         .help("TOML configuration file")
 
+    /** Resolves oneshot settings and translates config failures into CLI usage errors. */
     protected fun resolveOneshotConfig(overrides: AgentConfigOverrides): EffectiveOneshotConfig {
         return resolveUsageErrors {
             AgentConfigResolver.resolveOneshot(
@@ -147,6 +155,7 @@ private abstract class ConfiguredCommand(
         }
     }
 
+    /** Resolves standalone settings, including periodic maintenance policy. */
     protected fun resolveStandaloneConfig(overrides: AgentConfigOverrides): EffectiveStandaloneConfig {
         return resolveUsageErrors {
             AgentConfigResolver.resolveStandalone(
@@ -157,6 +166,7 @@ private abstract class ConfiguredCommand(
         }
     }
 
+    /** Resolves storage for schema-only migration. */
     protected fun resolveDbMigrateConfig(overrides: AgentConfigOverrides): EffectiveDbMigrateConfig {
         return resolveUsageErrors {
             AgentConfigResolver.resolveDbMigrate(
@@ -167,6 +177,7 @@ private abstract class ConfiguredCommand(
         }
     }
 
+    /** Resolves explicit retention cleanup settings. */
     protected fun resolveDbCleanupConfig(overrides: AgentConfigOverrides): EffectiveDbCleanupConfig {
         return resolveUsageErrors {
             AgentConfigResolver.resolveDbCleanup(
@@ -177,6 +188,7 @@ private abstract class ConfiguredCommand(
         }
     }
 
+    /** Resolves Hub settings and enforces central-storage requirements. */
     protected fun resolveHubConfig(overrides: AgentConfigOverrides): EffectiveHubConfig {
         return resolveUsageErrors {
             AgentConfigResolver.resolveHub(
@@ -187,6 +199,7 @@ private abstract class ConfiguredCommand(
         }
     }
 
+    /** Resolves endpoint and storage according to the token host mode. */
     protected fun resolveBootstrapTokenConfig(
         hostMode: BootstrapTokenHostMode,
         overrides: AgentConfigOverrides,
@@ -201,17 +214,20 @@ private abstract class ConfiguredCommand(
         }
     }
 
+    /** Resolves continuous node-agent delivery and local-console settings. */
     protected fun resolveNodeAgentConfig(overrides: AgentConfigOverrides): EffectiveNodeAgentConfig {
         return resolveUsageErrors {
             AgentConfigResolver.resolveNodeAgent(loadConfig(), environment, overrides)
         }
     }
 
+    /** Resolves one-time join transport settings. */
     protected fun resolveNodeAgentJoinConfig(overrides: AgentConfigOverrides): EffectiveNodeAgentJoinConfig {
         return resolveUsageErrors {
             AgentConfigResolver.resolveNodeAgentJoin(loadConfig(), environment, overrides)
         }
     }
+    /** Converts domain config exceptions into Clikt's actionable usage failures. */
     private fun <T> resolveUsageErrors(block: () -> T): T {
         return try {
             block()
@@ -222,11 +238,13 @@ private abstract class ConfiguredCommand(
         }
     }
 
+    /** Loads the explicitly selected file or the installed default, if present. */
     private fun loadConfig(): AgentConfig {
         return AgentConfigLoader.load(configPath, defaultConfigPath)
     }
 }
 
+/** Adds scan/device options whose resolver enforces mutual exclusion for collection modes. */
 private abstract class DeviceCommand(
     name: String,
     runtime: SapphireCommandRuntime,
@@ -248,6 +266,7 @@ private abstract class DeviceCommand(
         )
         .help("Device path to query")
 
+    /** Preserves omission versus explicit scan/device choices for precedence resolution. */
     protected fun deviceOverrides(): AgentConfigOverrides {
         return AgentConfigOverrides(
             scan = scan,
@@ -256,6 +275,7 @@ private abstract class DeviceCommand(
     }
 }
 
+/** Implements one collection and optional persistence, then exits. */
 private class OneshotCommand(
     runtime: SapphireCommandRuntime,
     environment: Map<String, String>,
@@ -298,6 +318,7 @@ private class OneshotCommand(
     }
 }
 
+/** Implements local API mode with periodic collection and retention maintenance. */
 private class StandaloneCommand(
     runtime: SapphireCommandRuntime,
     environment: Map<String, String>,
@@ -358,6 +379,7 @@ private class StandaloneCommand(
     }
 }
 
+/** Implements central API mode; all snapshots arrive from node agents. */
 private class HubCommand(
     runtime: SapphireCommandRuntime,
     environment: Map<String, String>,
@@ -425,14 +447,17 @@ private class HubCommand(
     }
 }
 
+/** Groups token creation commands without owning runtime behavior itself. */
 private class BootstrapTokenGroup(name: String) : CliktCommand(name = name) {
     override fun run() = Unit
 }
 
+/** Groups principal administration commands. */
 private class PrincipalGroup : CliktCommand(name = "principal") {
     override fun run() = Unit
 }
 
+/** Disables a persisted principal by its authenticated key id. */
 private class PrincipalDisableCommand(
     runtime: SapphireCommandRuntime,
     environment: Map<String, String>,
@@ -463,6 +488,7 @@ private class PrincipalDisableCommand(
     }
 }
 
+/** Validates and issues one-time pairing or join material for the selected host mode. */
 private class BootstrapTokenCreateCommand(
     runtime: SapphireCommandRuntime,
     environment: Map<String, String>,
@@ -527,6 +553,7 @@ private class BootstrapTokenCreateCommand(
     }
 }
 
+/** Runs continuous local collection with signed delivery and heartbeat reporting. */
 private class NodeAgentCommand(
     runtime: SapphireCommandRuntime,
     environment: Map<String, String>,
@@ -605,6 +632,7 @@ private class NodeAgentCommand(
     }
 }
 
+/** Performs the one-time join exchange and writes an owner-only node credential. */
 private class NodeAgentJoinCommand(
     runtime: SapphireCommandRuntime,
     environment: Map<String, String>,
@@ -677,10 +705,12 @@ private class NodeAgentJoinCommand(
     }
 }
 
+/** Groups explicit database schema and retention operations. */
 private class DbCommand : CliktCommand(name = "db") {
     override fun run() = Unit
 }
 
+/** Applies schema migrations without collecting or starting an HTTP server. */
 private class DbMigrateCommand(
     runtime: SapphireCommandRuntime,
     environment: Map<String, String>,
@@ -704,6 +734,7 @@ private class DbMigrateCommand(
     }
 }
 
+/** Executes retention cleanup with optional dry-run and backend vacuum. */
 private class DbCleanupCommand(
     runtime: SapphireCommandRuntime,
     environment: Map<String, String>,
@@ -745,4 +776,5 @@ private class DbCleanupCommand(
     }
 }
 
+/** Process entry point; Clikt owns argument errors and command dispatch. */
 fun main(args: Array<String>) = createSapphireAgentCommand().main(args)

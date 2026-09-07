@@ -26,8 +26,22 @@ import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
 @OptIn(ExperimentalUuidApi::class)
+/**
+ * Exposed implementation of [DiskSnapshotRepository].
+ *
+ * All methods assume the caller has installed the matching Exposed transaction. Inserts use
+ * `(node_id, ingest_id)` as an idempotency boundary and retain the original raw JSON; derived
+ * health policy is deliberately not persisted. Latest-page reads use active registry rows and a
+ * deterministic node/device keyset, while history is bounded by [HistoryQuery].
+ */
 class ExposedDiskSnapshotRepository : DiskSnapshotRepository {
     @OptIn(ExperimentalUuidApi::class)
+    /**
+     * Inserts once per node/ingest id and classifies replays by payload equality.
+     *
+     * [IngestIdConflictException] means an idempotency key was reused for different data. The
+     * insert-ignore path also makes a concurrent PostgreSQL race inspectable in this transaction.
+     */
     override fun insert(record: SnapshotPersistenceRecord): SnapshotInsertResult {
         findByIngestId(record.origin.nodeId, record.ingestId)?.let { existing ->
             return existing.toInsertResult(record)
@@ -100,6 +114,7 @@ class ExposedDiskSnapshotRepository : DiskSnapshotRepository {
     }
 
     @OptIn(ExperimentalUuidApi::class)
+    /** Returns latest raw observations grouped by node; no policy evaluation is applied. */
     override fun findLatestNodes(): List<RawNodeSnapshot> =
         DiskSnapshotTable
             .selectAll()
@@ -117,6 +132,7 @@ class ExposedDiskSnapshotRepository : DiskSnapshotRepository {
             }
             .sortedBy { it.nodeName }
 
+    /** Returns the newest raw observation matching the supplied device key. */
     override fun findLatestByDeviceKey(deviceKey: String): DiskSnapshot? =
         DiskSnapshotTable
             .selectAll()
@@ -127,6 +143,7 @@ class ExposedDiskSnapshotRepository : DiskSnapshotRepository {
             ?.get(DiskSnapshotTable.snapshotJson)
 
     @OptIn(ExperimentalUuidApi::class)
+    /** Returns the newest stored observation for one stable node/device identity. */
     override fun findLatest(nodeId: Uuid, deviceKey: String): StoredDiskSnapshot? =
         DiskSnapshotTable
             .selectAll()
@@ -139,6 +156,13 @@ class ExposedDiskSnapshotRepository : DiskSnapshotRepository {
             .singleOrNull()
             ?.toStoredSnapshot()
 
+    /**
+     * Returns one latest row per active node/device pair.
+     *
+     * The cursor is exclusive and ordered by `(nodeId, deviceKey)`; one extra row detects
+     * continuation without exposing an unbounded result. Latest selection itself is by collection
+     * time and persistent id, so equal timestamps remain deterministic.
+     */
     override fun findLatestPage(request: LatestSnapshotPageRequest): LatestSnapshotPage {
         val latestRank = RowNumber()
             .over()
@@ -206,6 +230,11 @@ class ExposedDiskSnapshotRepository : DiskSnapshotRepository {
     }
 
     @OptIn(ExperimentalUuidApi::class)
+    /**
+     * Returns raw snapshots for one node/device pair with inclusive time bounds and a hard limit.
+     * Missing rows are a normal result after retention cleanup; evaluation policy belongs to the
+     * caller and is never written back into this history.
+     */
     override fun findHistory(
         nodeId: Uuid,
         deviceKey: String,

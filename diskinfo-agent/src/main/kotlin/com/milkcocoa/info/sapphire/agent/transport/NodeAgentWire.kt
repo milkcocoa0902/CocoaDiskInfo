@@ -18,6 +18,7 @@ private data class FailureResponse(
     val error: ApiError,
 )
 
+/** Converts a non-success response into a structured transport failure with API error details. */
 internal suspend fun HttpResponse.toFailureException(
     operation: String,
     retryable: Boolean = status.value >= 500,
@@ -32,6 +33,7 @@ internal suspend fun HttpResponse.toFailureException(
     )
 }
 
+/** Decodes strict wire JSON and translates malformed payloads into transport failures. */
 internal inline fun <reified T> decodeRawResponse(
     body: String,
     operation: String,

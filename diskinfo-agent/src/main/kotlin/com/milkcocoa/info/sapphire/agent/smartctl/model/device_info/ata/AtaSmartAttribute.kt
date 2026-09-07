@@ -8,6 +8,11 @@ import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 
+/**
+ * One ATA SMART attribute row. The JSON numeric `id` and display `name` are normalized to the
+ * core [AtaSmartAttributeId] by [Serializer]; the raw value remains both numeric and textual
+ * because vendors encode the same attribute differently.
+ */
 @Serializable(with = AtaSmartAttribute.Serializer::class)
 data class AtaSmartAttribute(
     val id: AtaSmartAttributeId,
@@ -19,7 +24,9 @@ data class AtaSmartAttribute(
     val flags: AtaSmartAttributeFlag,
     val raw: AtaSmartRawValue,
 ) {
+    /** Bridges smartctl's wire shape to the domain attribute identifier. */
     object Serializer : KSerializer<AtaSmartAttribute> {
+        /** Wire representation retained for serialization and deserialization. */
         @Serializable
         data class Surrogate(
             val id: Int,

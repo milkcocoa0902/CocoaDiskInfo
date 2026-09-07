@@ -9,11 +9,17 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
+/**
+ * Protocol-independent SMART result. The serializer distinguishes ATA and NVMe JSON shapes by
+ * the presence of the NVMe-only `nvme` object; [passed] is the vendor/tool health verdict.
+ */
 @Serializable(with = SmartStatus.SmartStatusSerializer::class)
 @SerialName("smart_status")
 sealed interface SmartStatus {
+    /** True when smartctl reports the device's SMART health check as passing. */
     val passed: Boolean
 
+    /** ATA SMART status, whose JSON contains only the common `passed` field. */
     @Serializable
     @SerialName("ata_smart_status")
     data class AtaSmartStatus(
@@ -22,6 +28,7 @@ sealed interface SmartStatus {
     ): SmartStatus
 
 
+    /** NVMe SMART status, including the controller-specific status value. */
     @Serializable
     @SerialName("nvme_smart_status")
     data class NvmeSmartStatus(
@@ -30,6 +37,7 @@ sealed interface SmartStatus {
         @SerialName("nvme")
         val nvme: Nvme
     ): SmartStatus {
+        /** Raw numeric NVMe status value accompanying [NvmeSmartStatus.passed]. */
         @Serializable
         @SerialName("nvme")
         data class Nvme(

@@ -12,24 +12,33 @@ import kotlinx.serialization.Serializable
  * perform I/O while evaluating a snapshot.
  */
 abstract class HealthPolicy(
+    /** Stable policy identifier persisted with evaluated output. */
     policyName: String,
+    /** Positive policy revision used to distinguish changed evaluation semantics. */
     policyVersion: Int,
 ) {
+    /** Validated stable policy identifier. */
     val policyName: String = policyName.also {
         require(it.isNotBlank()) { "Health policy name must not be blank." }
     }
+    /** Validated positive revision of this policy's evaluation semantics. */
     val policyVersion: Int = policyVersion.also {
         require(it > 0) { "Health policy version must be positive." }
     }
 
+    /** Serializable provenance attached to every result produced by this policy. */
     val metadata: HealthPolicyMetadata = HealthPolicyMetadata(policyName, policyVersion)
 
+    /** Evaluates one immutable observation without reading configuration or performing I/O. */
     abstract fun evaluate(snapshot: DiskSnapshot): HealthPolicyResult
 }
 
 @Serializable
+/** Serializable identity of the policy that produced an evaluated view. */
 data class HealthPolicyMetadata(
+    /** Stable policy name. */
     val policyName: String,
+    /** Positive policy revision. */
     val policyVersion: Int,
 ) {
     init {
@@ -38,9 +47,13 @@ data class HealthPolicyMetadata(
     }
 }
 
+/** Complete output of evaluating one [DiskSnapshot]. */
 data class HealthPolicyResult(
+    /** Health reported by the source snapshot before this policy's interpretation. */
     val reportedHealth: DiskHealth,
+    /** Health exposed to consumers after policy evaluation. */
     val overallHealth: DiskHealth,
+    /** Explainable per-indicator results with unique rule keys. */
     val evaluations: List<AttributeEvaluation>,
 ) {
     /** Alias used by evaluated read-model mappers. */

@@ -4,14 +4,28 @@ import java.nio.ByteBuffer
 import java.security.MessageDigest
 import java.util.UUID
 
+/** Derives a stable storage key from the identifying serial reported by a device. */
 interface DeviceKeyDeriver {
+    /**
+     * Returns the canonical key for a non-blank serial number.
+     *
+     * Implementations must keep the result stable for the same namespace and serial;
+     * callers use it to correlate snapshots without persisting the raw serial as the key.
+     */
     fun deriveFromSerial(serialNumber: String): String
 }
 
+/** Defaults shared by configuration and the UUIDv5 key derivation implementation. */
 object DeviceIdentityDefaults {
     const val NAMESPACE_SALT = "default"
 }
 
+/**
+ * Produces UUIDv5 keys using a project namespace, a configurable namespace salt, and
+ * the normalized serial. Changing the salt intentionally creates a new identity space.
+ *
+ * @throws IllegalArgumentException if the namespace salt or serial is blank.
+ */
 class UuidV5DeviceKeyDeriver(
     namespaceSalt: String = DeviceIdentityDefaults.NAMESPACE_SALT,
 ) : DeviceKeyDeriver {
@@ -27,6 +41,7 @@ class UuidV5DeviceKeyDeriver(
         )
     }
 
+    /** Derives a deterministic UUID string after trimming the serial number. */
     override fun deriveFromSerial(serialNumber: String): String {
         val normalizedSerialNumber = serialNumber.trim()
         require(normalizedSerialNumber.isNotBlank()) {
@@ -44,6 +59,7 @@ class UuidV5DeviceKeyDeriver(
             name = "com.milkcocoa.info.sapphire.device",
         )
 
+        /** Implements RFC 4122 UUIDv5 bytes with SHA-1 and the UUID version/variant bits. */
         private fun uuidV5(namespace: UUID, name: String): UUID {
             val md = MessageDigest.getInstance("SHA-1")
             md.update(namespace.mostSignificantBits.toBytes())

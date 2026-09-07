@@ -27,39 +27,66 @@ import kotlin.time.Instant as KotlinInstant
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
+/** Latest page payload plus the typed cursor that the HTTP adapter encodes opaquely. */
 data class HubLatestSnapshotsQueryResult(
+    /** Rendered node/device payload including freshness and policy metadata. */
     val payload: LatestSnapshotsPayload,
+    /** Repository cursor for the next page, or null at the end. */
     val nextCursor: LatestSnapshotCursor?,
 )
 
+/** Node registry state combined with snapshot age/error information. */
 data class NodeScopedFreshnessContext(
+    /** Node identity rendered in API responses. */
     val nodeId: String,
+    /** Current node display name. */
     val nodeName: String,
+    /** Registry status. */
     val status: NodeStatus,
+    /** Most recent heartbeat/receipt time, when available. */
     val lastSeenAt: KotlinInstant?,
+    /** Device age and stale state. */
     val deviceState: DeviceState,
+    /** Whether no latest snapshot exists for this device. */
     val snapshotMissing: Boolean,
+    /** Current node-reported API error, if any. */
     val currentError: NodeApiError?,
 )
 
+/** Node-scoped latest snapshot and its freshness context. */
 data class HubNodeLatestQueryResult(
+    /** Evaluated latest snapshot, or null when history is missing. */
     val snapshot: EvaluatedDiskSnapshot?,
+    /** Registry and freshness metadata for the node/device. */
     val freshness: NodeScopedFreshnessContext,
 )
 
+/** Node-scoped history payload plus current freshness metadata. */
 data class HubNodeHistoryQueryResult(
+    /** Bounded history response. */
     val payload: NodeDeviceHistoryPayload,
+    /** Current node/device freshness state. */
     val freshness: NodeScopedFreshnessContext,
 )
 
 @OptIn(ExperimentalUuidApi::class)
+/** Query boundary shared by Standalone and Hub HTTP adapters. */
 interface LatestSnapshotsQueryService {
+    /** Returns a bounded latest page and typed next cursor. */
     suspend fun findLatestPage(request: LatestSnapshotPageRequest): HubLatestSnapshotsQueryResult
+    /** Returns node/device latest state, or null when this service cannot resolve the request. */
     suspend fun findNodeLatest(nodeId: Uuid, deviceKey: String): HubNodeLatestQueryResult?
+    /** Returns bounded node/device history, or null when this service cannot resolve the request. */
     suspend fun findNodeHistory(nodeId: Uuid, deviceKey: String, query: HistoryQuery): HubNodeHistoryQueryResult?
 }
 
 @OptIn(ExperimentalUuidApi::class)
+/**
+ * Combines repository snapshots with current node registry state in read-only transactions.
+ * Latest-page results use active nodes, while node-scoped reads retain disabled-node context.
+ * Health is evaluated at response time with [healthPolicy]. Missing, stale, and node-reported
+ * errors set partial/error metadata and are bounded by [errorLimit].
+ */
 class HubLatestSnapshotsQueryService(
     private val snapshotRepository: DiskSnapshotRepository,
     private val registryRepository: NodeAgentRegistryRepository,

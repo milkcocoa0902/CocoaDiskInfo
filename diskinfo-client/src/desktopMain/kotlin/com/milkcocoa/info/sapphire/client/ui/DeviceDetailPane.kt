@@ -38,6 +38,12 @@ import com.milkcocoa.info.sapphire.client.presentation.wearColor
 import com.milkcocoa.info.sapphire.core.api.NodeSnapshot
 import com.milkcocoa.info.sapphire.core.snapshot.EvaluatedDiskSnapshot
 
+/**
+ * Displays current metrics or lazily loaded history for one selected device.
+ *
+ * History state is reset when node, device, or [historySourceKey] changes. Selecting the History
+ * tab starts one request; failures remain local to the pane and do not discard current metrics.
+ */
 @Composable
 internal fun DeviceDetailPane(
     node: NodeSnapshot,
@@ -88,6 +94,7 @@ internal fun DeviceDetailPane(
     }
 }
 
+/** Tabs intentionally keep current state and bounded history in the selected-device detail. */
 private enum class DeviceDetailTab(
     val label: String,
 ) {
@@ -95,6 +102,7 @@ private enum class DeviceDetailTab(
     History("History"),
 }
 
+/** Renders the two detail tabs without changing the selected device identity. */
 @Composable
 private fun DetailTabs(
     selectedTab: DeviceDetailTab,
@@ -115,6 +123,7 @@ private fun DetailTabs(
     }
 }
 
+/** Arranges policy-focused metrics above the scrollable attribute information table. */
 @Composable
 private fun CurrentDeviceDetail(
     node: NodeSnapshot,
@@ -133,6 +142,7 @@ private fun CurrentDeviceDetail(
     }
 }
 
+/** Identifies the selected node/device and makes policy provenance explicit. */
 @Composable
 private fun DetailHeader(
     node: NodeSnapshot,
@@ -198,6 +208,7 @@ private fun DetailHeader(
     }
 }
 
+/** Displays the metrics most useful for triage before the full attribute list. */
 @Composable
 private fun FocusMetrics(
     node: NodeSnapshot,
@@ -310,6 +321,7 @@ private fun FocusMetrics(
     }
 }
 
+/** Reusable label/value card used by focus metrics. */
 @Composable
 private fun HighlightMetric(
     label: String,

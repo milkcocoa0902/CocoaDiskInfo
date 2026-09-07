@@ -30,13 +30,25 @@ import kotlin.time.Duration
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
+/** Dependencies for authenticated current-state and history reads. */
 data class HubReadApiDependencies(
+    /** Query service that combines stored snapshots with node freshness state. */
     val queryService: LatestSnapshotsQueryService,
+    /** Verifies client signatures, request canonicalization, body binding, and nonces. */
     val signedRequestVerifier: SignedRequestVerifier,
+    /** Lifetime for the nonce returned after a successful read. */
     val nonceTtl: Duration,
 )
 
 @OptIn(ExperimentalUuidApi::class)
+/**
+ * Installs authenticated latest-page, node-latest, and node-history routes.
+ *
+ * Client reads consume one nonce only after query syntax and signature verification. Latest
+ * pages use a canonical opaque cursor and bounded limit; history accepts bounded limit plus
+ * ISO-8601 from/to and asc/desc order. Missing snapshots/nodes use 404, malformed query
+ * values use 400, and successful responses include a next nonce.
+ */
 fun Application.installHubReadApi(dependencies: HubReadApiDependencies) {
     routing {
         get("/api/v1/snapshots/latest") {

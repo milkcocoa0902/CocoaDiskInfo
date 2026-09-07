@@ -3,6 +3,7 @@ package com.milkcocoa.info.sapphire.agent.smartctl.model.ata
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
+/** Bit flags describing how an ATA SMART attribute is classified and updated. */
 @Serializable
 data class AtaSmartAttributeFlag(
     val value: Int,

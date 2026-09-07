@@ -30,18 +30,29 @@ private val AuthJson = Json {
     ignoreUnknownKeys = false
 }
 
+/** Indicates malformed, unsupported, or cryptographically invalid auth protocol data. */
 class AuthProtocolException(message: String, cause: Throwable? = null) : IllegalArgumentException(message, cause)
 
+/** Authenticated header and payload returned after successful JWS verification. */
 data class VerifiedSignedRequest(
+    /** Validated protected header, including the verification-key thumbprint. */
     val header: JwsProtectedHeader,
+    /** Validated request bindings covered by the signature. */
     val payload: SignedRequestPayload,
 )
 
+/** Strict unpadded base64url codec used by JWK, JWS, and nonce fields. */
 object Base64Url {
     private val canonicalPattern = Regex("[A-Za-z0-9_-]+")
 
+    /** Encodes bytes without padding. */
     fun encode(bytes: ByteArray): String = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
 
+    /**
+     * Decodes canonical unpadded base64url.
+     *
+     * @throws AuthProtocolException when [value] is empty, padded, malformed, or non-canonical.
+     */
     fun decode(value: String, fieldName: String = "base64url value"): ByteArray {
         if (!canonicalPattern.matches(value)) {
             throw AuthProtocolException("$fieldName must be canonical base64url without padding.")
@@ -57,6 +68,7 @@ object Base64Url {
         }
     }
 
+    /** Decodes [value] and requires an exact byte length. */
     fun decodeExact(value: String, expectedSize: Int, fieldName: String): ByteArray =
         decode(value, fieldName).also { decoded ->
             if (decoded.size != expectedSize) {
@@ -65,11 +77,14 @@ object Base64Url {
         }
 }
 
+/** Generates Ed25519 keys and converts them to/from the protocol's raw JWK form. */
 object Ed25519Keys {
     private const val RAW_PUBLIC_KEY_SIZE = 32
 
+    /** Generates a new Ed25519 key pair using the platform provider. */
     fun generate(): KeyPair = KeyPairGenerator.getInstance("Ed25519").generateKeyPair()
 
+    /** Converts a platform Ed25519 public key to a 32-byte RFC 8037 JWK. */
     fun publicJwk(publicKey: PublicKey): Ed25519PublicJwk {
         val key = publicKey as? EdECPublicKey
             ?: throw AuthProtocolException("Public key must be Ed25519.")
@@ -87,6 +102,7 @@ object Ed25519Keys {
         return Ed25519PublicJwk(x = Base64Url.encode(raw))
     }
 
+    /** Converts and validates an Ed25519 JWK into a platform public key. */
     fun publicKey(jwk: Ed25519PublicJwk): PublicKey {
         if (jwk.kty != "OKP" || jwk.crv != "Ed25519") {
             throw AuthProtocolException("JWK must be an OKP Ed25519 public key.")
@@ -103,12 +119,14 @@ object Ed25519Keys {
         }
     }
 
+    /** Decodes a PKCS#8 Ed25519 private key supplied by a credential store. */
     fun privateKeyFromPkcs8(encoded: ByteArray): PrivateKey = try {
         KeyFactory.getInstance("Ed25519").generatePrivate(PKCS8EncodedKeySpec(encoded))
     } catch (error: Exception) {
         throw AuthProtocolException("Credential contains an invalid Ed25519 private key.", error)
     }
 
+    /** Computes the RFC 7638 thumbprint used as the JWS key identifier. */
     fun kid(jwk: Ed25519PublicJwk): String {
         if (jwk.kty != "OKP" || jwk.crv != "Ed25519") {
             throw AuthProtocolException("JWK must be an OKP Ed25519 public key.")
@@ -121,10 +139,13 @@ object Ed25519Keys {
         return Base64Url.encode(sha256(thumbprintInput.toByteArray(StandardCharsets.UTF_8)))
     }
 
+    /** Computes the RFC 7638 thumbprint for a platform public key. */
     fun kid(publicKey: PublicKey): String = kid(publicJwk(publicKey))
 }
 
+/** Creates and verifies compact EdDSA JWS request proofs. */
 object SignedRequestJws {
+    /** Signs a validated payload with Ed25519 and returns compact three-part serialization. */
     fun sign(
         payload: SignedRequestPayload,
         privateKey: PrivateKey,
@@ -148,6 +169,7 @@ object SignedRequestJws {
         return "$encodedHeader.$encodedPayload.${Base64Url.encode(signature)}"
     }
 
+    /** Reads and validates only the protected header, without trusting the payload. */
     fun readProtectedHeader(compactJws: String): JwsProtectedHeader {
         val parts = compactParts(compactJws)
         return decodeJson<JwsProtectedHeader>(
@@ -157,6 +179,7 @@ object SignedRequestJws {
             .also(::validateHeader)
     }
 
+    /** Verifies the signature, key identity, header, and payload shape. */
     fun verify(compactJws: String, publicKey: PublicKey): VerifiedSignedRequest {
         val parts = compactParts(compactJws)
         val header = decodeJson<JwsProtectedHeader>(
@@ -190,6 +213,7 @@ object SignedRequestJws {
         return VerifiedSignedRequest(header, payload)
     }
 
+    /** Verifies a JWS and requires its payload to equal [expectedPayload]. */
     fun verify(
         compactJws: String,
         publicKey: PublicKey,
@@ -201,6 +225,7 @@ object SignedRequestJws {
         }
     }
 
+    /** Verifies a JWS against request fields reconstructed from [expectedRequest]. */
     fun verify(
         compactJws: String,
         publicKey: PublicKey,
@@ -257,16 +282,21 @@ object SignedRequestJws {
     }
 }
 
+/** Computes and validates body digests used by the JWS and Content-Digest bindings. */
 object SnapshotBodyDigest {
     private val contentDigestPattern = Regex("sha-256=:([A-Za-z0-9+/]+={0,2}):")
 
+    /** Computes a raw SHA-256 digest. */
     fun sha256(bytes: ByteArray): ByteArray = com.milkcocoa.info.sapphire.core.auth.sha256(bytes)
 
+    /** Returns the body SHA-256 digest as unpadded base64url for the signed payload. */
     fun bodySha256(bytes: ByteArray): String = Base64Url.encode(sha256(bytes))
 
+    /** Returns the RFC 9530-style `sha-256=:base64:` header value. */
     fun contentDigest(bytes: ByteArray): String =
         "sha-256=:${Base64.getEncoder().encodeToString(sha256(bytes))}:"
 
+    /** Parses a canonical single SHA-256 value from a Content-Digest header. */
     fun parseContentDigest(value: String): ByteArray {
         val encoded = contentDigestPattern.matchEntire(value)?.groupValues?.get(1)
             ?: throw AuthProtocolException("Content-Digest must contain exactly one sha-256 value.")
@@ -281,6 +311,11 @@ object SnapshotBodyDigest {
         return decoded
     }
 
+    /**
+     * Compares the actual body digest with both header and signed-payload digests.
+     *
+     * Invalid encodings throw [AuthProtocolException]; a well-formed mismatch returns false.
+     */
     fun verify(
         bodyBytes: ByteArray,
         contentDigest: String,
@@ -293,14 +328,22 @@ object SnapshotBodyDigest {
     }
 }
 
+/** Derives and verifies the node-join/client-pairing proof bound to hub, token, nonce, key, and display name. */
 object JoinProof {
     private const val DOMAIN = "cocoadiskinfo.join.v1"
 
+    /** Hashes a non-empty join-token secret into the fixed-size HMAC key. */
     fun deriveJoinKey(tokenSecret: ByteArray): ByteArray {
         require(tokenSecret.isNotEmpty()) { "Join token secret must not be empty." }
         return sha256(tokenSecret)
     }
 
+    /**
+     * Builds an unambiguous length-prefixed UTF-8 proof input.
+     *
+     * @throws IllegalArgumentException when required text is empty or nonce/key encodings are
+     * not exactly 32 decoded bytes.
+     */
     fun canonicalInput(
         hubId: String,
         joinTokenId: String,
@@ -326,6 +369,7 @@ object JoinProof {
         return output.toByteArray()
     }
 
+    /** Computes the HMAC-SHA-256 join proof for [canonicalInput]. */
     fun hmac(joinKey: ByteArray, canonicalInput: ByteArray): ByteArray {
         require(joinKey.size == 32) { "Join key must be a SHA-256 digest." }
         return Mac.getInstance("HmacSHA256").run {
@@ -334,6 +378,7 @@ object JoinProof {
         }
     }
 
+    /** Constant-time comparison of a computed proof with [proof]. */
     fun verify(joinKey: ByteArray, canonicalInput: ByteArray, proof: ByteArray): Boolean =
         MessageDigest.isEqual(hmac(joinKey, canonicalInput), proof)
 

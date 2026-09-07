@@ -19,6 +19,7 @@ import com.milkcocoa.info.sapphire.client.presentation.AtaInformationRowValue
 import com.milkcocoa.info.sapphire.client.presentation.attributeStatusColor
 import com.milkcocoa.info.sapphire.core.snapshot.AttributeStatus
 
+/** Header matching the fixed-width columns used by [AtaInformationRow]. */
 @Composable
 internal fun AtaInformationHeader() {
     Row(
@@ -59,6 +60,7 @@ internal fun AtaInformationHeader() {
     }
 }
 
+/** Displays one preformatted ATA attribute and its policy status. */
 @Composable
 internal fun AtaInformationRow(row: AtaInformationRowValue) {
     Row(
@@ -102,6 +104,7 @@ internal fun AtaInformationRow(row: AtaInformationRowValue) {
     }
 }
 
+/** Colored status chip used by ATA attribute rows. */
 @Composable
 private fun EvaluationBadge(status: AttributeStatus) {
     Surface(

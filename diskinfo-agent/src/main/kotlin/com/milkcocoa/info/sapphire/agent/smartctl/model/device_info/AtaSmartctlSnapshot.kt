@@ -24,6 +24,14 @@ import com.milkcocoa.info.sapphire.agent.smartctl.model.common.Smartctl
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
+/**
+ * Complete ATA device-info response emitted by smartctl's JSON mode.
+ *
+ * Optional ATA sections are nullable because bridges and drives may omit unsupported logs or
+ * capabilities. [logicalBlockSize] and [physicalBlockSize] are bytes; [rotationRate] is the
+ * smartctl-reported rotational speed (and may be zero for non-rotating media). The common
+ * [temperature], [powerOnTime], and [userCapacity] values are retained in their source units.
+ */
 @Serializable
 data class AtaSmartctlSnapshot(
     @SerialName("json_format_version")

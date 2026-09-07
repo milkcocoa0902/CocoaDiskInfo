@@ -58,18 +58,37 @@ private val StrictApiJson = Json {
     explicitNulls = false
 }
 
+/** Dependencies and limits for Hub bootstrap, authenticated ingest, and heartbeat routes. */
 data class HubAuthApiDependencies(
+    /** Repository-backed nonce authorization service. */
     val nonceIssuer: AuthorizedNonceIssuer,
+    /** Token proof validator and principal/node registration service. */
     val registrationService: BootstrapRegistrationService,
+    /** JWS, principal-role, body-digest, and nonce verifier. */
     val signedRequestVerifier: SignedRequestVerifier,
+    /** Transactional ingest service with ingest-id idempotency. */
     val snapshotIngestUseCase: HubSnapshotIngestUseCase,
+    /** Transactional node liveness/error recorder. */
     val heartbeatUseCase: HubHeartbeatUseCase,
+    /** Lifetime for newly issued and response-chain nonces. */
     val nonceTtl: Duration,
+    /** Maximum accepted request body size in bytes. */
     val maximumRequestBodyBytes: Long,
+    /** Clock used for Hub receive timestamps. */
     val clock: Clock = Clock.systemUTC(),
 )
 
 @OptIn(ExperimentalUuidApi::class)
+/**
+ * Installs Hub auth and Node Agent write routes.
+ *
+ * Successful signed writes consume the request nonce before executing the transactional
+ * use case and return one next nonce. Errors are mapped to stable status/code pairs:
+ * authentication/unavailable-nonce failures are 401, nonce capacity is 429, validation is 400,
+ * token reuse and ingest-id
+ * conflicts are 409, body limits are 413, unsupported encoding is 415, and unexpected
+ * server/policy failures are 500. Request bodies are strict UTF-8 JSON and uncompressed.
+ */
 fun Application.installHubAuthApi(dependencies: HubAuthApiDependencies) {
     routing {
         get("/healthz") {

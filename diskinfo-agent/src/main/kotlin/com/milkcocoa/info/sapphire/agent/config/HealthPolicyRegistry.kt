@@ -15,9 +15,16 @@ object HealthPolicyRegistry {
         DefaultHealthPolicy.policyName to DefaultHealthPolicy,
     )
 
+    /** Stable names accepted by config, CLI, and environment sources. */
     val availablePolicyNames: List<String>
         get() = policies.keys.sorted()
 
+    /**
+     * Selects a policy by its exact stable name after trimming surrounding whitespace.
+     *
+     * @throws AgentConfigValidationException when the name is blank or unknown; the
+     * message includes available names so operators can correct configuration directly.
+     */
     fun select(name: String): HealthPolicy {
         val normalized = name.trim()
         if (normalized.isBlank()) {

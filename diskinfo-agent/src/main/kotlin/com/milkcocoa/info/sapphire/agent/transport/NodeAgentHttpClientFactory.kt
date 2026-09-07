@@ -13,12 +13,22 @@ import java.security.cert.X509Certificate
 import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.X509TrustManager
 
+/** Validated endpoint and TLS/timeout policy for Hub HTTP calls. */
 data class NodeAgentConnection(
+    /** Absolute Hub HTTP(S) endpoint. */
     val endpoint: String,
+    /** Required opt-in when [endpoint] uses plain HTTP. */
     val allowInsecureTransport: Boolean = false,
+    /** Optional PEM CA added to, rather than replacing, platform trust. */
     val pemCaPath: Path? = null,
+    /** Connect, socket, and request timeout applied to each call. */
     val requestTimeoutMillis: Long = DEFAULT_REQUEST_TIMEOUT_MILLIS,
 ) {
+    /**
+     * Enforces endpoint, insecure-transport, timeout, and private-CA invariants and normalizes
+     * the endpoint and PEM CA path values.
+     * @throws IllegalArgumentException when the connection violates the transport policy.
+     */
     fun validate(): NodeAgentConnection {
         val normalizedEndpoint = validateEndpoint(endpoint)
         val scheme = java.net.URI(normalizedEndpoint).scheme.lowercase()
@@ -37,10 +47,13 @@ data class NodeAgentConnection(
     }
 }
 
+/** Creates an HTTP client whose lifecycle is owned by the caller. */
 fun interface NodeAgentHttpClientFactory {
+    /** Builds a client using [connection]'s validated TLS and timeout policy. */
     fun create(connection: NodeAgentConnection): HttpClient
 }
 
+/** Default CIO client: no redirects, bounded timeouts, and optional additive PEM trust. */
 object DefaultNodeAgentHttpClientFactory : NodeAgentHttpClientFactory {
     override fun create(connection: NodeAgentConnection): HttpClient {
         val validated = connection.validate()
@@ -135,6 +148,12 @@ private class CompositeTrustManager(
     }
 }
 
+/**
+ * Transport or remote API failure with status/error metadata for retry decisions.
+ *
+ * [retryable] is true only for failures the caller may safely retry under its operation
+ * contract; authentication, validation, and non-transient HTTP failures are not retryable.
+ */
 class NodeAgentTransportException(
     message: String,
     val statusCode: Int? = null,

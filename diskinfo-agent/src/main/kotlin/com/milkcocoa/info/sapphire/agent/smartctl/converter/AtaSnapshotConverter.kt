@@ -10,6 +10,14 @@ import com.milkcocoa.info.sapphire.core.snapshot.MetricsSnapshot
 import com.milkcocoa.info.sapphire.core.snapshot.UniversalMetrics
 import kotlin.time.Instant
 
+/**
+ * Converts an ATA smartctl response to a normalized [DiskSnapshot].
+ *
+ * `power_on_time.hours` is already expressed in hours. ATA total-LBA attributes are copied as
+ * raw values; this converter deliberately does not apply a sector-size multiplier because the
+ * source attribute encoding can vary by drive. Missing ATA attributes produce `null` optional
+ * metrics, while the three bad-sector attributes contribute zero when absent.
+ */
 fun AtaSmartctlSnapshot.toDiskSnapshot(deviceKeyDeriver: DeviceKeyDeriver): DiskSnapshot {
     val percentLifetimeRemaining = this.ataSmartAttributes
         ?.table

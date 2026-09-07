@@ -52,11 +52,17 @@ import kotlin.time.toKotlinInstant
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
+/**
+ * Executes distributed commands that need Hub storage, HTTP transport, or credentials.
+ * Schema validation happens before opening long-lived resources, and secrets are only
+ * printed at the explicit bootstrap-token boundary.
+ */
 internal class ProductionDistributedCommandRuntime(
     private val snapshotMaintenanceUseCaseFactory: SnapshotMaintenanceUseCaseFactory,
     private val schemaValidator: StorageSchemaValidator = FlywayStorageSchemaValidator,
     private val now: () -> Instant = Instant::now,
 ) : SapphireCommandRuntime {
+    /** Dispatches only distributed request variants; local requests are a programming error. */
     override fun run(request: SapphireCommandRequest) {
         when (request) {
             is SapphireCommandRequest.Hub -> runHub(request)
@@ -69,6 +75,7 @@ internal class ProductionDistributedCommandRuntime(
     }
 
     @OptIn(ExperimentalUuidApi::class)
+    /** Disables an existing principal transactionally and reports idempotent status. */
     private fun disablePrincipal(request: SapphireCommandRequest.PrincipalDisable) {
         schemaValidator.requireCurrent(request.storage)
         StorageConnectionFactory.connect(request.storage).use { connection ->
@@ -96,6 +103,7 @@ internal class ProductionDistributedCommandRuntime(
         }
     }
 
+    /** Exchanges join material for an owner-only credential file and reports its destination. */
     private fun joinNodeAgent(request: SapphireCommandRequest.NodeAgentJoin) {
         val connection = request.toNodeAgentConnection()
         runBlocking {
@@ -114,6 +122,7 @@ internal class ProductionDistributedCommandRuntime(
         println("Node Agent joined successfully. Credential saved to ${request.credentialFile}.")
     }
 
+    /** Loads credentials, continuously delivers snapshots, and closes transport on shutdown. */
     private fun runNodeAgent(request: SapphireCommandRequest.NodeAgent) {
         ColotokProviderFactory.create(request.outputMode).also(ColotokLoggerContext::setDefault)
         Colotok.info(
@@ -163,6 +172,7 @@ internal class ProductionDistributedCommandRuntime(
     }
 
     @OptIn(ExperimentalUuidApi::class)
+    /** Issues one-time material and emits its secret exactly once as a JSON object. */
     private fun createBootstrapToken(request: SapphireCommandRequest.BootstrapTokenCreate) {
         schemaValidator.requireCurrent(request.storage)
         StorageConnectionFactory.connect(request.storage).use { connection ->
@@ -203,6 +213,7 @@ internal class ProductionDistributedCommandRuntime(
     }
 
     @OptIn(ExperimentalUuidApi::class)
+    /** Builds the authenticated Hub API, then delegates its long-lived lifecycle to the executor. */
     private fun runHub(request: SapphireCommandRequest.Hub) {
         Colotok.info(
             msg = "Using health policy.",
@@ -303,11 +314,13 @@ internal class ProductionDistributedCommandRuntime(
     }
 }
 
+/** Distinguishes a state change from an idempotent disable request. */
 private enum class PrincipalDisableStatus {
     DISABLED,
     ALREADY_DISABLED,
 }
 
+/** Converts validated node-agent settings into transport connection parameters. */
 private fun SapphireCommandRequest.NodeAgent.toNodeAgentConnection(): NodeAgentConnection =
     NodeAgentConnection(
         endpoint = hubEndpoint,
@@ -316,6 +329,7 @@ private fun SapphireCommandRequest.NodeAgent.toNodeAgentConnection(): NodeAgentC
         requestTimeoutMillis = Math.multiplyExact(requestTimeoutSeconds, 1_000L),
     )
 
+/** Converts validated join settings into transport connection parameters. */
 private fun SapphireCommandRequest.NodeAgentJoin.toNodeAgentConnection(): NodeAgentConnection =
     NodeAgentConnection(
         endpoint = hubEndpoint,

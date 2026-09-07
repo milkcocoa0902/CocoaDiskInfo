@@ -21,14 +21,24 @@ import kotlinx.coroutines.launch
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
+/**
+ * A command lifecycle unit executed from a blocking runtime boundary.
+ *
+ * Implementations encode the mode policy: oneshot performs one collection, standalone
+ * and hub own long-lived servers, node-agent continues after individual cycle failures,
+ * and database commands perform only their requested schema/maintenance operation.
+ */
 sealed interface SapphireExecutor {
+    /** Runs the lifecycle until the mode completes or its surrounding scope is cancelled. */
     suspend fun execute()
 
+    /** Collects once and writes each resulting snapshot, without an implicit database write. */
     class Oneshot(
         private val device: TargetDevice,
         private val collector: DiskSnapshotCollector = SmartctlCollector(),
         private val sink: SnapshotSink = ColotokSnapshotSink(),
     ) : SapphireExecutor {
+        /** Executes one collection pass; persistence is supplied by the injected sink. */
         override suspend fun execute() {
             collectSnapshots(device, collector).forEach { snapshot ->
                 sink.write(snapshot)
@@ -36,6 +46,7 @@ sealed interface SapphireExecutor {
         }
     }
 
+    /** Hosts the standalone API while scheduling periodic local collection cycles. */
     class Standalone(
         private val device: TargetDevice,
         private val collectionInterval: Duration = 60.seconds,
@@ -46,6 +57,7 @@ sealed interface SapphireExecutor {
         private val cleanupOnStartup: Boolean,
         private val cleanupInterval: Duration,
     ) : SapphireExecutor {
+        /** Starts maintenance and collection with the server and waits for its lifetime. */
         override suspend fun execute() {
             if (cleanupOnStartup) {
                 maintenanceRunner.runCleanup()
@@ -73,12 +85,14 @@ sealed interface SapphireExecutor {
         }
     }
 
+    /** Hosts the Hub API and periodic retention maintenance; it performs no collection. */
     class Hub(
         private val server: SapphireServer,
         private val maintenanceRunner: PeriodicMaintenanceRunner,
         private val cleanupOnStartup: Boolean,
         private val cleanupInterval: Duration,
     ) : SapphireExecutor {
+        /** Starts the Hub after optional startup cleanup and waits for server termination. */
         override suspend fun execute() {
             if (cleanupOnStartup) {
                 maintenanceRunner.runCleanup()
@@ -92,6 +106,11 @@ sealed interface SapphireExecutor {
         }
     }
 
+    /**
+     * Continuously collects locally and delivers remotely while sending heartbeats.
+     * A failed cycle is reported and retried on the next interval; cancellation still
+     * propagates so process shutdown is not mistaken for a recoverable collection error.
+     */
     class NodeAgent(
         private val device: TargetDevice,
         private val collectionInterval: Duration,
@@ -100,6 +119,7 @@ sealed interface SapphireExecutor {
         private val sink: SnapshotSink,
         private val heartbeat: NodeAgentHeartbeat,
     ) : SapphireExecutor {
+        /** Runs collection and heartbeat loops in one cancellable coroutine scope. */
         override suspend fun execute() {
             kotlinx.coroutines.coroutineScope {
                 val latestCycleFailure = java.util.concurrent.atomic.AtomicReference<Exception?>(null)
@@ -146,10 +166,12 @@ sealed interface SapphireExecutor {
         }
     }
 
+    /** Applies storage migrations only; it intentionally does not collect or start a server. */
     class Migrate(
         private val storage: StorageSettings,
         private val migratorFactory: StorageMigratorFactory = createStorageMigratorFactory(),
     ) : SapphireExecutor {
+        /** Migrates the configured storage and reports completion to the console. */
         constructor(jdbcUrl: String = "jdbc:sqlite:./sapphire.db") : this(StorageSettings.fromJdbcUrl(jdbcUrl))
 
         override suspend fun execute() {
@@ -158,10 +180,12 @@ sealed interface SapphireExecutor {
         }
     }
 
+    /** Executes an explicit snapshot-retention request against an already-created use case. */
     class Cleanup(
         private val request: SnapshotCleanupRequest,
         private val maintenanceUseCase: SnapshotMaintenanceUseCase,
     ) : SapphireExecutor {
+        /** Prints cleanup counts and vacuum outcome after the use case finishes. */
         override suspend fun execute() {
             val result = maintenanceUseCase.cleanup(request)
             println("Snapshot cleanup completed.")
@@ -180,10 +204,13 @@ sealed interface SapphireExecutor {
     }
 }
 
+/** Sends a node liveness update and the most recent collection-cycle failure, if any. */
 fun interface NodeAgentHeartbeat {
+    /** @param cycleFailure latest recoverable failure, or `null` after a successful cycle. */
     suspend fun send(cycleFailure: Exception?)
 }
 
+/** Collects either one explicit device or all devices according to the command target. */
 private suspend fun collectSnapshots(
     device: TargetDevice,
     collector: DiskSnapshotCollector,

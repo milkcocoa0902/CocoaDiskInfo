@@ -9,6 +9,15 @@ import kotlin.uuid.ExperimentalUuidApi
 
 private val j = Json { ignoreUnknownKeys = true }
 
+/**
+ * Exposed mapping for the raw snapshot history table.
+ *
+ * `snapshot_json` preserves the complete observation; the scalar columns are query/index fields.
+ * The `(node_id, ingest_id)` unique key is the storage-level idempotency boundary, while the
+ * `(node_id, device_key, collect_time)` index supports bounded latest/history reads. Retention
+ * cleanup uses its separate `collect_time` index from the backend migration. Schema creation and
+ * evolution belong to the backend-specific Flyway migrations, not this map.
+ */
 @OptIn(ExperimentalUuidApi::class)
 object DiskSnapshotTable: UuidTable(
     name = "disk_snapshot",

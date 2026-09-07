@@ -1,5 +1,6 @@
 package com.milkcocoa.info.sapphire.agent.datastore
 
+/** Supported SQL storage backends and their JDBC/pool defaults. */
 enum class StorageBackend(
     val configValue: String,
     val jdbcPrefix: String,
@@ -21,6 +22,7 @@ enum class StorageBackend(
     ;
 
     companion object {
+        /** Resolves a config name, accepting `postgres` as a PostgreSQL alias. */
         fun fromConfigValue(value: String): StorageBackend? {
             return entries.firstOrNull { backend ->
                 backend.configValue.equals(value, ignoreCase = true)
@@ -30,6 +32,7 @@ enum class StorageBackend(
             }
         }
 
+        /** Resolves the backend from the JDBC URL scheme, or null when unsupported. */
         fun fromJdbcUrl(jdbcUrl: String): StorageBackend? {
             return entries.firstOrNull { backend ->
                 jdbcUrl.startsWith(backend.jdbcPrefix, ignoreCase = true)

@@ -28,6 +28,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.milkcocoa.info.sapphire.client.api.AgentApiClient
 
+/**
+ * Root desktop composition. The API client is remembered for the window lifetime and closed when
+ * that composition leaves the tree; navigation changes only the visible screen.
+ */
 @Composable
 internal fun CocoaDiskInfoApp(
     agentApiClient: AgentApiClient = remember { AgentApiClient() },
@@ -70,6 +74,7 @@ internal fun CocoaDiskInfoApp(
     }
 }
 
+/** Renders the fixed desktop navigation rail and reports the selected screen to the root state. */
 @Composable
 private fun AppNavigation(
     currentScreen: Screen,

@@ -6,18 +6,22 @@ import com.milkcocoa.info.sapphire.core.snapshot.DiskHealth
 import com.milkcocoa.info.sapphire.core.snapshot.EvaluatedDiskSnapshot
 import com.milkcocoa.info.sapphire.core.snapshot.MetricsSnapshot
 
+/** Counts snapshots evaluated as [DiskHealth.CAUTION] or [DiskHealth.BAD]; GOOD and UNKNOWN are excluded. */
 internal fun List<EvaluatedDiskSnapshot>.countWarnings(): Int {
     return count { it.health == DiskHealth.CAUTION || it.health == DiskHealth.BAD }
 }
 
+/** Displays the newest snapshot timestamp, or `--` when the list is empty. */
 internal fun List<EvaluatedDiskSnapshot>.latestTimestamp(): String {
     return maxByOrNull { it.timestamp }?.timestampLabel() ?: "--"
 }
 
+/** Removes fractional seconds for compact desktop timeline labels. */
 internal fun EvaluatedDiskSnapshot.timestampLabel(): String {
     return timestamp.toString().substringBefore('.')
 }
 
+/** Maps the metrics subtype to the protocol label shown in detail cards. */
 internal fun EvaluatedDiskSnapshot.protocolName(): String {
     return when (metricsSnapshot) {
         is MetricsSnapshot.AtaMetricsSnapshot -> "ATA"
@@ -25,6 +29,7 @@ internal fun EvaluatedDiskSnapshot.protocolName(): String {
     }
 }
 
+/** Returns the shared semantic color for evaluated disk health. */
 internal fun healthColor(health: DiskHealth): Color {
     return when (health) {
         DiskHealth.GOOD -> Color(0xFF62D6A4)
@@ -34,6 +39,7 @@ internal fun healthColor(health: DiskHealth): Color {
     }
 }
 
+/** Returns the shared semantic color for an individual policy attribute status. */
 internal fun attributeStatusColor(status: AttributeStatus): Color {
     return when (status) {
         AttributeStatus.GOOD -> Color(0xFF62D6A4)
@@ -43,6 +49,7 @@ internal fun attributeStatusColor(status: AttributeStatus): Color {
     }
 }
 
+/** Applies desktop warning thresholds to Celsius temperature; null is unknown. */
 internal fun temperatureColor(temperatureCelsius: Int?): Color {
     return when {
         temperatureCelsius == null -> Color(0xFF9AA1A8)
@@ -52,6 +59,7 @@ internal fun temperatureColor(temperatureCelsius: Int?): Color {
     }
 }
 
+/** Applies desktop warning thresholds to percentage used; null is unknown. */
 internal fun wearColor(percentageUsed: Int?): Color {
     return when {
         percentageUsed == null -> Color(0xFF9AA1A8)
@@ -61,6 +69,7 @@ internal fun wearColor(percentageUsed: Int?): Color {
     }
 }
 
+/** Applies desktop warning thresholds to remaining lifetime; null is unknown. */
 internal fun lifetimeRemainingColor(lifetimeRemainingPercent: Int?): Color {
     return when {
         lifetimeRemainingPercent == null -> Color(0xFF9AA1A8)
@@ -70,6 +79,7 @@ internal fun lifetimeRemainingColor(lifetimeRemainingPercent: Int?): Color {
     }
 }
 
+/** Highlights any non-zero critical warning count and treats null as unknown. */
 internal fun warningColor(criticalWarningCount: Int?): Color {
     return when {
         criticalWarningCount == null -> Color(0xFF9AA1A8)
@@ -78,6 +88,7 @@ internal fun warningColor(criticalWarningCount: Int?): Color {
     }
 }
 
+/** Formats values at or above 1 KiB with binary (1024-based) units and one fractional digit; smaller values remain integer bytes. */
 internal fun formatBytes(bytes: Long): String {
     if (bytes < 1024L) return "$bytes B"
     val units = listOf("KiB", "MiB", "GiB", "TiB", "PiB", "EiB")

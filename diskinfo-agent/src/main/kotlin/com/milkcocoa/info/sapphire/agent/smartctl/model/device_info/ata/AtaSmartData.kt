@@ -3,6 +3,7 @@ package com.milkcocoa.info.sapphire.agent.smartctl.model.ata
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
+/** ATA SMART capability, offline-collection, and self-test metadata. */
 @Serializable
 data class AtaSmartData(
     @SerialName("offline_data_collection")
@@ -11,12 +12,14 @@ data class AtaSmartData(
     val selfTest: SelfTest,
     val capabilities: Capabilities
 ) {
+    /** Offline data-collection state and expected completion time in seconds. */
     @Serializable
     data class OfflineDataCollection(
         val status: Status,
         @SerialName("completion_seconds")
         val completionSeconds: Int
     ) {
+        /** Numeric and display form of the offline collection state. */
         @Serializable
         data class Status(
             val value: Int,
@@ -24,12 +27,14 @@ data class AtaSmartData(
         )
     }
 
+    /** Self-test state and estimated polling durations. */
     @Serializable
     data class SelfTest(
         val status: Status,
         @SerialName("polling_minutes")
         val pollingMinutes: PollingMinutes
     ) {
+        /** Current self-test status; [passed] may be absent while a test is running. */
         @Serializable
         data class Status(
             val value: Int,
@@ -37,6 +42,7 @@ data class AtaSmartData(
             val passed: Boolean? = null
         )
 
+        /** Estimated test durations in minutes; conveyance is optional. */
         @Serializable
         data class PollingMinutes(
             val short: Int,
@@ -45,6 +51,7 @@ data class AtaSmartData(
         )
     }
 
+    /** Feature support and autosave flags from the ATA SMART data block. */
     @Serializable
     data class Capabilities(
         val values: List<Int>,

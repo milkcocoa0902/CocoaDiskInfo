@@ -6,7 +6,14 @@ import com.milkcocoa.info.sapphire.core.snapshot.AttributeStatus
 import com.milkcocoa.info.sapphire.core.snapshot.HealthRule
 import com.milkcocoa.info.sapphire.core.snapshot.MetricsSnapshot
 
+/** Evaluates ATA SMART rows using normalized, raw-counter, or endurance policies. */
 class AtaHealthRule : HealthRule<MetricsSnapshot.AtaMetricsSnapshot> {
+    /**
+     * Evaluates each distinct SMART ID in numeric order.
+     *
+     * A repeated ID is treated as malformed input and only its first row is used, ensuring
+     * one stable rule result per observed ID.
+     */
     override fun evaluate(snapshot: MetricsSnapshot.AtaMetricsSnapshot): List<AttributeEvaluation> {
         val evaluations = snapshot.attributes
             // smartctl normally emits one row per ID. Keep the first row if a

@@ -6,16 +6,26 @@ import kotlinx.serialization.json.Json
 import java.util.prefs.Preferences
 
 interface ConnectionProfileStore {
+    /** Loads the current profile, migrating the legacy URL preference when necessary. */
     fun load(): ConnectionProfile
 
+    /** Validates and durably writes the current profile and its legacy URL mirror. */
     fun save(profile: ConnectionProfile)
 }
 
+/** Signals invalid stored profile data or an unavailable Java Preferences backend. */
 class ConnectionProfileStoreException(
     message: String,
     cause: Throwable? = null,
 ) : IllegalStateException(message, cause)
 
+/**
+ * Stores one versioned profile in the Java user preference node.
+ *
+ * The old URL-only preference is migrated to an unpaired legacy profile; no credential or
+ * insecure-HTTP permission is inferred during migration. Invalid stored JSON is reported rather
+ * than silently replaced.
+ */
 class PreferencesConnectionProfileStore(
     private val preferences: Preferences = Preferences.userNodeForPackage(AgentUrlStore::class.java),
     private val json: Json = ProfileJson,
@@ -57,6 +67,7 @@ class PreferencesConnectionProfileStore(
         }
     }
 
+    /** Decodes and validates stored JSON while converting parser failures to store errors. */
     private fun decodeProfile(value: String): ConnectionProfile {
         return try {
             json.decodeFromString<ConnectionProfile>(value).validate()

@@ -38,6 +38,7 @@ import com.milkcocoa.info.sapphire.core.api.NodeDeviceHistoryPayload
 import com.milkcocoa.info.sapphire.core.snapshot.DiskHealth
 import com.milkcocoa.info.sapphire.core.snapshot.EvaluatedDiskSnapshot
 
+/** Async state for the selected device's history request. */
 internal sealed interface DeviceHistoryState {
     data object Idle : DeviceHistoryState
     data object Loading : DeviceHistoryState
@@ -45,6 +46,12 @@ internal sealed interface DeviceHistoryState {
     data class Error(val message: String) : DeviceHistoryState
 }
 
+/**
+ * Renders history request state and a bounded timeline.
+ *
+ * Empty history is distinct from an error, and the payload's policy provenance is shown because
+ * stored raw snapshots are evaluated with the server's current policy at response time.
+ */
 @Composable
 internal fun DeviceHistoryPane(
     state: DeviceHistoryState,
@@ -79,6 +86,7 @@ internal fun DeviceHistoryPane(
     }
 }
 
+/** Loading placeholder shown before history is available. */
 @Composable
 private fun LoadingHistory(
     modifier: Modifier = Modifier,
@@ -98,6 +106,7 @@ private fun LoadingHistory(
     }
 }
 
+/** Combines summary tiles with the scrollable timeline rows in API-provided order. */
 @Composable
 private fun HistoryContent(
     snapshots: List<EvaluatedDiskSnapshot>,
@@ -126,6 +135,7 @@ private fun HistoryContent(
     }
 }
 
+/** Computes range, maximum temperature, and worst health without mutating returned history. */
 @Composable
 private fun HistorySummary(
     snapshots: List<EvaluatedDiskSnapshot>,
@@ -175,6 +185,7 @@ private fun HistorySummary(
     }
 }
 
+/** Displays one aggregate history metric. */
 @Composable
 private fun HistorySummaryTile(
     label: String,
@@ -210,6 +221,7 @@ private fun HistorySummaryTile(
     }
 }
 
+/** Displays the oldest/latest timestamp endpoints for the returned page. */
 @Composable
 private fun HistoryRangeTile(
     oldest: String,
@@ -255,6 +267,7 @@ private fun HistoryRangeTile(
     }
 }
 
+/** Renders one timestamp endpoint in the range card. */
 @Composable
 private fun RangeEndpoint(
     label: String,
@@ -287,6 +300,7 @@ private fun RangeEndpoint(
     }
 }
 
+/** Renders one history snapshot as a compact health/metric timeline row. */
 @Composable
 private fun HistoryTimelineRow(snapshot: EvaluatedDiskSnapshot) {
     val universal = snapshot.metricsSnapshot.universal
@@ -340,6 +354,7 @@ private fun HistoryTimelineRow(snapshot: EvaluatedDiskSnapshot) {
     }
 }
 
+/** Compact label/value cell used by each timeline row. */
 @Composable
 private fun TimelineCell(
     label: String,
@@ -369,6 +384,7 @@ private fun TimelineCell(
     }
 }
 
+/** Orders health for the summary's worst-state calculation. */
 private fun DiskHealth.rank(): Int {
     return when (this) {
         DiskHealth.GOOD -> 0

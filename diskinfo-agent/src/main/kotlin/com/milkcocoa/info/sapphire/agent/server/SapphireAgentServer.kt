@@ -38,13 +38,20 @@ import java.util.UUID
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
+/** Lifecycle boundary for an embedded Ktor server. */
 interface SapphireServer {
+    /**
+     * Starts the server on its configured endpoint.
+     * @param wait whether to block until shutdown.
+     * @param module optional additional Ktor module installed during construction.
+     */
     fun start(
         wait: Boolean = true,
         module: Application.() -> Unit = {},
     )
 }
 
+/** Embedded Standalone server exposing authenticated APIs on a configured host and port. */
 class SapphireAgentServer(
     private val snapshotUseCase: SnapshotUseCase,
     private val host: String = "127.0.0.1",
@@ -68,6 +75,7 @@ class SapphireAgentServer(
     }
 }
 
+/** Embedded Hub server exposing auth/write and authenticated read APIs. */
 class SapphireHubServer(
     private val dependencies: HubAuthApiDependencies,
     private val readDependencies: HubReadApiDependencies,
@@ -94,6 +102,12 @@ class SapphireHubServer(
     }
 }
 
+/**
+ * Installs the legacy/local Standalone API routes over the snapshot use case.
+ * Latest and history responses are bounded and evaluate health using [healthPolicy]; malformed
+ * route parameters return 400, while a missing latest device snapshot returns 404. History may
+ * legitimately return an empty snapshot list after retention cleanup.
+ */
 @OptIn(ExperimentalUuidApi::class)
 fun Application.installSapphireAgentApi(
     snapshotUseCase: SnapshotUseCase,

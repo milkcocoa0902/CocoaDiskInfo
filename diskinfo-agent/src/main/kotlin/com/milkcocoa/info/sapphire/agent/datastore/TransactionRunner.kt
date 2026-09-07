@@ -4,9 +4,18 @@ import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import java.sql.Connection
 
+/**
+ * Runs repository work with one Exposed transaction boundary.
+ *
+ * The read-only/read-write names communicate application intent; the current SQLite-compatible
+ * implementation uses the same JDBC transaction mode for both and commits or rolls back the
+ * complete [block] atomically.
+ */
 interface TransactionRunner {
+    /** Executes [block] in a transaction intended for reads. */
     suspend fun <T> readOnly(block: suspend () -> T): T
 
+    /** Executes [block] in a transaction that may mutate storage. */
     suspend fun <T> readWrite(block: suspend () -> T): T
 }
 

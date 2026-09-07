@@ -15,10 +15,19 @@ import kotlinx.serialization.Serializable
 import kotlinx.coroutines.CancellationException
 import kotlin.time.Instant
 
+/**
+ * Delivery boundary for one collected disk observation.
+ *
+ * Implementations receive the original raw [DiskSnapshot]. A sink may project or persist it, but
+ * must propagate coroutine cancellation; non-cancellation delivery failures are an implementation
+ * policy (for example, repository delivery logs and continues).
+ */
 interface SnapshotSink {
+    /** Delivers [snapshot] to this sink. */
     suspend fun write(snapshot: DiskSnapshot)
 }
 
+/** Logs a policy-evaluated projection without mutating the raw snapshot passed to the sink. */
 class ColotokSnapshotSink(
     private val healthPolicy: HealthPolicy = DefaultHealthPolicy,
 ) : SnapshotSink {
@@ -28,9 +37,9 @@ class ColotokSnapshotSink(
 }
 
 /**
- * Console-only projection.  Repository and remote sinks continue to receive the
- * original [DiskSnapshot], while this serializable structure exposes the active
- * policy and derived evaluations in text and structured output.
+ * Console-only projection. When composed with repository or remote sinks, those sinks can
+ * continue receiving the original [DiskSnapshot], while this serializable structure exposes the
+ * active policy and derived evaluations in text and structured output.
  */
 @Serializable
 private data class EvaluatedSnapshotConsoleLog(
@@ -100,9 +109,14 @@ private fun EvaluatedDiskSnapshot.toConsoleLogStructure(): EvaluatedSnapshotCons
         },
     )
 
+/** Persists raw observations through [snapshotUseCase], logging non-cancellation failures. */
 class RepositorySnapshotSink(
     private val snapshotUseCase: SnapshotUseCase,
 ) : SnapshotSink {
+    /**
+     * Persists the raw observation and logs ordinary failures without stopping collection.
+     * Cancellation is deliberately rethrown so shutdown remains cooperative.
+     */
     override suspend fun write(snapshot: DiskSnapshot) {
         try {
             snapshotUseCase.saveSnapshot(snapshot)
@@ -121,11 +135,14 @@ class RepositorySnapshotSink(
     }
 }
 
+/** Delivers each raw observation to configured sinks sequentially in list order. */
 class CompositeSnapshotSink(
     private val sinks: List<SnapshotSink>,
 ) : SnapshotSink {
+    /** Creates a composite that invokes sinks in the supplied order. */
     constructor(vararg sinks: SnapshotSink) : this(sinks.toList())
 
+    /** Delivers sequentially; a thrown failure stops delivery to subsequent sinks. */
     override suspend fun write(snapshot: DiskSnapshot) {
         sinks.forEach { it.write(snapshot) }
     }

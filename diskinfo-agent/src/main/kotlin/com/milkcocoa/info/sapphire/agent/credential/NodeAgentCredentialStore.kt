@@ -32,31 +32,66 @@ import java.util.EnumSet
 import java.util.Locale
 
 @Serializable
+/**
+ * Persisted Node Agent identity and connection material.
+ *
+ * The private key is PKCS#8 encoded as base64url and must match [publicKeyJwk] and [kid].
+ * Files containing this value are required to be regular, owner-only files by the default
+ * store; callers must not expose [privateKeyPkcs8] in logs or API responses.
+ */
 data class NodeAgentCredential(
+    /** Credential schema version. */
     val version: Int = CURRENT_NODE_AGENT_CREDENTIAL_VERSION,
+    /** Base64url PKCS#8 Ed25519 private key. */
     val privateKeyPkcs8: String,
+    /** Ed25519 public key advertised to the Hub. */
     val publicKeyJwk: Ed25519PublicJwk,
+    /** Key identifier derived from [publicKeyJwk]. */
     val kid: String,
+    /** Stable Hub identity to which this credential is joined. */
     val hubId: String,
+    /** Authoritative node identity assigned by the Hub. */
     val nodeId: String,
+    /** Display name registered for the node. */
     val nodeName: String,
+    /** Absolute HTTP(S) Hub endpoint without a base path or query. */
     val endpoint: String,
 )
 
+/** File or platform storage boundary for validated Node Agent credentials. */
 interface NodeAgentCredentialStore {
+    /**
+     * Loads, parses, validates, and returns a credential from [path].
+     * @throws NodeAgentCredentialStoreException when the path, permissions, JSON, or key
+     * relationships are invalid.
+     */
     fun load(path: Path): NodeAgentCredential
 
+    /**
+     * Validates and replaces [path] with [credential], using an atomic move when supported by
+     * the filesystem.
+     * @throws NodeAgentCredentialStoreException when the parent/filesystem permissions,
+     * serialization, or replacement operation cannot satisfy the storage contract.
+     */
     fun save(
         path: Path,
         credential: NodeAgentCredential,
     )
 }
 
+/** Indicates that credential persistence or credential validation failed. */
 class NodeAgentCredentialStoreException(
     message: String,
     cause: Throwable? = null,
 ) : IllegalStateException(message, cause)
 
+/**
+ * JSON credential store enforcing owner-only permissions and symlink rejection.
+ *
+ * POSIX files must allow only owner read/write (0400 or 0600); Windows ACLs must grant
+ * access only to the owner. Saves use a secure temporary file and replacement move (atomic when
+ * supported), and unsupported filesystems fail closed because permissions cannot be verified.
+ */
 class OwnerOnlyJsonNodeAgentCredentialStore(
     private val json: Json = CredentialJson,
 ) : NodeAgentCredentialStore {
@@ -196,6 +231,11 @@ class OwnerOnlyJsonNodeAgentCredentialStore(
 
 internal const val CURRENT_NODE_AGENT_CREDENTIAL_VERSION = 1
 
+/**
+ * Validates credential version, identifiers, endpoint, and Ed25519 key correspondence.
+ * The returned value has its endpoint normalized by trimming whitespace and trailing slashes.
+ * @throws IllegalArgumentException when any credential invariant is violated.
+ */
 internal fun validateNodeAgentCredential(credential: NodeAgentCredential): NodeAgentCredential {
     require(credential.version == CURRENT_NODE_AGENT_CREDENTIAL_VERSION) {
         "Unsupported Node Agent credential version: ${credential.version}."
@@ -221,9 +261,15 @@ internal fun validateNodeAgentCredential(credential: NodeAgentCredential): NodeA
     return credential.copy(endpoint = endpoint)
 }
 
+/** Decodes the validated credential's PKCS#8 private key for request signing. */
 internal fun NodeAgentCredential.privateKey(): PrivateKey =
     Ed25519Keys.privateKeyFromPkcs8(Base64Url.decode(privateKeyPkcs8, "Node Agent credential privateKeyPkcs8"))
 
+/**
+ * Normalizes and validates an absolute HTTP(S) endpoint with no user info, query, fragment,
+ * or base path.
+ * @throws IllegalArgumentException when [value] is not a permitted endpoint.
+ */
 internal fun validateEndpoint(value: String): String {
     val normalized = value.trim().trimEnd('/')
     val endpoint = runCatching { URI(normalized) }
@@ -241,6 +287,7 @@ internal fun validateEndpoint(value: String): String {
     return normalized
 }
 
+/** Returns whether an ACL grants useful access only to [owner]. */
 internal fun hasOnlyOwnerAccess(
     owner: UserPrincipal,
     entries: List<AclEntry>,

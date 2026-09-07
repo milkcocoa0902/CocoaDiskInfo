@@ -9,6 +9,14 @@ import com.milkcocoa.info.sapphire.core.health.HealthPolicyMetadata
 import com.milkcocoa.info.sapphire.core.snapshot.EvaluatedDiskSnapshot
 import kotlin.time.Instant
 
+/**
+ * Combines pages into one node-grouped payload while preserving first-seen ordering.
+ *
+ * A device key is unique only within its node, so both node ID and device key determine the
+ * merge slot. Duplicate node records use the last page's node name and device rows, the last
+ * non-null status, and the greatest available `lastSeenAt`, while the last page's pagination
+ * marker is retained for diagnostics.
+ */
 internal fun mergeLatestSnapshotPages(
     pages: List<LatestSnapshotsPayload>,
 ): LatestSnapshotsPayload {
@@ -72,6 +80,7 @@ private class NodeAccumulator(node: NodeSnapshot) {
         node.deviceStates.forEach { deviceStates[it.deviceKey] = it }
     }
 
+    /** Merges another page's record, replacing its node name/rows and retaining non-null status/time metadata. */
     fun merge(node: NodeSnapshot) {
         nodeName = node.nodeName
         status = node.status ?: status

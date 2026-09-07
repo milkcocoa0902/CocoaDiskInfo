@@ -4,23 +4,27 @@ import com.milkcocoa.info.sapphire.core.api.DeviceState
 import com.milkcocoa.info.sapphire.core.api.LatestSnapshotsPayload
 import com.milkcocoa.info.sapphire.core.api.NodeApiError
 
+/** UI severity derived from the server's cached/received state metadata. */
 internal enum class FreshnessLevel {
     FRESH,
     STALE,
     UNKNOWN,
 }
 
+/** Composite key because a device key is not globally unique across nodes. */
 internal data class DeviceIdentity(
     val nodeId: String,
     val deviceKey: String,
 )
 
+/** Labels and severity used to display one device's cache freshness. */
 internal data class FreshnessPresentation(
     val level: FreshnessLevel,
     val label: String,
     val ageLabel: String?,
 )
 
+/** Non-domain state derived from a latest payload for dashboard messaging and row labels. */
 internal data class LatestSnapshotPresentationState(
     val partial: Boolean,
     val errors: List<NodeApiError>,
@@ -28,6 +32,11 @@ internal data class LatestSnapshotPresentationState(
     val freshnessByDevice: Map<DeviceIdentity, FreshnessPresentation>,
 )
 
+/**
+ * Projects node/device state into UI metadata without changing the raw snapshot payload.
+ *
+ * Device freshness is looked up by `(nodeId, deviceKey)`; absent state is unknown, not fresh.
+ */
 internal fun LatestSnapshotsPayload.toPresentationState(): LatestSnapshotPresentationState {
     val freshness = buildMap {
         nodes.forEach { node ->
@@ -48,6 +57,7 @@ internal fun LatestSnapshotsPayload.toPresentationState(): LatestSnapshotPresent
     )
 }
 
+/** Maps server state to user-facing freshness; a missing receive time remains unknown. */
 internal fun DeviceState?.toPresentation(): FreshnessPresentation {
     val level = when {
         this?.lastReceivedAt == null -> FreshnessLevel.UNKNOWN
@@ -65,6 +75,7 @@ internal fun DeviceState?.toPresentation(): FreshnessPresentation {
     )
 }
 
+/** Formats a potentially negative server age into coarse, non-negative relative time. */
 internal fun formatSnapshotAge(ageMs: Long): String {
     val clampedAgeMs = ageMs.coerceAtLeast(0)
     val seconds = clampedAgeMs / 1_000

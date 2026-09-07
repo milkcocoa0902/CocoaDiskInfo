@@ -37,18 +37,34 @@ private val StandaloneBootstrapJson = Json {
     explicitNulls = false
 }
 
+/** Dependencies and request limits for the Standalone authenticated API. */
 data class StandaloneAuthDependencies(
+    /** Bootstrap-token/principal nonce authorization. */
     val nonceIssuer: AuthorizedNonceIssuer,
+    /** Client pairing registration service. */
     val registrationService: BootstrapRegistrationService,
+    /** Signed client-read verifier and nonce lifecycle. */
     val signedRequestVerifier: SignedRequestVerifier,
+    /** Latest/history query adapter used by read routes. */
     val queryService: LatestSnapshotsQueryService,
+    /** Device-scoped latest lookup. */
     val snapshotUseCase: SnapshotUseCase,
+    /** Lifetime of issued/read-chain nonces. */
     val nonceTtl: Duration,
+    /** Maximum bootstrap/read request body size. */
     val maximumRequestBodyBytes: Long,
+    /** Active policy used to evaluate raw snapshots at response time. */
     val healthPolicy: HealthPolicy = DefaultHealthPolicy,
 )
 
 @OptIn(ExperimentalUuidApi::class)
+/**
+ * Installs Standalone pairing and authenticated read routes.
+ *
+ * Pairing and nonce endpoints use strict bounded JSON. Device latest responses return 404
+ * when no history exists; successful signed reads consume the supplied nonce and return a
+ * next nonce. Health is evaluated with the configured active policy when a response is built.
+ */
 fun Application.installStandaloneSecureApi(dependencies: StandaloneAuthDependencies) {
     routing {
         post(CocoaAuthProtocol.NONCE_PATH) {

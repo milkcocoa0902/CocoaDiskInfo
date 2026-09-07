@@ -6,6 +6,7 @@ import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
 @OptIn(ExperimentalUuidApi::class)
+/** Stable node metadata stored alongside an observation; [nodeName] is display context. */
 data class SnapshotOrigin(
     val nodeId: Uuid,
     val nodeName: String,
@@ -17,6 +18,12 @@ data class SnapshotOrigin(
 }
 
 @OptIn(ExperimentalUuidApi::class)
+/**
+ * Ingest DTO crossing into storage.
+ *
+ * [ingestId] is scoped to [origin].nodeId and is the idempotency key; [snapshot] is the immutable
+ * observed payload, while [receivedAt] is the supplied receipt time for this storage boundary.
+ */
 data class SnapshotPersistenceRecord(
     val ingestId: Uuid,
     val origin: SnapshotOrigin,
@@ -24,12 +31,14 @@ data class SnapshotPersistenceRecord(
     val receivedAt: Instant,
 )
 
+/** Whether an ingest created a row or matched the existing same-payload row. */
 enum class SnapshotInsertStatus {
     STORED,
     DUPLICATE,
 }
 
 @OptIn(ExperimentalUuidApi::class)
+/** Result of an idempotent insert, including the persistent row and ingest/receipt metadata. */
 data class SnapshotInsertResult(
     val status: SnapshotInsertStatus,
     val snapshotId: Uuid,
@@ -38,6 +47,7 @@ data class SnapshotInsertResult(
 )
 
 @OptIn(ExperimentalUuidApi::class)
+/** Snapshot plus persistence metadata needed by APIs and cursor pagination. */
 data class StoredDiskSnapshot(
     val snapshotId: Uuid,
     val ingestId: Uuid,
@@ -46,14 +56,14 @@ data class StoredDiskSnapshot(
     val receivedAt: Instant,
 )
 
-/** Raw repository result. Policy-derived fields never cross this boundary. */
+/** Raw latest-node repository result; policy-derived fields never cross this boundary. */
 data class RawNodeSnapshot(
     val nodeId: String,
     val nodeName: String,
     val devices: List<DiskSnapshot>,
 )
 
-/** Raw repository history result. Policy-derived fields never cross this boundary. */
+/** Raw repository history result; policy-derived fields never cross this boundary. */
 data class RawNodeDeviceHistory(
     val nodeId: String,
     val nodeName: String,
@@ -62,12 +72,19 @@ data class RawNodeDeviceHistory(
 )
 
 @OptIn(ExperimentalUuidApi::class)
+/** Raised when one node reuses an ingest id for a different immutable snapshot payload. */
 class IngestIdConflictException(
     val nodeId: Uuid,
     val ingestId: Uuid,
 ) : IllegalStateException("ingestId $ingestId is already used by node $nodeId for a different snapshot.")
 
 @OptIn(ExperimentalUuidApi::class)
+/**
+ * Opaque keyset position for latest-page reads, ordered by node id then device key.
+ *
+ * It is a position rather than a timestamp: new observations do not invalidate the ordering of
+ * already returned node/device keys, although callers should not treat it as a history cursor.
+ */
 data class LatestSnapshotCursor(
     val nodeId: Uuid,
     val deviceKey: String,
@@ -77,6 +94,7 @@ data class LatestSnapshotCursor(
     }
 }
 
+/** Request for one bounded latest snapshot page. */
 data class LatestSnapshotPageRequest(
     val cursor: LatestSnapshotCursor? = null,
     val limit: Int = DEFAULT_LIMIT,
@@ -91,6 +109,7 @@ data class LatestSnapshotPageRequest(
     }
 }
 
+/** Page rows and continuation state for a latest snapshot keyset query. */
 data class LatestSnapshotPage(
     val rows: List<StoredDiskSnapshot>,
     val hasMore: Boolean,

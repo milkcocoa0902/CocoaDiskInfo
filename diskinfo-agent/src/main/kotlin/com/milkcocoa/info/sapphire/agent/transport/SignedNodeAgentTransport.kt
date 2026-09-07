@@ -38,9 +38,13 @@ import java.security.PrivateKey
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
+/** Bounded exponential retry policy for retryable Node Agent delivery failures. */
 data class NodeDeliveryRetryPolicy(
+    /** Maximum number of signed attempts, including the first attempt. */
     val maximumAttempts: Int = DEFAULT_MAXIMUM_ATTEMPTS,
+    /** Delay before the first retry. */
     val initialBackoff: Duration = DEFAULT_INITIAL_BACKOFF,
+    /** Upper bound for subsequent exponential backoff delays. */
     val maximumBackoff: Duration = DEFAULT_MAXIMUM_BACKOFF,
 ) {
     init {
@@ -62,6 +66,14 @@ data class NodeDeliveryRetryPolicy(
     }
 }
 
+/**
+ * Sends signed ingest and heartbeat requests using a joined Node Agent credential.
+ *
+ * Requests are serialized, bind the exact UTF-8 body digest into the JWS and Content-Digest
+ * header, consume each nonce once, and accept a single response nonce for the next request.
+ * Retryable nonce failures and I/O/5xx failures are retried under [retryPolicy]; cancellation
+ * and non-retryable protocol/API failures propagate immediately. [close] owns the HTTP client.
+ */
 class SignedNodeAgentTransport(
     credential: NodeAgentCredential,
     private val client: HttpClient,
@@ -77,6 +89,11 @@ class SignedNodeAgentTransport(
         client.close()
     }
 
+    /**
+     * Delivers one snapshot with its idempotency key and verifies the response echoes it.
+     * @throws NodeAgentTransportException for rejected, malformed, mismatched, or exhausted
+     * delivery attempts.
+     */
     suspend fun ingest(request: SnapshotIngestRequest): SnapshotIngestResponse {
         require(request.ingestId.isNotBlank()) { "Snapshot ingestId must not be blank." }
         val bodyBytes = NodeAgentJson.encodeToString(request).toByteArray(StandardCharsets.UTF_8)
@@ -93,6 +110,7 @@ class SignedNodeAgentTransport(
         }
     }
 
+    /** Sends a signed heartbeat, including an optional current collection error. */
     suspend fun heartbeat(request: NodeHeartbeatRequest): NodeHeartbeatResponse {
         require(request.expectedCollectionIntervalSeconds > 0) {
             "Expected collection interval must be greater than zero."
@@ -228,6 +246,12 @@ class SignedNodeAgentTransport(
     }
 
     companion object {
+        /**
+         * Creates a transport after requiring the connection endpoint to match the joined
+         * credential endpoint.
+         * @throws IllegalArgumentException when credentials/connection are invalid or endpoints
+         * differ; transport creation failures are reported by the HTTP client factory.
+         */
         fun create(
             credential: NodeAgentCredential,
             connection: NodeAgentConnection,

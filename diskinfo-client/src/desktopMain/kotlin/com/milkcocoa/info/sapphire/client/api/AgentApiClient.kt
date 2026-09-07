@@ -47,17 +47,30 @@ internal val ClientJson = Json {
     ignoreUnknownKeys = true
 }
 
+/** Ordering requested from the bounded device-history endpoint. */
 enum class SnapshotHistoryOrder(
+    /** Lowercase value sent in the signed `order` query parameter. */
     val wireValue: String,
 ) {
+    /** Oldest snapshots first. */
     ASC("asc"),
+    /** Newest snapshots first. */
     DESC("desc"),
 }
 
+/** Creates the platform HTTP transport for a validated connection profile. */
 fun interface ConnectionHttpClientFactory {
+    /** Builds a client whose trust and insecure-transport behavior follows [profile]. */
     fun create(profile: ConnectionProfile): HttpClient
 }
 
+/**
+ * Reads current snapshots and device history from an Agent or Hub.
+ *
+ * Each read is authenticated with the Ed25519 private key referenced by the stored profile,
+ * and nonce state is serialized because a cached nonce is single-use. The HTTP client and a
+ * server-issued next nonce are retained between calls until [close] or a profile change.
+ */
 class AgentApiClient(
     private val profileStore: ConnectionProfileStore = PreferencesConnectionProfileStore(),
     private val credentialStore: ClientCredentialStore = OwnerOnlyJsonClientCredentialStore(),
@@ -67,6 +80,18 @@ class AgentApiClient(
     private var activeTransport: ActiveTransport? = null
     private var nextNonce: CachedNonce? = null
 
+    /**
+     * Fetches and merges every page of the bounded latest-snapshot response.
+     *
+     * The server's pagination cursor is followed until `hasMore` is false. Missing or repeated
+     * cursors, and evaluation-policy metadata that changes between pages, fail the request rather
+     * than presenting a mixed view.
+     *
+     * @param limit maximum number of latest node/device rows requested per server page; must be 1..500.
+     * @return one merged payload retaining partial/error and freshness metadata from all pages.
+     * @throws IllegalArgumentException when [limit] is outside the supported range.
+     * @throws AgentApiException when the profile, credential, nonce, response, or request fails.
+     */
     suspend fun fetchLatestSnapshots(
         limit: Int = DEFAULT_LATEST_LIMIT,
     ): LatestSnapshotsPayload {
@@ -117,6 +142,22 @@ class AgentApiClient(
         return mergeLatestSnapshotPages(pages)
     }
 
+    /**
+     * Fetches bounded history for the `(nodeId, deviceKey)` selected in the current view.
+     *
+     * The opaque device key is sent as an identity component of the signed path; it is not
+     * replaced with the display path. History policy metadata is checked against every returned
+     * snapshot so a server policy transition cannot silently mix evaluations.
+     *
+     * @param nodeId stable node identity, not the node display name.
+     * @param deviceKey stable device identity, not the device path.
+     * @param limit maximum number of history rows; must be 1..1000.
+     * @param from inclusive lower time bound, when supplied.
+     * @param to inclusive upper time bound, when supplied.
+     * @param order server ordering for the returned snapshots.
+     * @throws IllegalArgumentException for blank identities, an invalid limit, or [from] after [to].
+     * @throws AgentApiException when the signed request or response fails.
+     */
     suspend fun fetchDeviceHistory(
         nodeId: String,
         deviceKey: String,
@@ -168,6 +209,7 @@ class AgentApiClient(
         return response.body<DeviceHistoryResponse>().payload.also { it.requireConsistentEvaluationPolicy() }
     }
 
+    /** Releases the cached Ktor client and discards any nonce tied to it. */
     override fun close() {
         synchronized(this) {
             activeTransport?.client?.close()
@@ -176,6 +218,7 @@ class AgentApiClient(
         }
     }
 
+    /** Loads and validates profile/credential material for one authenticated operation. */
     private fun requestContext(): SignedRequestContext {
         val profile = runCatching { profileStore.load().validate() }
             .getOrElse { throw AgentApiException(it.message ?: "Connection profile is invalid.", cause = it) }
@@ -203,6 +246,7 @@ class AgentApiClient(
         )
     }
 
+    /** Signs one GET and retries once when the server reports that its nonce is unavailable. */
     private suspend fun signedGet(
         context: SignedRequestContext,
         url: String,
@@ -245,6 +289,7 @@ class AgentApiClient(
         error("Signed request retry loop completed unexpectedly.")
     }
 
+    /** Obtains and validates a 32-byte read nonce for this credential. */
     private suspend fun issueNonce(context: SignedRequestContext): String {
         val url = URLBuilder(context.profile.baseUrl.trim().trimEnd('/'))
             .appendPathSegments("api", "v1", "auth", "nonces")
@@ -268,6 +313,7 @@ class AgentApiClient(
         }
     }
 
+    /** Reuses a transport only for an equal profile; a changed profile closes the old client. */
     @Synchronized
     private fun clientFor(profile: ConnectionProfile): HttpClient {
         val current = activeTransport
@@ -280,6 +326,7 @@ class AgentApiClient(
         }
     }
 
+    /** Parses the single-use nonce returned by a successful response, if present. */
     private fun HttpResponse.nextNonceOrNull(): String? {
         val values = headers.getAll(CocoaAuthProtocol.NEXT_NONCE_HEADER) ?: return null
         if (values.size != 1) {
@@ -291,6 +338,7 @@ class AgentApiClient(
         }
     }
 
+    /** Decodes a structured API error while retaining useful plain-text fallback details. */
     private suspend fun HttpResponse.failure(): ParsedFailure {
         val body = bodyAsText()
         val apiError = runCatching {
@@ -345,6 +393,11 @@ class AgentApiClient(
     }
 }
 
+/**
+ * Failure returned to the desktop UI for invalid configuration or a failed Agent/Hub request.
+ * [statusCode] and [errorCode] remain optional because local validation failures have no HTTP
+ * response.
+ */
 open class AgentApiException(
     message: String,
     val statusCode: Int? = null,
@@ -352,10 +405,12 @@ open class AgentApiException(
     cause: Throwable? = null,
 ) : RuntimeException(message, cause)
 
+/** Raised when one history/current response contains incompatible policy provenance. */
 class LatestSnapshotPolicyMismatchException(
     message: String,
 ) : AgentApiException(message)
 
+/** Rejects history whose envelope and snapshots do not share one evaluation policy (or all null). */
 internal fun NodeDeviceHistoryPayload.requireConsistentEvaluationPolicy() {
     val policies = buildList {
         add(evaluationPolicy)

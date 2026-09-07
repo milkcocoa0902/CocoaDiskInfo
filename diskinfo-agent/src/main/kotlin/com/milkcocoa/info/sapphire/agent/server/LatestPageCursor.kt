@@ -8,8 +8,11 @@ import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
 @OptIn(ExperimentalUuidApi::class)
+/** Opaque position after a latest-snapshot page, scoped by node and stable device key. */
 data class LatestPageCursor(
+    /** Node identity of the last row in the page. */
     val nodeId: Uuid,
+    /** Stable device identity of the last row in the page. */
     val deviceKey: String,
 ) {
     init {
@@ -17,12 +20,14 @@ data class LatestPageCursor(
     }
 }
 
+/** Canonical versioned base64url codec used by the signed latest-page query. */
 object LatestPageCursorCodec {
     private const val VERSION: Byte = 1
     private const val UUID_BYTES = 16
     private const val LENGTH_BYTES = Int.SIZE_BYTES
 
     @OptIn(ExperimentalUuidApi::class)
+    /** Encodes [cursor] without exposing a server-internal representation in the API. */
     fun encode(cursor: LatestPageCursor): String {
         val deviceKey = cursor.deviceKey.toByteArray(StandardCharsets.UTF_8)
         require(deviceKey.isNotEmpty() && deviceKey.size <= 255) {
@@ -39,6 +44,10 @@ object LatestPageCursorCodec {
     }
 
     @OptIn(ExperimentalUuidApi::class)
+    /**
+     * Decodes and canonical-form validates a cursor.
+     * @throws AuthProtocolException when version, size, UTF-8, or canonical encoding is invalid.
+     */
     fun decode(value: String): LatestPageCursor {
         val bytes = Base64Url.decode(value, "cursor")
         if (bytes.size < 1 + UUID_BYTES + LENGTH_BYTES || bytes[0] != VERSION) {

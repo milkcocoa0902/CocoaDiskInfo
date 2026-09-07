@@ -9,8 +9,14 @@ import com.milkcocoa.info.sapphire.core.health.HealthPolicy
 import java.net.URI
 import java.nio.file.Paths
 
+/** Raised when merged configuration is incomplete, inconsistent, or outside policy limits. */
 class AgentConfigValidationException(message: String) : IllegalArgumentException(message)
 
+/**
+ * Values supplied by the command line. For fields consumed by a resolver, a non-null value
+ * overrides the environment and TOML file; nullable booleans preserve explicit `--no-*`
+ * choices as well as omission.
+ */
 data class AgentConfigOverrides(
     val scan: Boolean? = null,
     val device: String? = null,
@@ -39,6 +45,7 @@ data class AgentConfigOverrides(
     val healthPolicy: String? = null,
 )
 
+/** Fully resolved inputs for one collection pass; persistence remains opt-in. */
 data class EffectiveOneshotConfig(
     val target: TargetDevice,
     val outputMode: OutputMode,
@@ -51,6 +58,7 @@ data class EffectiveOneshotConfig(
         get() = storage.jdbcUrl
 }
 
+/** Fully resolved long-running local server, collection, and maintenance settings. */
 data class EffectiveStandaloneConfig(
     val target: TargetDevice,
     val outputMode: OutputMode,
@@ -69,6 +77,7 @@ data class EffectiveStandaloneConfig(
         get() = storage.jdbcUrl
 }
 
+/** Resolved storage for the schema-only migration command. */
 data class EffectiveDbMigrateConfig(
     val storage: StorageSettings,
 ) {
@@ -76,6 +85,7 @@ data class EffectiveDbMigrateConfig(
         get() = storage.jdbcUrl
 }
 
+/** Resolved retention request for explicit database cleanup. */
 data class EffectiveDbCleanupConfig(
     val storage: StorageSettings,
     val rawSnapshotDays: Int,
@@ -85,6 +95,7 @@ data class EffectiveDbCleanupConfig(
         get() = storage.jdbcUrl
 }
 
+/** Fully resolved Hub listener, authentication, retention, and policy settings. */
 data class EffectiveHubConfig(
     val storage: StorageSettings,
     val host: String,
@@ -100,17 +111,20 @@ data class EffectiveHubConfig(
     val healthPolicy: HealthPolicy = DefaultHealthPolicy,
 )
 
+/** Identifies which host's storage and endpoint rules govern token creation. */
 enum class BootstrapTokenHostMode {
     HUB,
     STANDALONE,
 }
 
+/** Resolved endpoint and storage used to issue bootstrap material. */
 data class EffectiveBootstrapTokenConfig(
     val storage: StorageSettings,
     val publicEndpointBaseUrl: String,
     val publicEndpointAllowInsecureTransport: Boolean,
 )
 
+/** Fully resolved node-agent collection, transport, and local-console settings. */
 data class EffectiveNodeAgentConfig(
     val target: TargetDevice,
     val outputMode: OutputMode,
@@ -126,6 +140,7 @@ data class EffectiveNodeAgentConfig(
     val healthPolicy: HealthPolicy = DefaultHealthPolicy,
 )
 
+/** Resolved transport settings used by the one-time node-agent join operation. */
 data class EffectiveNodeAgentJoinConfig(
     val hubEndpoint: String,
     val hubAllowInsecureTransport: Boolean,
@@ -134,7 +149,12 @@ data class EffectiveNodeAgentJoinConfig(
     val requestTimeoutSeconds: Long,
 )
 
+/**
+ * Merges command line, environment, TOML, and defaults in that precedence order,
+ * then validates mode-specific invariants before producing executable configuration.
+ */
 object AgentConfigResolver {
+    /** Resolves a single collection and requires exactly one target selection. */
     fun resolveOneshot(
         config: AgentConfig,
         environment: Map<String, String> = System.getenv(),
@@ -175,6 +195,7 @@ object AgentConfigResolver {
         )
     }
 
+    /** Resolves local server mode, including collection cadence and retention maintenance. */
     fun resolveStandalone(
         config: AgentConfig,
         environment: Map<String, String> = System.getenv(),
@@ -248,6 +269,7 @@ object AgentConfigResolver {
         )
     }
 
+    /** Resolves storage for schema migration without applying runtime collection defaults. */
     fun resolveDbMigrate(
         config: AgentConfig,
         environment: Map<String, String> = System.getenv(),
@@ -258,6 +280,7 @@ object AgentConfigResolver {
         )
     }
 
+    /** Resolves and validates an explicit retention cleanup request. */
     fun resolveDbCleanup(
         config: AgentConfig,
         environment: Map<String, String> = System.getenv(),
@@ -281,6 +304,7 @@ object AgentConfigResolver {
         )
     }
 
+    /** Resolves Hub mode; central storage is required and migration remains explicit. */
     fun resolveHub(
         config: AgentConfig,
         environment: Map<String, String> = System.getenv(),
@@ -341,6 +365,7 @@ object AgentConfigResolver {
         )
     }
 
+    /** Resolves endpoint/storage rules according to whether material belongs to Hub or standalone. */
     fun resolveBootstrapToken(
         hostMode: BootstrapTokenHostMode,
         config: AgentConfig,
@@ -365,6 +390,7 @@ object AgentConfigResolver {
         )
     }
 
+    /** Resolves continuous node-agent collection and authenticated delivery settings. */
     fun resolveNodeAgent(
         config: AgentConfig,
         environment: Map<String, String> = System.getenv(),
@@ -449,6 +475,7 @@ object AgentConfigResolver {
         )
     }
 
+    /** Resolves the transport and credential destination for a node-agent join. */
     fun resolveNodeAgentJoin(
         config: AgentConfig,
         environment: Map<String, String> = System.getenv(),
@@ -491,6 +518,7 @@ object AgentConfigResolver {
         )
     }
 
+    /** Infers backend from JDBC URL and rejects an explicit backend mismatch. */
     private fun resolveStorageSettings(
         config: AgentConfig,
         environment: Map<String, String>,
@@ -545,6 +573,7 @@ object AgentConfigResolver {
         )
     }
 
+    /** Applies normal storage resolution but rejects the unsafe Hub working-directory default. */
     private fun resolveRequiredStorageSettings(
         config: AgentConfig,
         environment: Map<String, String>,
@@ -560,6 +589,7 @@ object AgentConfigResolver {
         return resolveStorageSettings(config, environment, cli)
     }
 
+    /** Resolves and validates a base endpoint, requiring explicit consent for HTTP. */
     private fun resolvePublicEndpoint(
         config: AgentConfig,
         environment: Map<String, String>,
@@ -583,6 +613,7 @@ object AgentConfigResolver {
         )
     }
 
+    /** Resolves the identity namespace shared by collectors and snapshot history. */
     private fun resolveDeviceIdentityNamespaceSalt(
         config: AgentConfig,
         environment: Map<String, String>,
@@ -594,6 +625,7 @@ object AgentConfigResolver {
         ) ?: AgentConfigDefaults.DEVICE_IDENTITY_NAMESPACE_SALT
     }
 
+    /** Selects a policy by stable name so every mode evaluates with the same authority. */
     private fun resolveHealthPolicy(
         config: AgentConfig,
         environment: Map<String, String>,
@@ -611,6 +643,7 @@ object AgentConfigResolver {
         return HealthPolicyRegistry.select(policyName)
     }
 
+    /** Converts mutually exclusive scan/path inputs into a normalized executable target. */
     private fun requireTarget(scan: Boolean, device: String?): TargetDevice {
         if (scan && device != null) {
             throw AgentConfigValidationException("Use either scan or device, not both.")
@@ -623,6 +656,7 @@ object AgentConfigResolver {
         )
     }
 
+    /** Resolves a case-insensitive output name, defaulting to the detail formatter. */
     private fun resolveOutputMode(rawMode: String?): OutputMode {
         val mode = rawMode ?: return OutputMode.DEFAULT
         return OutputMode.entries.firstOrNull { it.name.equals(mode, ignoreCase = true) }
@@ -631,18 +665,21 @@ object AgentConfigResolver {
             )
     }
 
+    /** Rejects a non-positive collection interval before it reaches a delay call. */
     private fun validateInterval(intervalSeconds: Long) {
         if (intervalSeconds <= 0) {
             throw AgentConfigValidationException("[runtime].intervalSeconds must be greater than 0 seconds.")
         }
     }
 
+    /** Enforces the bounded retention window supported by cleanup policy. */
     private fun validateRawSnapshotDays(rawSnapshotDays: Int) {
         if (rawSnapshotDays !in 1..365) {
             throw AgentConfigValidationException("[retention].rawSnapshotDays must be between 1 and 365 days.")
         }
     }
 
+    /** Ensures periodic maintenance cannot be configured with a busy-loop interval. */
     private fun validateCleanupInterval(cleanupIntervalHours: Long) {
         if (cleanupIntervalHours <= 0) {
             throw AgentConfigValidationException(
@@ -651,22 +688,26 @@ object AgentConfigResolver {
         }
     }
 
+    /** Validates the TCP port before a server attempts to bind it. */
     private fun validatePort(port: Int) {
         if (port !in 1..65535) {
             throw AgentConfigValidationException("[http].port must be between 1 and 65535.")
         }
     }
 
+    /** Keeps nonce validity within the replay-protection policy window. */
     private fun validateNonceTtl(seconds: Long) {
         if (seconds !in 10..300) {
             throw AgentConfigValidationException("[auth].nonceTtlSeconds must be between 10 and 300 seconds.")
         }
     }
 
+    /** Applies a positive-number invariant while preserving the source field name in errors. */
     private fun validatePositive(name: String, value: Long) {
         if (value <= 0) throw AgentConfigValidationException("$name must be greater than 0.")
     }
 
+    /** Accepts only host-only HTTP(S) bases and requires an explicit opt-in for HTTP. */
     private fun validatePublicHttpUrl(name: String, rawUrl: String, allowInsecure: Boolean) {
         val uri = runCatching { URI(rawUrl) }.getOrNull()
             ?: throw AgentConfigValidationException("$name must be an absolute HTTP(S) URL.")
@@ -681,14 +722,17 @@ object AgentConfigResolver {
         }
     }
 
+    /** Canonicalizes endpoint joins by trimming whitespace and one trailing slash. */
     private fun normalizeBaseUrl(rawUrl: String): String = rawUrl.trim().removeSuffix("/")
 
+    /** Returns the first supplied string in precedence order, rejecting blank values. */
     private fun firstString(name: String, vararg values: String?): String? {
         return values.firstNotNullOfOrNull { value ->
             value?.also { requireNonBlank(name, it) }
         }
     }
 
+    /** Converts blank source values into a field-specific validation failure. */
     private fun requireNonBlank(name: String, value: String): String {
         if (value.isBlank()) {
             throw AgentConfigValidationException("$name must not be blank.")
@@ -696,10 +740,12 @@ object AgentConfigResolver {
         return value
     }
 
+    /** Reads a non-blank environment value without conflating blank with absence. */
     private fun Map<String, String>.string(name: String): String? {
         return this[name]?.also { requireNonBlank(name, it) }
     }
 
+    /** Parses an environment boolean strictly as lowercase-insensitive true/false. */
     private fun Map<String, String>.boolean(name: String): Boolean? {
         val value = string(name) ?: return null
         return when (value.lowercase()) {
@@ -709,12 +755,14 @@ object AgentConfigResolver {
         }
     }
 
+    /** Parses an environment integer while retaining a source-specific error message. */
     private fun Map<String, String>.long(name: String): Long? {
         val value = string(name) ?: return null
         return value.toLongOrNull()
             ?: throw AgentConfigValidationException("$name must be an integer.")
     }
 
+    /** Narrows an environment integer and rejects values outside the Int range. */
     private fun Map<String, String>.int(name: String): Int? {
         val value = long(name) ?: return null
         if (value !in Int.MIN_VALUE..Int.MAX_VALUE) {
@@ -723,6 +771,7 @@ object AgentConfigResolver {
         return value.toInt()
     }
 
+    /** Internal pair preserving both normalized endpoint and insecure-transport consent. */
     private data class ResolvedPublicEndpoint(
         val baseUrl: String,
         val allowInsecureTransport: Boolean,

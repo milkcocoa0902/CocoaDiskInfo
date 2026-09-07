@@ -29,28 +29,38 @@ private val SecurityJson = Json {
     ignoreUnknownKeys = false
 }
 
+/** Security identity category used to validate node-agent versus client credentials. */
 enum class PrincipalType {
     NODE_AGENT,
     CLIENT,
 }
 
+/** Current principal state; disabled principals remain available for audit/status decisions. */
 enum class PrincipalStatus {
     ACTIVE,
     DISABLED,
 }
 
+/** Bootstrap credential purpose; token lifetime and single-bind state are persisted. */
 enum class BootstrapTokenType {
     JOIN_TOKEN,
     PAIRING_TOKEN,
 }
 
 @OptIn(ExperimentalUuidApi::class)
+/** Persistent Hub identity. The singleton row is independent of runtime/public endpoint values. */
 data class HubIdentity(
     val hubId: Uuid,
     val createdAt: Instant,
 )
 
 @OptIn(ExperimentalUuidApi::class)
+/**
+ * Persisted public security identity.
+ *
+ * The private key is intentionally not part of this DTO or the database lifecycle. [kid] must
+ * derive from [publicKeyJwk], and a node-agent principal carries [nodeId] while a client does not.
+ */
 data class SecurityPrincipal(
     val principalId: Uuid,
     val principalType: PrincipalType,
@@ -83,6 +93,13 @@ data class SecurityPrincipal(
 }
 
 @OptIn(ExperimentalUuidApi::class)
+/**
+ * Short-lived, single-bind bootstrap state.
+ *
+ * The join key is copied on input/output to prevent caller mutation. [usedAt] and [boundKid] are
+ * set together when a key claims the token; expiry is checked by [BootstrapTokenRepository.bind].
+ * Expired/used rows are security metadata and must not be coupled to raw snapshot cleanup.
+ */
 class BootstrapToken(
     val tokenId: Uuid,
     val tokenType: BootstrapTokenType,
@@ -119,6 +136,7 @@ class BootstrapToken(
         }
     }
 
+    /** Returns a defensive copy of the bootstrap key material. */
     fun joinKeyCopy(): ByteArray = joinKeyBytes.copyOf()
 
     companion object {
@@ -126,6 +144,7 @@ class BootstrapToken(
     }
 }
 
+/** Outcome classification for an atomic token claim. */
 sealed interface BootstrapTokenBindResult {
     data class Bound(val token: BootstrapToken) : BootstrapTokenBindResult
     data class AlreadyBound(val token: BootstrapToken) : BootstrapTokenBindResult
@@ -135,26 +154,53 @@ sealed interface BootstrapTokenBindResult {
 }
 
 @OptIn(ExperimentalUuidApi::class)
+/** Repository for the one persistent Hub identity row. */
 interface HubIdentityRepository {
+    /** Inserts [candidate] only on first use, then returns the persisted winner. */
     fun getOrCreate(candidate: HubIdentity): HubIdentity
+
+    /** Returns the persisted identity, if the database has been initialized. */
     fun find(): HubIdentity?
 }
 
 @OptIn(ExperimentalUuidApi::class)
+/** Repository for current principal state; disabling is a state transition, not a delete. */
 interface SecurityPrincipalRepository {
+    /** Inserts a public principal; private key material is outside this repository. */
     fun insert(principal: SecurityPrincipal)
+
+    /** Finds a principal regardless of status. */
     fun findById(principalId: Uuid): SecurityPrincipal?
+
+    /** Finds a principal by its key identifier regardless of status. */
     fun findByKid(kid: String): SecurityPrincipal?
+
+    /** Finds a principal usable for authentication, requiring [PrincipalStatus.ACTIVE]. */
     fun findActiveByKid(kid: String): SecurityPrincipal?
+
+    /** Disables an active principal and returns whether the state changed. */
     fun disable(principalId: Uuid): Boolean
+
+    /** Records monotonic activity for an active principal without moving its clock backwards. */
     fun recordLastSeen(principalId: Uuid, seenAt: Instant): Boolean
 }
 
 @OptIn(ExperimentalUuidApi::class)
+/** Repository for expiring bootstrap state and its atomic one-key binding contract. */
 interface BootstrapTokenRepository {
+    /** Persists a token with its expiry and currently unused binding state. */
     fun insert(token: BootstrapToken)
+
+    /** Finds token state by id; callers must still apply operation-specific expiry rules. */
     fun findById(tokenId: Uuid): BootstrapToken?
 
+    /**
+     * Atomically claims an unused, unexpired token for [kid].
+     *
+     * Returns [BootstrapTokenBindResult.AlreadyBound] for an idempotent same-key retry,
+     * [BootstrapTokenBindResult.DifferentKey] for a conflicting claim, and does not overwrite an
+     * existing binding under concurrency.
+     */
     fun bind(
         tokenId: Uuid,
         kid: String,
@@ -164,6 +210,7 @@ interface BootstrapTokenRepository {
 }
 
 @OptIn(ExperimentalUuidApi::class)
+/** Singleton schema mapping for Hub identity; migration files own table creation. */
 object HubIdentityTable : Table("hub_identity") {
     val singletonKey = integer("singleton_key")
     val hubId = uuid("hub_id")
@@ -173,6 +220,7 @@ object HubIdentityTable : Table("hub_identity") {
 }
 
 @OptIn(ExperimentalUuidApi::class)
+/** Schema mapping for current public principal state and key/status lookup indexes. */
 object SecurityPrincipalTable : Table("security_principal") {
     val principalId = uuid("principal_id")
     val principalType = varchar("principal_type", 32)
@@ -198,6 +246,7 @@ object SecurityPrincipalTable : Table("security_principal") {
 }
 
 @OptIn(ExperimentalUuidApi::class)
+/** Schema mapping for bootstrap-token lifecycle state and expiry lookup. */
 object BootstrapTokenTable : Table("bootstrap_token") {
     val tokenId = uuid("token_id")
     val tokenType = varchar("token_type", 32)
@@ -218,6 +267,7 @@ object BootstrapTokenTable : Table("bootstrap_token") {
 
 @OptIn(ExperimentalUuidApi::class)
 class ExposedHubIdentityRepository : HubIdentityRepository {
+    /** Resolves the insert race by reading the fixed singleton row after insert-ignore. */
     override fun getOrCreate(candidate: HubIdentity): HubIdentity {
         // The fixed key turns concurrent first starts into insert-or-read. The
         // caller's later public URL never participates in Hub identity.
@@ -229,6 +279,7 @@ class ExposedHubIdentityRepository : HubIdentityRepository {
         return checkNotNull(find()) { "Failed to resolve persistent Hub identity." }
     }
 
+    /** Reads the singleton identity without creating it. */
     override fun find(): HubIdentity? = HubIdentityTable
         .selectAll()
         .where { HubIdentityTable.singletonKey eq SINGLETON_KEY }
@@ -248,6 +299,7 @@ class ExposedHubIdentityRepository : HubIdentityRepository {
 
 @OptIn(ExperimentalUuidApi::class)
 class ExposedSecurityPrincipalRepository : SecurityPrincipalRepository {
+    /** Inserts public principal metadata; uniqueness of [SecurityPrincipal.kid] is schema-enforced. */
     override fun insert(principal: SecurityPrincipal) {
         SecurityPrincipalTable.insert {
             it[principalId] = principal.principalId
@@ -318,6 +370,7 @@ class ExposedSecurityPrincipalRepository : SecurityPrincipalRepository {
 
 @OptIn(ExperimentalUuidApi::class)
 class ExposedBootstrapTokenRepository : BootstrapTokenRepository {
+    /** Stores token lifecycle state; cleanup/retention is intentionally a separate maintenance concern. */
     override fun insert(token: BootstrapToken) {
         BootstrapTokenTable.insert {
             it[tokenId] = token.tokenId
@@ -332,6 +385,7 @@ class ExposedBootstrapTokenRepository : BootstrapTokenRepository {
         }
     }
 
+    /** Loads token state, including whether and which key has claimed it. */
     override fun findById(tokenId: Uuid): BootstrapToken? = BootstrapTokenTable
         .selectAll()
         .where { BootstrapTokenTable.tokenId eq tokenId }
@@ -339,6 +393,10 @@ class ExposedBootstrapTokenRepository : BootstrapTokenRepository {
         .singleOrNull()
         ?.toBootstrapToken()
 
+    /**
+     * Performs claim classification around a conditional update so concurrent losers are reported
+     * as same-key idempotency or different-key conflict rather than as a second bind.
+     */
     override fun bind(
         tokenId: Uuid,
         kid: String,

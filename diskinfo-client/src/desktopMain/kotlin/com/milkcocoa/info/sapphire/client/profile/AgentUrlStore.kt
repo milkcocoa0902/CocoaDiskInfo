@@ -2,6 +2,13 @@ package com.milkcocoa.info.sapphire.client.profile
 
 import java.util.prefs.Preferences
 
+/**
+ * Compatibility facade for URL and refresh preferences used by the desktop dashboard.
+ *
+ * [agentUrl] mirrors the versioned connection profile only after validation, so a settings field
+ * can be edited incrementally without making an invalid profile loadable. A non-positive refresh
+ * interval disables the dashboard's periodic loop while retaining manual refresh.
+ */
 object AgentUrlStore {
     private const val PREF_KEY_AGENT_URL = "agent_url"
     private const val PREF_KEY_REFRESH_INTERVAL = "refresh_interval"

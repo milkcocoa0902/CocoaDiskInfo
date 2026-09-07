@@ -19,6 +19,12 @@ import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
 @OptIn(ExperimentalUuidApi::class)
+/**
+ * Adapts local snapshot queries to the shared Hub read contract.
+ * Reads delegate to [snapshotUseCase], preserve bounded paging/history inputs, and evaluate
+ * health at response time using [healthPolicy]. Local nodes have no heartbeat, so their latest
+ * device state is reported with `stale = false` and no heartbeat timestamp.
+ */
 class StandaloneLatestSnapshotsQueryService(
     private val snapshotUseCase: SnapshotUseCase,
     private val clock: Clock = Clock.systemUTC(),

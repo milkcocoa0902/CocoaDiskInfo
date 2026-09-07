@@ -8,6 +8,13 @@ import com.milkcocoa.info.sapphire.core.snapshot.MetricsSnapshot
 import com.milkcocoa.info.sapphire.core.snapshot.UniversalMetrics
 import kotlin.time.Instant
 
+/**
+ * Converts an NVMe smartctl response to a normalized [DiskSnapshot].
+ *
+ * NVMe data-unit counters are defined as 1,000 units of 512 bytes, so the converter reports
+ * bytes by multiplying each counter by `512 * 1000`. The health log is required by the model;
+ * values are copied as reported, including a zero critical-warning count.
+ */
 fun NvmeSmartctlSnapshot.toDiskSnapshot(deviceKeyDeriver: DeviceKeyDeriver): DiskSnapshot {
     val universal = UniversalMetrics(
         temperatureCelsius = this.temperature.current,

@@ -32,17 +32,44 @@ import kotlin.time.Duration.Companion.minutes
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
+/**
+ * Authentication result that is safe to use only after the caller consumes [nonce].
+ *
+ * The nonce is bound to the principal and [purpose]; consuming it is the replay
+ * prevention step and is intentionally separate from cryptographic verification.
+ */
 data class VerifiedPrincipalRequest(
+    /** The active principal whose public key verified the request. */
     val principal: SecurityPrincipal,
+    /** The single-use nonce carried by the verified proof. */
     val nonce: String,
+    /** The route operation for which the proof was verified. */
     val purpose: AuthPurpose,
 )
 
+/** Verifies signed requests while leaving the explicit single-use nonce transition to the caller. */
 class SignedRequestVerifier(
     private val principalRepository: SecurityPrincipalRepository,
     private val transactionRunner: TransactionRunner,
     private val nonceStore: NonceStore,
 ) {
+    /**
+     * Verifies the Authorization JWS, principal type, canonical request, and body digest.
+     *
+     * This method does not consume the nonce. The route must call [consumeNonce] only
+     * after request validation succeeds, so malformed requests do not burn a valid nonce.
+     * For body-bearing requests, [bodyBytes] must be the exact bytes received and exactly
+     * one matching Content-Digest value must be supplied.
+     *
+     * @param authorizationHeaders all Authorization header values from the request.
+     * @param expectedRequest canonical method, path, query, and purpose expected by the route.
+     * @param allowedPrincipalType principal role permitted to invoke the route.
+     * @param bodyBytes raw request body, or null for a bodyless request.
+     * @param contentDigestHeaders Content-Digest header values associated with [bodyBytes].
+     * @return verified principal, nonce, and purpose for the request.
+     * @throws AuthProtocolException when the proof, principal, role, canonical request, or
+     * body binding is invalid.
+     */
     suspend fun verify(
         authorizationHeaders: List<String>,
         expectedRequest: CanonicalRequest,
@@ -75,6 +102,13 @@ class SignedRequestVerifier(
         )
     }
 
+    /**
+     * Atomically consumes the nonce represented by [verified]. A nonce cannot be reused,
+     * and a nonce issued for another principal or purpose is unavailable.
+     *
+     * @throws NonceUnavailableException when the nonce is expired, already consumed, or
+     * bound to a different principal or purpose.
+     */
     fun consumeNonce(verified: VerifiedPrincipalRequest) {
         val result = nonceStore.consume(
             nonce = verified.nonce,
@@ -89,6 +123,7 @@ class SignedRequestVerifier(
         }
     }
 
+    /** Issues the next nonce bound to the same principal and purpose as [verified]. */
     fun issueNextNonce(verified: VerifiedPrincipalRequest, ttl: Duration): IssuedNonce =
         nonceStore.issue(
             binding = NonceBinding(
@@ -119,10 +154,12 @@ class SignedRequestVerifier(
     }
 }
 
+/** Indicates that a signed request nonce cannot be consumed exactly once. */
 class NonceUnavailableException : IllegalArgumentException(
     "Nonce is expired, already used, or has the wrong binding.",
 )
 
+/** Issues nonces only for live bootstrap tokens or active principals allowed for a purpose. */
 class AuthorizedNonceIssuer(
     private val tokenRepository: BootstrapTokenRepository,
     private val principalRepository: SecurityPrincipalRepository,
@@ -130,6 +167,13 @@ class AuthorizedNonceIssuer(
     private val nonceStore: NonceStore,
     private val now: () -> Instant = Instant::now,
 ) {
+    /**
+     * Issues a nonce after checking the subject's repository state and purpose/role pairing.
+     *
+     * @throws NonceSubjectUnavailableException when the token or principal is missing,
+     * expired, disabled, or not authorized for [request].
+     * @throws NonceCapacityExceededException when the nonce store cannot accept another entry.
+     */
     @OptIn(ExperimentalUuidApi::class)
     suspend fun issue(request: NonceIssueRequest, ttl: Duration): IssuedNonce {
         val binding = NonceBinding(request.subjectType, request.subjectId, request.purpose)
@@ -165,15 +209,20 @@ class AuthorizedNonceIssuer(
     }
 }
 
+/** Indicates that a nonce subject is not eligible for the requested authentication purpose. */
 class NonceSubjectUnavailableException : IllegalArgumentException(
     "Nonce subject is unknown, expired, disabled, or not permitted for this purpose.",
 )
 
+/** Bootstrap token record plus the one-time secret that must be delivered to the joiner. */
 data class IssuedBootstrapToken(
+    /** Persisted token metadata; the secret itself is not stored in this object. */
     val token: BootstrapToken,
+    /** Base64url-encoded secret used to compute the registration proof. */
     val secret: String,
 )
 
+/** Creates expiring join or client-pairing tokens and persists only their derived key. */
 @OptIn(ExperimentalUuidApi::class)
 class BootstrapTokenService(
     private val repository: BootstrapTokenRepository,
@@ -181,6 +230,16 @@ class BootstrapTokenService(
     private val now: () -> Instant = Instant::now,
     private val secureRandom: SecureRandom = SecureRandom(),
 ) {
+    /**
+     * Creates and persists a bootstrap token in one write transaction.
+     *
+     * @param type determines whether the token registers a node or pairs a client.
+     * @param ttl positive lifetime of the token.
+     * @param expectedDisplayName optional display-name restriction.
+     * @param recoveryNodeId existing node identity to reactivate for a join token, if any.
+     * @return persisted token metadata and its base64url secret.
+     * @throws IllegalArgumentException when [ttl] is not positive.
+     */
     suspend fun issue(
         type: BootstrapTokenType,
         ttl: Duration = DEFAULT_TTL,
@@ -210,23 +269,36 @@ class BootstrapTokenService(
 }
 
 @OptIn(ExperimentalUuidApi::class)
+/** Input to a proof-of-possession bootstrap registration request. */
 data class BootstrapRegistrationRequest(
+    /** UUID of the join or pairing token. */
     val tokenId: Uuid,
+    /** Token class expected by the endpoint and proof binding. */
     val expectedTokenType: BootstrapTokenType,
+    /** Single-use nonce issued for this token and registration purpose. */
     val nonce: String,
+    /** New principal's Ed25519 public key. */
     val publicKeyJwk: Ed25519PublicJwk,
+    /** Key identifier derived from [publicKeyJwk]. */
     val kid: String,
+    /** Human-readable node/client name subject to token policy. */
     val displayName: String,
+    /** Required for node joins; forbidden for client pairing. */
     val expectedCollectionIntervalSeconds: Long? = null,
+    /** Base64url HMAC proof over the canonical hub/token/request identity. */
     val proof: String,
 )
 
+/** Result of bootstrap registration, including the hub identity and created/reused principal. */
 @OptIn(ExperimentalUuidApi::class)
 data class BootstrapRegistrationResult(
+    /** Stable hub identity used in join proof canonicalization. */
     val hubId: Uuid,
+    /** Active principal bound to the presented key. */
     val principal: SecurityPrincipal,
 )
 
+/** Validates bootstrap proofs and atomically binds tokens to principals and node records. */
 @OptIn(ExperimentalUuidApi::class)
 class BootstrapRegistrationService(
     private val hubIdentityRepository: HubIdentityRepository,
@@ -237,6 +309,14 @@ class BootstrapRegistrationService(
     private val nonceStore: NonceStore,
     private val now: () -> Instant = Instant::now,
 ) {
+    /**
+     * Validates and registers [request]. Token type, expiry, name, key identifier, interval,
+     * and HMAC are checked before the nonce is consumed. Principal/token/node registry writes
+     * then occur in one transaction; retrying an already-bound key returns the existing principal.
+     *
+     * @throws BootstrapRegistrationException for protocol, token, name, key, or interval errors.
+     * @throws NonceUnavailableException when the registration nonce is not available.
+     */
     suspend fun register(request: BootstrapRegistrationRequest): BootstrapRegistrationResult {
         validateRequest(request)
         val hubIdentity = transactionRunner.readOnly {
@@ -374,6 +454,7 @@ class BootstrapRegistrationService(
     }
 }
 
+/** Typed bootstrap failure whose [code] maps to the HTTP API error contract. */
 class BootstrapRegistrationException(
     val code: String,
     message: String,

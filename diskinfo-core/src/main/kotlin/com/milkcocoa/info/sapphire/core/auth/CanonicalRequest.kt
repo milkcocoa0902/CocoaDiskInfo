@@ -4,11 +4,17 @@ import java.io.ByteArrayOutputStream
 import java.nio.charset.StandardCharsets
 import java.util.Locale
 
+/** Validated HTTP request identity reconstructed by both signer and verifier. */
 data class CanonicalRequest(
+    /** Uppercase HTTP method. */
     val method: String,
+    /** Absolute path beginning with `/`, without query or fragment. */
     val path: String,
+    /** Canonical query without a leading `?`; empty means no effective parameters. */
     val query: String,
+    /** Endpoint purpose that scopes the proof. */
     val purpose: AuthPurpose,
+    /** Unpadded base64url SHA-256 body digest, or null for bodyless requests. */
     val bodySha256: String? = null,
 ) {
     init {
@@ -22,6 +28,7 @@ data class CanonicalRequest(
         bodySha256?.let { Base64Url.decodeExact(it, expectedSize = 32, fieldName = "bodySha256") }
     }
 
+    /** Adds a validated server nonce to produce the exact payload covered by a signature. */
     fun signedPayload(nonce: String): SignedRequestPayload {
         Base64Url.decodeExact(nonce, expectedSize = 32, fieldName = "nonce")
         return SignedRequestPayload(
@@ -35,12 +42,15 @@ data class CanonicalRequest(
     }
 }
 
+/** Canonicalizes route and query inputs so equivalent HTTP spellings sign identically. */
 object CanonicalRequestCodec {
+    /** Uppercases an HTTP method using locale-independent rules. */
     fun method(value: String): String {
         require(value.isNotBlank()) { "HTTP method must not be blank." }
         return value.uppercase(Locale.ROOT)
     }
 
+    /** Percent-encodes decoded route segments while keeping segment boundaries unambiguous. */
     fun path(vararg decodedSegments: String): String {
         require(decodedSegments.isNotEmpty()) { "Canonical path requires at least one segment." }
         require(decodedSegments.none(String::isBlank)) { "Canonical path segments must not be blank." }
@@ -50,6 +60,10 @@ object CanonicalRequestCodec {
         return decodedSegments.joinToString(separator = "/", prefix = "/") { percentEncode(it) }
     }
 
+    /**
+     * Sorts effective query names and encodes names and values using UTF-8 percent encoding.
+     * Null values are omitted; callers must supply defaults before invoking this function.
+     */
     fun query(effectiveValues: Map<String, String?>): String {
         require(effectiveValues.keys.none(String::isBlank)) { "Canonical query names must not be blank." }
 
@@ -64,6 +78,7 @@ object CanonicalRequestCodec {
             }
     }
 
+    /** Rejects unknown or repeated raw parameters before effective query canonicalization. */
     fun validateRawQueryShape(
         rawParameters: List<Pair<String, String>>,
         knownNames: Set<String>,

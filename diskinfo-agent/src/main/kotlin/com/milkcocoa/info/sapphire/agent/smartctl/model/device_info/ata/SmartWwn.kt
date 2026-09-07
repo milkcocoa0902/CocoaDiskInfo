@@ -3,6 +3,7 @@ package com.milkcocoa.info.sapphire.agent.smartctl.model.ata
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
+/** World Wide Name components reported for an ATA device. */
 @Serializable
 @SerialName("wwn")
 data class SmartWwn(

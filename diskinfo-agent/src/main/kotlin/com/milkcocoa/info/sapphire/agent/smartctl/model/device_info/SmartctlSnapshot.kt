@@ -11,6 +11,13 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 
+/**
+ * Common portion of a smartctl device-info JSON response.
+ *
+ * The polymorphic serializer selects [AtaSmartctlSnapshot] or [NvmeSmartctlSnapshot] using the
+ * JSON `device.protocol` value. Unknown protocols are rejected because no safe metric mapping
+ * exists for them.
+ */
 @Serializable(with = SmartctlSnapshot.SmartctlSnapshotSerializer::class)
 sealed interface SmartctlSnapshot: SmartCtlCommandResponse {
     @SerialName("json_format_version")
@@ -58,6 +65,7 @@ sealed interface SmartctlSnapshot: SmartCtlCommandResponse {
     @SerialName("power_on_time")
     val powerOnTime: SmartPowerOnTime
 
+    /** Chooses a protocol model from the smartctl JSON device descriptor. */
     object SmartctlSnapshotSerializer : JsonContentPolymorphicSerializer<SmartctlSnapshot>(SmartctlSnapshot::class) {
         override fun selectDeserializer(element: JsonElement): DeserializationStrategy<SmartctlSnapshot> {
             val deviceProtocol = element.jsonObject["device"]?.jsonObject?.get("protocol")?.jsonPrimitive?.content
@@ -70,4 +78,3 @@ sealed interface SmartctlSnapshot: SmartCtlCommandResponse {
         }
     }
 }
-

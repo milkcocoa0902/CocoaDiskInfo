@@ -7,6 +7,12 @@ import com.milkcocoa.info.sapphire.core.snapshot.AttributeStatus
 import com.milkcocoa.info.sapphire.core.snapshot.EvaluatedDiskSnapshot
 import com.milkcocoa.info.sapphire.core.snapshot.MetricsSnapshot
 
+/**
+ * Converts ATA metrics into stable table rows for the detail pane.
+ *
+ * Attributes are ordered by policy severity (worst first), then numeric ID. Missing evaluation
+ * metadata is deliberately shown as [AttributeStatus.UNKNOWN] instead of inferred as healthy.
+ */
 internal fun ataInformationRows(
     snapshot: EvaluatedDiskSnapshot,
     metrics: MetricsSnapshot.AtaMetricsSnapshot,
@@ -38,6 +44,7 @@ private fun AtaAttribute.evaluationStatus(
 
 private fun AtaAttribute.displayLabel(): String = id.name
 
+/** Display-ready ATA attribute values; formatting is kept out of the composable table. */
 internal data class AtaInformationRowValue(
     val status: AttributeStatus,
     val id: String,

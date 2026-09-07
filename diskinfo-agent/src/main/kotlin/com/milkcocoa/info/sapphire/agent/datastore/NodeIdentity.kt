@@ -7,12 +7,15 @@ import java.util.UUID
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
+/** Stable local node identity derived from the host name for registry and snapshot ownership. */
 object NodeIdentity {
+    /** Host name captured lazily so startup can override/test process state before first access. */
     val nodeName: String by lazy {
         InetAddress.getLocalHost().hostName
     }
 
     @OptIn(ExperimentalUuidApi::class)
+    /** UUIDv5-shaped identifier derived from [nodeName], stable across process restarts. */
     val nodeId: Uuid by lazy {
         val namespace = UUID.nameUUIDFromBytes("com.milkcocoa.info.sapphire.node".toByteArray())
         val md = MessageDigest.getInstance("SHA-1")

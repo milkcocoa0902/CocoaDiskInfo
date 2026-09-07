@@ -15,6 +15,12 @@ import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.X509TrustManager
 
 internal object DefaultConnectionHttpClientFactory : ConnectionHttpClientFactory {
+    /**
+     * Creates a CIO client with platform trust plus an optional PEM CA.
+     *
+     * Adding a PEM CA supplements, rather than replaces, platform trust and keeps hostname
+     * verification enabled. Plain HTTP is rejected unless the profile explicitly opts in.
+     */
     override fun create(profile: ConnectionProfile): HttpClient {
         validateTransportOptIn(profile)
         val additionalTrustManager = profile.pemCaPath?.let(::pemTrustManager)
@@ -36,6 +42,7 @@ internal object DefaultConnectionHttpClientFactory : ConnectionHttpClientFactory
     }
 }
 
+/** Rejects clear-text HTTP unless the profile records an explicit operator opt-in. */
 internal fun validateTransportOptIn(profile: ConnectionProfile) {
     val scheme = java.net.URI(profile.baseUrl).scheme.lowercase(java.util.Locale.ROOT)
     if (scheme == "http" && !profile.allowInsecureTransport) {
@@ -45,6 +52,7 @@ internal fun validateTransportOptIn(profile: ConnectionProfile) {
     }
 }
 
+/** Loads one or more X.509 certificates from a regular PEM file for supplemental trust. */
 private fun pemTrustManager(pathValue: String): X509TrustManager {
     val path = Path.of(pathValue).toAbsolutePath().normalize()
     if (!Files.isRegularFile(path)) {
@@ -77,6 +85,7 @@ private fun trustManager(keyStore: KeyStore?): X509TrustManager {
         ?: throw AgentApiException("X.509 trust manager is unavailable.")
 }
 
+/** Trusts a server when either the platform roots or configured PEM roots validate the chain. */
 private class CompositeTrustManager(
     private val delegates: List<X509TrustManager>,
 ) : X509TrustManager {

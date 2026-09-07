@@ -15,6 +15,7 @@ import com.milkcocoa.info.sapphire.client.presentation.nonGoodEvaluations
 import com.milkcocoa.info.sapphire.client.presentation.presentationText
 import com.milkcocoa.info.sapphire.core.snapshot.EvaluatedDiskSnapshot
 
+/** Lists only non-GOOD policy findings; an all-good snapshot contributes no extra section. */
 @Composable
 internal fun NonGoodEvaluationList(snapshot: EvaluatedDiskSnapshot) {
     val evaluations = snapshot.nonGoodEvaluations()

@@ -24,20 +24,39 @@ import kotlinx.serialization.encodeToString
 import java.nio.charset.StandardCharsets
 import java.nio.file.Path
 
+/** Inputs for one Hub bootstrap/join exchange. */
 data class NodeAgentJoinCommand(
+    /** Hub endpoint and explicit HTTP/TLS policy. */
     val connection: NodeAgentConnection,
+    /** Expected stable Hub identity, checked against the response. */
     val hubId: String,
+    /** UUID of the one-time join token. */
     val joinTokenId: String,
+    /** Base64url 32-byte secret paired with [joinTokenId]. */
     val joinTokenSecret: String,
+    /** Node display name submitted to the Hub. */
     val nodeName: String,
+    /** Positive collection interval registered for the node. */
     val expectedCollectionIntervalSeconds: Long,
+    /** Owner-only path where the resulting private credential is saved with a replacement move. */
     val credentialPath: Path,
 )
 
+/** Performs nonce issuance, HMAC proof-of-possession join, and credential persistence. */
 class NodeAgentJoinClient(
     private val credentialStore: NodeAgentCredentialStore = OwnerOnlyJsonNodeAgentCredentialStore(),
     private val httpClientFactory: NodeAgentHttpClientFactory = DefaultNodeAgentHttpClientFactory,
 ) {
+    /**
+     * Generates a fresh Ed25519 identity, joins the expected Hub, and saves the credential.
+     * After an HTTP client is created, exchange cleanup clears the token secret and closes that
+     * client.
+     *
+     * @return the validated credential written to [NodeAgentJoinCommand.credentialPath].
+     * @throws IllegalArgumentException for invalid command or connection values.
+     * @throws NodeAgentTransportException for rejected/malformed responses or mismatched Hub,
+     * key, node, or principal identities.
+     */
     suspend fun join(command: NodeAgentJoinCommand): NodeAgentCredential {
         val connection = command.connection.validate()
         require(command.hubId.isNotBlank()) { "Hub id must not be blank." }

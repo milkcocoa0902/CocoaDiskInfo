@@ -27,41 +27,65 @@ import java.nio.file.attribute.PosixFilePermissions
 import java.nio.file.attribute.UserPrincipal
 import java.util.EnumSet
 
+/** On-disk identity used to sign authenticated client reads. */
 @Serializable
 data class ClientCredential(
+    /** Serialized credential schema revision. */
     val version: Int = CURRENT_CLIENT_CREDENTIAL_VERSION,
+    /** Hub identity to which this credential is registered. */
     val hubId: String,
+    /** Hub/Agent endpoint associated with the signing credential. */
     val endpoint: String,
+    /** RFC 7638 thumbprint of [publicKeyJwk], used as the credential identifier. */
     val kid: String,
+    /** Ed25519 private key encoded as unpadded Base64URL PKCS#8 bytes. */
     val privateKeyPkcs8: String,
+    /** Ed25519 public key whose thumbprint must equal [kid]. */
     val publicKeyJwk: Ed25519PublicJwk,
+    /** Principal role encoded in the credential; desktop credentials must be [CLIENT]. */
     val principalType: CredentialPrincipalType,
+    /** Node identity for node-agent credentials; absent for desktop client credentials. */
     val nodeId: String? = null,
 )
 
+/** Principal role encoded in the credential schema; desktop pairing creates [CLIENT]. */
 @Serializable
 enum class CredentialPrincipalType {
+    /** Desktop/client principal used for authenticated reads. */
     CLIENT,
+    /** Node-agent principal role reserved for node-agent credential formats. */
     NODE_AGENT,
 }
 
+/** Loads and securely persists owner-only client signing credentials. */
 interface ClientCredentialStore {
+    /** Loads, validates, and returns a credential from [path]. */
     fun load(path: Path): ClientCredential
 
+    /** Validates and persists [credential] at [path] through an owner-only temporary file. */
     fun save(
         path: Path,
         credential: ClientCredential,
     )
 }
 
+/** Signals invalid credential content, permissions, or secure-file persistence failure. */
 class ClientCredentialStoreException(
     message: String,
     cause: Throwable? = null,
 ) : IllegalStateException(message, cause)
 
+/**
+ * JSON credential store that requires a non-symlink owner-only regular file.
+ *
+ * Reads reject files whose POSIX mode or Windows ACL grants another principal access. Writes use
+ * an owner-only temporary file and replace the target, preventing a partially written private key
+ * from being exposed. Unsupported filesystems fail closed.
+ */
 class OwnerOnlyJsonClientCredentialStore(
     private val json: Json = CredentialJson,
 ) : ClientCredentialStore {
+    /** Reads and schema-validates a credential without following a symbolic link. */
     override fun load(path: Path): ClientCredential {
         val normalizedPath = path.toAbsolutePath().normalize()
         requireSecureRegularFile(normalizedPath)
@@ -202,6 +226,7 @@ class OwnerOnlyJsonClientCredentialStore(
 
 internal const val CURRENT_CLIENT_CREDENTIAL_VERSION = 1
 
+/** Returns whether an ACL grants read access only to [owner]. */
 internal fun hasOnlyOwnerAccess(
     owner: UserPrincipal,
     entries: List<AclEntry>,
@@ -225,6 +250,7 @@ private fun windowsOwnerOnlyAttribute(owner: UserPrincipal): FileAttribute<List<
     }
 }
 
+/** Enforces the credential version, Ed25519 key binding, and client-principal-only invariants. */
 private fun validateClientCredential(credential: ClientCredential): ClientCredential {
     require(credential.version == CURRENT_CLIENT_CREDENTIAL_VERSION) {
         "Unsupported client credential version: ${credential.version}."

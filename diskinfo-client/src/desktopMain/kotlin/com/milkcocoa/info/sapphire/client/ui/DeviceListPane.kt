@@ -31,6 +31,7 @@ import com.milkcocoa.info.sapphire.client.presentation.healthColor
 import com.milkcocoa.info.sapphire.core.api.NodeSnapshot
 import com.milkcocoa.info.sapphire.core.snapshot.EvaluatedDiskSnapshot
 
+/** Groups current snapshots by node and emits stable composite keys for selection and freshness. */
 @Composable
 internal fun DeviceListPane(
     nodes: List<NodeSnapshot>,
@@ -63,6 +64,7 @@ internal fun DeviceListPane(
     }
 }
 
+/** Displays a node label and count; the node ID remains visible for disambiguation. */
 @Composable
 private fun NodeHeader(node: NodeSnapshot) {
     Column(
@@ -88,6 +90,7 @@ private fun NodeHeader(node: NodeSnapshot) {
     }
 }
 
+/** Shows identity, evaluated health, and cache freshness for one selectable device. */
 @Composable
 private fun DeviceRow(
     snapshot: EvaluatedDiskSnapshot,

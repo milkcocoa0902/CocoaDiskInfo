@@ -21,6 +21,10 @@ import com.milkcocoa.info.sapphire.client.presentation.nonGoodEvaluations
 import com.milkcocoa.info.sapphire.core.snapshot.EvaluatedDiskSnapshot
 import com.milkcocoa.info.sapphire.core.snapshot.MetricsSnapshot
 
+/**
+ * Shows protocol-specific details in a scrollable card and appends non-good policy findings.
+ * NVMe metrics remain explicit about the unsupported table rather than silently omitting data.
+ */
 @Composable
 internal fun DetailInfoList(
     snapshot: EvaluatedDiskSnapshot,

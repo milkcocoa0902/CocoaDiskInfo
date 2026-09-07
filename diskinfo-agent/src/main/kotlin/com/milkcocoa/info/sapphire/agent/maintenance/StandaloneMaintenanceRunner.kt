@@ -7,14 +7,26 @@ import com.milkcocoa.info.sapphire.agent.usecase.SnapshotMaintenanceUseCase
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 
+/** Result of one serialized periodic raw-snapshot cleanup attempt. */
 sealed interface PeriodicMaintenanceRunResult {
+    /** Cleanup completed and includes dry-run/deletion/vacuum accounting from the use case. */
     data class Completed(val cleanup: SnapshotCleanupResult) : PeriodicMaintenanceRunResult
 
+    /** Cleanup failed; the standalone loop may continue operating. */
     data class Failed(val error: Exception) : PeriodicMaintenanceRunResult
 
+    /** Cleanup was skipped because another invocation still owns the execution mutex. */
     data object Skipped : PeriodicMaintenanceRunResult
 }
 
+/**
+ * Serializes periodic cleanup and applies the raw-snapshot retention policy.
+ *
+ * The retention cutoff is delegated to [maintenanceUseCase]. A failed cleanup is reported rather
+ * than terminating long-running standalone execution; coroutine cancellation is propagated. The
+ * optional vacuum is a separate backend maintenance action after cleanup, not part of the delete
+ * transaction.
+ */
 class PeriodicMaintenanceRunner(
     private val maintenanceUseCase: SnapshotMaintenanceUseCase,
     private val rawSnapshotDays: Int,
@@ -22,6 +34,7 @@ class PeriodicMaintenanceRunner(
 ) {
     private val executionMutex = Mutex()
 
+    /** Runs one non-dry-run cleanup, or returns [PeriodicMaintenanceRunResult.Skipped]. */
     suspend fun runCleanup(): PeriodicMaintenanceRunResult {
         if (!executionMutex.tryLock()) {
             Colotok.warn(
@@ -74,14 +87,19 @@ class PeriodicMaintenanceRunner(
     }
 }
 
+/** Public standalone-mode projection of [PeriodicMaintenanceRunResult]. */
 sealed interface StandaloneMaintenanceRunResult {
+    /** Cleanup completed successfully. */
     data class Completed(val cleanup: SnapshotCleanupResult) : StandaloneMaintenanceRunResult
 
+    /** Cleanup failed but the caller can keep the process alive. */
     data class Failed(val error: Exception) : StandaloneMaintenanceRunResult
 
+    /** Cleanup did not start because another invocation was already running. */
     data object Skipped : StandaloneMaintenanceRunResult
 }
 
+/** Standalone-facing adapter that preserves the periodic cleanup and failure contract. */
 class StandaloneMaintenanceRunner(
     maintenanceUseCase: SnapshotMaintenanceUseCase,
     rawSnapshotDays: Int,
@@ -93,6 +111,7 @@ class StandaloneMaintenanceRunner(
         vacuumAfterCleanup = vacuumAfterCleanup,
     )
 
+    /** Runs one serialized cleanup attempt using the configured retention and vacuum settings. */
     suspend fun runCleanup(): StandaloneMaintenanceRunResult = when (val result = delegate.runCleanup()) {
         is PeriodicMaintenanceRunResult.Completed ->
             StandaloneMaintenanceRunResult.Completed(result.cleanup)

@@ -45,6 +45,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.milliseconds
 
+/**
+ * Shows current node/device state and periodically refreshes it.
+ *
+ * A refresh keeps the selected `(nodeId, deviceKey)` when that identity is still present; otherwise
+ * it selects the first available device. A non-positive persisted interval disables only the loop,
+ * while the explicit Refresh action remains available.
+ */
 @Composable
 internal fun Dashboard(agentApiClient: AgentApiClient) {
     val scope = rememberCoroutineScope()
@@ -140,6 +147,7 @@ internal fun Dashboard(agentApiClient: AgentApiClient) {
     }
 }
 
+/** Displays refresh/error/partial/freshness messaging and the manual refresh action. */
 @Composable
 private fun Header(
     isRefreshing: Boolean,
@@ -188,6 +196,7 @@ private fun Header(
     }
 }
 
+/** Compact dashboard statistic tile; values are already formatted by the caller. */
 @Composable
 private fun SummaryCard(
     title: String,
@@ -222,6 +231,7 @@ private fun SummaryCard(
 }
 
 
+/** Compose state for the latest device list, including transport and freshness presentation data. */
 internal data class DeviceListState(
     val isLoading: Boolean = false,
     val nodes: List<NodeSnapshot> = emptyList(),
@@ -234,4 +244,5 @@ internal data class DeviceListState(
     ),
 )
 
+/** Loads history for the stable node/device identity selected in the list. */
 internal typealias DeviceHistoryLoader = suspend (String, String) -> NodeDeviceHistoryPayload

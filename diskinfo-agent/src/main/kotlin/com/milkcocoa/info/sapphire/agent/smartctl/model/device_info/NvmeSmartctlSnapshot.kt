@@ -17,6 +17,14 @@ import com.milkcocoa.info.sapphire.agent.smartctl.model.nvme.NvmeVersion
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
+/**
+ * Complete NVMe device-info response emitted by smartctl's JSON mode.
+ *
+ * Namespace sizes and capacities are supplied in both logical blocks and bytes. The required
+ * health, error, and self-test logs are modeled as non-null because the converter relies on the
+ * health log; smartctl responses that omit them fail decoding rather than silently inventing
+ * health metrics.
+ */
 @Serializable
 data class NvmeSmartctlSnapshot(
     @SerialName("json_format_version")

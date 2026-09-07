@@ -11,6 +11,10 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.time.Duration
 
+/**
+ * Starts cleanup after application startup and cancels it during shutdown.
+ * The first cleanup runs after [cleanupInterval]; a non-positive interval is rejected.
+ */
 fun Application.installStandaloneMaintenance(
     runner: StandaloneMaintenanceRunner,
     cleanupInterval: Duration,
@@ -36,6 +40,10 @@ fun Application.installStandaloneMaintenance(
     }
 }
 
+/**
+ * Starts periodic maintenance for a generic runner with the same startup/shutdown lifecycle
+ * as Standalone cleanup. The first run is delayed by [cleanupInterval].
+ */
 fun Application.installPeriodicMaintenance(
     runner: PeriodicMaintenanceRunner,
     cleanupInterval: Duration,

@@ -14,15 +14,25 @@ import kotlin.time.Instant
  */
 @Serializable
 data class EvaluatedDiskSnapshot(
+    /** Collection time inherited from the observed snapshot. */
     val timestamp: Instant,
+    /** Stable device identity inherited from the observed snapshot. */
     val deviceKey: String,
+    /** Device path at collection time. */
     val path: String,
+    /** Device model, if reported. */
     val model: String?,
+    /** Device serial number, if reported. */
     val serial: String?,
+    /** Nominal capacity in bytes. */
     val capacityBytes: Long,
+    /** Temperature in degrees Celsius, if reported. */
     val temperatureCelsius: Int?,
+    /** Powered-on time in hours, if reported. */
     val powerOnHours: Long?,
+    /** Policy-derived display health; legacy responses may contain only the reported value. */
     val health: DiskHealth,
+    /** Raw protocol metrics retained alongside the policy result. */
     val metricsSnapshot: MetricsSnapshot,
     /** Null when decoding a legacy server response that predates evaluated views. */
     val reportedHealth: DiskHealth? = null,
@@ -32,6 +42,7 @@ data class EvaluatedDiskSnapshot(
     val evaluationPolicy: HealthPolicyMetadata? = null,
 ) : ResponsePayload
 
+/** Applies [policy] while preserving the observation and recording policy provenance. */
 fun DiskSnapshot.toEvaluatedDiskSnapshot(policy: HealthPolicy): EvaluatedDiskSnapshot {
     val result = try {
         policy.evaluate(this)
@@ -59,6 +70,7 @@ fun DiskSnapshot.toEvaluatedDiskSnapshot(policy: HealthPolicy): EvaluatedDiskSna
     )
 }
 
+/** Signals that a health policy failed for a specific device observation. */
 class SnapshotEvaluationException(
     policy: HealthPolicyMetadata,
     deviceKey: String,

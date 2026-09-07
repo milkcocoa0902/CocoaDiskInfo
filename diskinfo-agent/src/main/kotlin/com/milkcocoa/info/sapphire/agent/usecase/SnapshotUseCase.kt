@@ -16,21 +16,38 @@ import java.time.Clock
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
+/**
+ * Application boundary for local snapshot persistence and bounded latest/history queries.
+ * Implementations must keep repository work inside the appropriate transaction runner and
+ * return raw observations; API adapters apply the active health policy when rendering them.
+ */
 interface SnapshotUseCase {
+    /** Persists [snapshot] with a generated ingest id and local origin. */
     suspend fun saveSnapshot(snapshot: DiskSnapshot)
 
+    /** Returns one raw latest row per known origin/node. */
     suspend fun findLatestNodes(): List<RawNodeSnapshot>
 
+    /** Returns the latest raw snapshot for the stable [deviceKey], or null when absent. */
     suspend fun findLatestByDeviceKey(deviceKey: String): DiskSnapshot?
 
+    /**
+     * Returns a node-scoped latest row, or null when no row exists for the node/device pair.
+     * Implementations that do not support this operation throw [IllegalStateException].
+     */
     @OptIn(ExperimentalUuidApi::class)
     suspend fun findLatest(nodeId: Uuid, deviceKey: String): StoredDiskSnapshot? =
         error("Node-scoped latest lookup is not implemented.")
 
+    /**
+     * Returns one bounded latest page and an opaque repository cursor when more rows exist.
+     * Implementations that do not support this operation throw [IllegalStateException].
+     */
     suspend fun findLatestPage(request: LatestSnapshotPageRequest): LatestSnapshotPage =
         error("Paged latest lookup is not implemented.")
 
     @OptIn(ExperimentalUuidApi::class)
+    /** Returns bounded raw history for the node/device pair in the requested time/order window. */
     suspend fun findHistory(
         nodeId: Uuid,
         deviceKey: String,
@@ -39,6 +56,7 @@ interface SnapshotUseCase {
 }
 
 @OptIn(ExperimentalUuidApi::class)
+/** Snapshot use case whose every repository operation runs in a read-only/read-write transaction. */
 class TransactionalSnapshotUseCase(
     private val repository: DiskSnapshotRepository,
     private val transactionRunner: TransactionRunner,
@@ -95,7 +113,9 @@ class TransactionalSnapshotUseCase(
         }
 }
 
+/** Supplies the origin attached to locally collected snapshots. */
 fun interface SnapshotOriginProvider {
+    /** Returns the current node identity and display name. */
     fun get(): SnapshotOrigin
 }
 
@@ -108,6 +128,8 @@ private object LocalSnapshotOriginProvider : SnapshotOriginProvider {
 }
 
 @OptIn(ExperimentalUuidApi::class)
+/** Generates the idempotency identity attached to locally persisted snapshots. */
 fun interface IngestIdProvider {
+    /** Returns a new ingest UUID. */
     fun create(): Uuid
 }

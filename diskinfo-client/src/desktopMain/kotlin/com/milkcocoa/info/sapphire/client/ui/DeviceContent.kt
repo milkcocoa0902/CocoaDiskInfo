@@ -12,6 +12,11 @@ import com.milkcocoa.info.sapphire.client.presentation.DeviceIdentity
 import com.milkcocoa.info.sapphire.client.presentation.FreshnessPresentation
 import com.milkcocoa.info.sapphire.core.api.NodeSnapshot
 
+/**
+ * Chooses the dashboard's loading, error, empty, or list/detail state from [uiState].
+ * Selection is kept as separate node and device keys so history cannot be requested for an
+ * ambiguous device key from another node.
+ */
 @Composable
 internal fun DeviceContent(
     uiState: DeviceListState,
@@ -49,6 +54,7 @@ internal fun DeviceContent(
     }
 }
 
+/** Renders the desktop two-pane view and falls back to the first node, then that node's first device. */
 @Composable
 private fun DeviceSnapshotContent(
     nodes: List<NodeSnapshot>,
