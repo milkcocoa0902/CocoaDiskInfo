@@ -6,7 +6,7 @@ kotlin = "2.3.21"
 compose = "1.11.0"
 composeMaterial3 = "1.9.0"
 composeMaterialIcons = "1.7.3"
-colotok = "0.4.2"
+colotok = "1.0.0"
 ktor = "3.5.0"
 
 [libraries]
