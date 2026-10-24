@@ -445,7 +445,7 @@ private object BlockingSapphireExecutorRunner : SapphireExecutorRunner {
             try {
                 executor.execute()
             } finally {
-                Colotok.forceShutdown()
+                ColotokLoggerContext.default.forceShutdown()
             }
         }
     }

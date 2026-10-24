@@ -10,7 +10,7 @@ import com.milkcocoa.info.sapphire.agent.logging.SapphireConsoleTextFormatter
 object ColotokProviderFactory {
     /**
      * Creates a context containing the single console provider used by the agent.
-     * Structured/default JSON output keeps the detail formatter; TEXT and CBOR use the
+     * Structured/default JSON output uses the detail formatter without ANSI colors; TEXT and CBOR use the
      * Sapphire formatter so snapshots remain readable.
      *
      * @param outputMode controls formatter selection; it does not change the log level.
@@ -28,7 +28,10 @@ object ColotokProviderFactory {
         level = LogLevel.INFO
         formatter = when (outputMode) {
             OutputMode.DEFAULT,
-            OutputMode.JSON -> DetailStructureFormatter
+            OutputMode.JSON -> {
+                colorize = false
+                DetailStructureFormatter
+            }
             OutputMode.TEXT,
             OutputMode.CBOR -> SapphireConsoleTextFormatter
         }

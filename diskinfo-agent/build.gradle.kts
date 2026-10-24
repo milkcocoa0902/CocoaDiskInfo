@@ -14,8 +14,8 @@ repositories {
 
 dependencies {
     implementation(project(":diskinfo-core"))
-    implementation("io.github.milkcocoa0902:colotok:0.4.2")
-    implementation("io.github.milkcocoa0902:colotok-coroutines:0.4.2")
+    implementation("io.github.milkcocoa0902:colotok:1.0.0")
+    implementation("io.github.milkcocoa0902:colotok-coroutines:1.0.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-cbor:1.10.0")

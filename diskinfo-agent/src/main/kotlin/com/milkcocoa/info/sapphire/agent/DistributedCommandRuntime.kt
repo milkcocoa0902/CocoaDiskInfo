@@ -166,7 +166,7 @@ internal class ProductionDistributedCommandRuntime(
                 ).execute()
             } finally {
                 transport.close()
-                Colotok.forceShutdown()
+                ColotokLoggerContext.default.forceShutdown()
             }
         }
     }
@@ -307,7 +307,7 @@ internal class ProductionDistributedCommandRuntime(
                         cleanupInterval = request.cleanupIntervalHours.hours,
                     ).execute()
                 } finally {
-                    Colotok.forceShutdown()
+                    ColotokLoggerContext.default.forceShutdown()
                 }
             }
         }
